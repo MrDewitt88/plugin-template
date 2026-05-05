@@ -1,0 +1,37 @@
+{
+  "name": "@nexus/plugin-svelte-foundation",
+  "version": "0.0.1",
+  "description": "Plugin-UI Foundation — Svelte 5 Custom-Elements + Theme-Attribut + 16-Token-Convention + Bundle-Pipeline",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./theme": {
+      "types": "./dist/theme/index.d.ts",
+      "default": "./dist/theme/index.js"
+    },
+    "./build": {
+      "types": "./dist/build/index.d.ts",
+      "default": "./dist/build/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
