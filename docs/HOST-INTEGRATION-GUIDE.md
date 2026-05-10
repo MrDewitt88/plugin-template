@@ -438,14 +438,29 @@ Vor Production-Release:
 
 ---
 
-## 12. References
+## 12. Host-Companion-Docs
+
+Per-Host implementation-specifics (Identity-Modell, Keypair-Source, Tenant-Mapping, etc.) leben als Companion-Docs im jeweiligen Host-Repo. Plugin-Template's `HOST-INTEGRATION-GUIDE.md` (dieses Dokument) bleibt high-level Cross-Repo-Vertrag; Host-Specifics werden per Companion-Link referenziert. Pattern aligned mit `PLUGIN-KIARA-INTEGRATION.md §4.4` (Cross-Repo bereits etabliert für die Frag-Kiara-Integration).
+
+| Host | Companion-Doc |
+|---|---|
+| **TeamMindV8** | inline in diesem Guide (§§1-11); Engineering-Reference: `MrDewitt88/TeamMindV8/CLAUDE.md` + `docs/teammind-v8-A2S.md` |
+| **Theseus/myMind** | [PLUGIN-TEMPLATE-HOST-SECTION-THESEUS.md](https://github.com/MrDewitt88/Theseus-Agent/blob/main/docs/PLUGIN-TEMPLATE-HOST-SECTION-THESEUS.md) — Identity (single-user-multi-agent), file-based Keypair-Persistence (`~/.theseus/plugins/keys/`), `/register-tenants` agent-mapping, Persona-Layer-Integration |
+| **FamilyMind** | tbd (Phase 4 Hard-Fork) |
+| **KANBAN, ET-Mind** (future) | tbd (Phase-3.5+ Adoption) |
+
+Pattern skaliert linear: pro neuem Host eine zusätzliche Tabellenzeile + Companion-Doc im Host-Repo. Plugin-Template-Guide bleibt Host-agnostic.
+
+---
+
+## 13. References
 
 - V8s implementation as reference: `MrDewitt88/TeamMindV8`:
   - `packages/plugins/src/server/` — activation/health-monitor/routing/sidebar
   - `apps/host/src/routes/(app)/plugins/[plugin_id]/[...path]/` — UI-Mount
   - `apps/host/src/lib/core/plugins/kiara-bridge.ts` — Frag-Kiara-Builder
 
-- Theseus' Companion-Doc: `MrDewitt88/Theseus-Agent/docs/PLUGIN-KIARA-INTEGRATION-THESEUS.md`
+- Theseus' Companion-Docs: `MrDewitt88/Theseus-Agent/docs/PLUGIN-KIARA-INTEGRATION-THESEUS.md`, `MrDewitt88/Theseus-Agent/docs/PLUGIN-TEMPLATE-HOST-SECTION-THESEUS.md`
 
 - Foundation-Packages (this repo):
   - `@nexus/plugin-bridge-foundation` — wenn Host gleichzeitig Plugin-Provider ist
