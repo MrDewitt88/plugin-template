@@ -348,7 +348,59 @@ Wenn Cross-Repo-Drift discovered (z.B. wire-format-mismatch):
 
 ---
 
-## 8. Pre-Drift-Checklist
+## 8. Plugin-Branding & Favicon
+
+**Pflicht für alle Plugins.** Plugin-Service MUSS bei `GET /favicon.ico` auf seinem `distribution.service_endpoint` antworten:
+
+| Anforderung | Wert |
+|---|---|
+| HTTP-Status | 200 |
+| Content-Type | `image/x-icon`, `image/png`, oder `image/svg+xml` |
+| Auth | **KEINE** — Host's `<img>`-Tag kann keinen Bearer-Header mitschicken |
+| Dimensionen | ≥ 32×32, quadratisch |
+| Cascade | Bevorzugt zusätzlich `/favicon.png` + `/apple-touch-icon.png` als Fallbacks (Web-Standard) |
+
+### 8.1 Warum
+
+Hosts (Theseus, V8, TeamMind, FamilyMind, künftige) zeigen das Asset in:
+- **Sidebar-Launcher-Button** (≈20×20, border-radius 4px, `object-fit: contain`)
+- **Plugin-Banner-Header** über dem gemounteten Plugin-UI (≈24×24)
+
+Falls der Endpoint fehlt oder fehlschlägt (401/403/404/network-error/wrong-content-type/decode-error), fallen Hosts auf die Initiale des Plugin-Display-Names zurück (z.B. "M" für MarkView, "K" für Kanban). Das ist ein UX-Downgrade — **ship the favicon**.
+
+### 8.2 Implementation-Hint
+
+Plugin-Bridges die bereits `/static/<bundle>.js` über einen `staticHandler` servieren können denselben Pattern nutzen. Zwei Optionen:
+
+```ts
+// Option A: eigener Endpoint
+app.get('/favicon.ico', (req, res) => {
+  res.type('image/x-icon').sendFile(path.join(__dirname, 'assets/favicon.ico'))
+})
+
+// Option B: unter /static/favicon.ico (falls staticHandler-Root passt)
+// keine Code-Änderung nötig, nur File ablegen
+```
+
+### 8.3 Verifikation
+
+```sh
+curl -sI http://<endpoint>/favicon.ico | head -1
+# erwartet: HTTP/1.1 200  (oder HTTP/2 200)
+
+curl -sI http://<endpoint>/favicon.ico | grep -i content-type
+# erwartet: image/x-icon  |  image/png  |  image/svg+xml
+```
+
+Dann in Theseus: Plugin Disable+Enable → Sidebar + Banner sollten das echte Icon zeigen.
+
+### 8.4 Cross-Repo-Source
+
+Convention etabliert von Theseus-CC 2026-05-11 (shared.md 17632) nach User-Direktive. MarkView + Kanban + alle Plugin-Provider commit-pflicht ab nächstem Deploy. Plugin-Template-Skeleton-Default kommt mit (siehe `templates/<starter>/assets/favicon.ico`).
+
+---
+
+## 9. Pre-Drift-Checklist
 
 Vor 1st-Release:
 
@@ -359,38 +411,39 @@ Vor 1st-Release:
 - [ ] esbuild-bundle: external=[] + nodeBuiltinsStubPlugin (Drift #13/#20+#21)
 - [ ] CSP-allowed-origins documented für deployment
 - [ ] manifest_hash in /health-Response (Live-Re-Registration support)
+- [ ] **`/favicon.ico` Endpoint serviert ≥ 32×32 PNG/ICO/SVG (siehe §8)**
 - [ ] Cross-Repo-Live-Smoke gegen mindestens einen Production-Host
 - [ ] CROSS-REPO-LESSONS.md mit plugin-internal Drifts (#100+ range)
 - [ ] CLAUDE.md (siehe `CLAUDE-TEMPLATE.md`) für AI-CC-Workforce-coordination
 
 ---
 
-## 9. Production-Deployment
+## 10. Production-Deployment
 
-### 9.1 Distribution
+### 10.1 Distribution
 
 | Type | Wann |
 |---|---|
 | `external-service` | Plugin ist standalone-Server (Bridge auf eigenem port) |
 | `embedded` | Phase-4 — Plugin wird in Host-Process geladen (kein eigener server) |
 
-### 9.2 Service-Discovery
+### 10.2 Service-Discovery
 
 Plugin-Bridge in Production läuft auf dedicated host (z.B. localhost:<port> für desktop-app, oder cloud-service für SaaS).
 
 Host-Side `service_endpoint` wird im Plugin-Manifest deklariert. Hosts lesen das beim Activate + speichern in `plugin_activations.service_endpoint`-row.
 
-### 9.3 Multi-Host-Auth
+### 10.3 Multi-Host-Auth
 
 Plugin sollte `autoAccept: false` setzen (privacy-by-default). Hosts ruft `register-host` mit Public-Key + landed pending. User approved via Plugin-Settings-UI.
 
-### 9.4 Versioning
+### 10.4 Versioning
 
 `manifest.version` (semver). Plus `manifest_hash` in /health für Live-Re-Registration. Hosts cachen + diff-en — bei hash-change re-fetch + re-register-capabilities ohne Plugin-Down-Time.
 
 ---
 
-## 10. References
+## 11. References
 
 - [`PLUGIN-BRIDGE-PROTOCOL.md`](https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/PLUGIN-BRIDGE-PROTOCOL.md) — Wire-Spec + mcp_tools Extended Form
 - [`PLUGIN-KIARA-INTEGRATION.md`](https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/PLUGIN-KIARA-INTEGRATION.md) — Frag-Kiara
