@@ -421,7 +421,58 @@ UI-Pattern Reference: V8 `/einstellungen/plugins` + Theseus App-Settings → Plu
 
 ---
 
-## 11. Pre-Drift-Checklist Host-Side
+## 11. Plugin-Branding & Favicon
+
+Plugins servieren ein `/favicon.ico` auf ihrem `service_endpoint` (Pflicht-Spec siehe `PLUGIN-PROVIDER-GUIDE.md §8`). Hosts sollten das Asset in ihrer UI anzeigen damit User Plugins visuell unterscheiden können.
+
+### 11.1 Probe-Pattern
+
+```html
+<img
+  src="${service_endpoint}/favicon.ico"
+  alt="${pluginName}"
+  width="20"
+  height="20"
+  style="border-radius: 4px; object-fit: contain;"
+  onerror="this.replaceWith(buildLetterFallback('${pluginName.charAt(0)}'))"
+/>
+```
+
+Cascade-Pattern (Standard-Web-Convention): `/favicon.ico` → `/favicon.png` → `/apple-touch-icon.png`. Host kann alle drei probt + nimmt den ersten 200-Response.
+
+### 11.2 Surfaces
+
+Empfohlen für 3 UI-Loci:
+
+| Surface | Größe | Beispiel-Host |
+|---|---|---|
+| Sidebar-Launcher-Button | ≈ 20×20, border-radius 4px | Theseus Sidebar (`c34f0d8`) |
+| Plugin-Banner-Header über mounted Plugin-UI | ≈ 24×24 | Theseus Banner |
+| Plugin-Catalog/Marketplace-Card | ≈ 64×64 | Nexus-Marketplace (Phase-N) |
+
+### 11.3 Failure-Modes (alle → Letter-Fallback ohne Konsole-Fehler)
+
+- HTTP 401/403/404
+- Network error (Plugin-Bridge down)
+- Wrong Content-Type
+- Image-decode-error
+
+Wichtig: Host's `<img>`-Tag kann **kein** Bearer-Header schicken → Plugin-Endpoint MUSS unauthenticated sein. Wenn Plugin-Service generelles Bearer-Required hat, eigenen Bypass für `/favicon.*` einbauen.
+
+### 11.4 Caching
+
+Plugin sollte `Cache-Control: max-age=86400` setzen (1 Tag — Rebrand propagiert innerhalb 24h). KEIN `immutable` weil das Asset sich pro Plugin-Version ändern kann.
+
+### 11.5 Reference
+
+- Spec: `PLUGIN-PROVIDER-GUIDE.md §8` (Plugin-Side)
+- Theseus Implementation: `apps/mymind/src/renderer-main/` (Sidebar + Banner, commit `c34f0d8`)
+- MarkView Implementation: `packages/plugin-bridge/src/handlers/favicon.ts` (commit `e6e7550`)
+- Convention etabliert: shared.md 17511 + 17632 (Theseus-CC, 2026-05-11)
+
+---
+
+## 12. Pre-Drift-Checklist Host-Side
 
 Vor Production-Release:
 
@@ -435,10 +486,11 @@ Vor Production-Release:
 - [ ] Theme-Attribut-Setting auf Plugin-Custom-Elements (Cross-Repo-Convention)
 - [ ] Plugin→Host Event-Listeners (4 events: navigate/refresh/error/ask-kiara)
 - [ ] Manifest-Cache-Refresh-Pattern (pull-on-activate oder manual)
+- [ ] Plugin-Favicon-Probe in Sidebar + Banner mit Letter-Fallback (§11)
 
 ---
 
-## 12. Host-Companion-Docs
+## 13. Host-Companion-Docs
 
 Per-Host implementation-specifics (Identity-Modell, Keypair-Source, Tenant-Mapping, etc.) leben als Companion-Docs im jeweiligen Host-Repo. Plugin-Template's `HOST-INTEGRATION-GUIDE.md` (dieses Dokument) bleibt high-level Cross-Repo-Vertrag; Host-Specifics werden per Companion-Link referenziert. Pattern aligned mit `PLUGIN-KIARA-INTEGRATION.md §4.4` (Cross-Repo bereits etabliert für die Frag-Kiara-Integration).
 
@@ -453,7 +505,7 @@ Pattern skaliert linear: pro neuem Host eine zusätzliche Tabellenzeile + Compan
 
 ---
 
-## 13. References
+## 14. References
 
 - V8s implementation as reference: `MrDewitt88/TeamMindV8`:
   - `packages/plugins/src/server/` — activation/health-monitor/routing/sidebar
