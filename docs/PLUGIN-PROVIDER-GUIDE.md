@@ -482,6 +482,18 @@ Host-Side `service_endpoint` wird im Plugin-Manifest deklariert. Hosts lesen das
 
 Plugin sollte `autoAccept: false` setzen (privacy-by-default). Hosts ruft `register-host` mit Public-Key + landed pending. User approved via Plugin-Settings-UI.
 
+**Persistent HostKeyRepo (Production)** — `InMemoryHostKeyRepo` aus `@nexus/plugin-bridge-foundation` ist nur für Dev/Tests. Production-Plugin-Provider nehmen den persistent `JsonFileHostKeyRepo` (v0.1.1+):
+
+```ts
+import { HostKeyRegistry, JsonFileHostKeyRepo } from '@nexus/plugin-bridge-foundation'
+
+const repo = new JsonFileHostKeyRepo({ path: './data/host-keys.json' })
+const registry = new HostKeyRegistry(repo, { autoAccept: false })
+// Registered hosts überleben Process-Restarts (atomic JSON-write).
+```
+
+Für SQLite-backed Repo: implementiere eigenen `HostKeyRepo` gegen `@nexus/plugin-storage-foundation`. Für Multi-Process-Plugin (rare): Postgres- oder Redis-backed Repo.
+
 ### 10.4 Versioning
 
 `manifest.version` (semver). Plus `manifest_hash` in /health für Live-Re-Registration. Hosts cachen + diff-en — bei hash-change re-fetch + re-register-capabilities ohne Plugin-Down-Time.

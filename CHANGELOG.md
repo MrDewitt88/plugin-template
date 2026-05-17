@@ -2,6 +2,35 @@
 
 All notable changes to `@nexus/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] — 2026-05-17
+
+Persistence-gap closure. Foundation v0.1.0 was in-memory-only — Plugin-Provider verloren registrierte Hosts beim Restart. plug-db's REL4 (chatbus #271) zeigte den Need; diese Patch-Release schließt das.
+
+### Added
+
+- **`JsonFileHostKeyRepo`** in `@nexus/plugin-bridge-foundation/auth` — atomic JSON-file `HostKeyRepo`-Implementation für Production-Plugin-Provider
+  - Atomic-Write via `.tmp` + `rename()` (cross-platform safe, POSIX + Windows ≥ NTFS)
+  - Lazy-load on first access; explicit `await repo.load()` für deterministic startup
+  - Auto-creates parent directories
+  - Serialized writes via internal Promise-queue (single-process safe)
+  - Schema-versioned on-disk-format (`schema_version: 1`) für künftige Migration-Paths
+  - 12 neue Tests (atomic-rename leaves no .tmp, ENOENT legitimate, concurrent upserts, schema-mismatch reject, Drift #12 idempotency through reload)
+- **`JsonFileHostKeyRepoOptions`** type-export
+
+### Reference
+
+Pattern adopted from plug-db's `services/bridge/app/auth/host-registry.py` (REL4, msg #271) — same atomic-write guarantee, same `_yoyo_migration`-Concept. Cross-language consistency für Plugin-Provider die zwischen TS- und Python-Bridges wechseln.
+
+### Usage
+
+```ts
+import { HostKeyRegistry, JsonFileHostKeyRepo } from '@nexus/plugin-bridge-foundation'
+
+const repo = new JsonFileHostKeyRepo({ path: './data/host-keys.json' })
+const registry = new HostKeyRegistry(repo, { autoAccept: false })
+// File created on first upsert(); survives process restarts.
+```
+
 ## [0.1.0] — 2026-05-17
 
 First publicly-consumable release. Foundation-Packages production-ready für Plugin-Provider die gegen TeamMind/Nexus Plugin-Bridge-Protocol implementieren.

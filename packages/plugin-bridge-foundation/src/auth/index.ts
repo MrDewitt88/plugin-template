@@ -14,3 +14,7 @@ export {
   type RegisterResult,
   type RegistryOptions,
 } from './host-keys.js'
+export {
+  JsonFileHostKeyRepo,
+  type JsonFileHostKeyRepoOptions,
+} from './host-keys-jsonfile.js'
