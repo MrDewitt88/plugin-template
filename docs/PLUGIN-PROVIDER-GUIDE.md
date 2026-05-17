@@ -76,7 +76,9 @@ description:
 version: 0.1.0
 distribution:
   type: external-service
-  service_endpoint: http://localhost:3600
+  # Drift #203 — IMMER 127.0.0.1, NIE localhost. Browser-CSP behandelt beide
+  # als unterschiedliche Origins; Hosts allowlisten nur 127.0.0.1:*.
+  service_endpoint: http://127.0.0.1:3600
 compatibility:
   apps: [teammind, theseus]
   min_app_version: 0.5.0
@@ -92,6 +94,12 @@ provides:
 ```yaml
 provides:
   mcp_tools:
+    # Drift #200 — Tool-Namen sind im Manifest IMMER bare `<module>.<verb>`.
+    # NIEMALS `<plugin-id>.<module>.<verb>` (kein `my-plugin.documents.list`).
+    # Der Host synthesiziert den `<plugin-id>.`-Prefix automatisch beim
+    # Registrieren ins Kiara-MCP-Surface. Manuelles Prefixing erzeugt
+    # Doppel-Prefix (`my-plugin.my-plugin.documents.list`) — bricht Tool-Lookup.
+
     # Phase-1 string-form (backward-compat):
     - documents.list
 
@@ -150,6 +158,43 @@ ui:
 ```
 
 `label_key` ist Phase-1 unused — Hosts nutzen `manifest.name` für display. Phase-2 könnten Hosts den key gegen ihre i18n-resolution lookupen.
+
+### 4.5 host_record_status — Drift #206 Schema-Drift-Signaling
+
+Plugin-Bridge-Protocol erweitert `register-host`-Body additiv (z.B. neue optional fields wie `host_version`, `relay_url`, `host_metadata`). Hosts die pre-Field-Addition registriert haben bleiben sonst dauerhaft stale.
+
+**Lösung:** Plugin-Bridge returnt einen symmetric `host_record_status`-Block — in `register-host`-Response UND in `handshake`-Response, IMMER present (auch first-register, auch wenn Record current ist).
+
+```json
+{
+  "host_id": "teammind",
+  "status": "active",
+  "fingerprint": "...",
+  "registered_at": "...",
+  "host_record_status": {
+    "schema_version": 1,
+    "plugin_current_schema": 1,
+    "is_first_register": true,
+    "reregister_recommended": false,
+    "missing_optional_fields": []
+  }
+}
+```
+
+**Host-Logic:**
+- Wenn `reregister_recommended=true` → Host ruft `register-host` erneut auf mit den fehlenden Feldern (idempotent durch Drift #12).
+- Wenn `missing_optional_fields` leer und `schema_version` matched → Host ist current.
+- `is_first_register` lässt Host wissen ob das die Bootstrap-Registrierung war (vs idempotenter Replay).
+
+**Foundation-Default:** `@nexus/plugin-bridge-foundation` v0.1.0+ baked das automatisch ein. Baseline-Optional-Fields = `['host_version']`. Plugin-Provider erweitern via:
+
+```ts
+const registry = new HostKeyRegistry(repo, {
+  optionalRegisterFields: ['host_version', 'relay_url', 'host_metadata'],
+})
+```
+
+**Cross-Repo-Source:** Pattern etabliert von plug-elec (`etmind-bridge`), adoptiert von oracle/plug-ea (`eamind-bridge`) + V8 + Theseus. Foundation v0.1.0 baked das Standard-Pattern für alle künftigen Plugin-Provider.
 
 ---
 
@@ -429,7 +474,7 @@ Vor 1st-Release:
 
 ### 10.2 Service-Discovery
 
-Plugin-Bridge in Production läuft auf dedicated host (z.B. localhost:<port> für desktop-app, oder cloud-service für SaaS).
+Plugin-Bridge in Production läuft auf dedicated host (z.B. `127.0.0.1:<port>` für desktop-app — siehe Drift #203 in §4.1 — oder cloud-service für SaaS).
 
 Host-Side `service_endpoint` wird im Plugin-Manifest deklariert. Hosts lesen das beim Activate + speichern in `plugin_activations.service_endpoint`-row.
 

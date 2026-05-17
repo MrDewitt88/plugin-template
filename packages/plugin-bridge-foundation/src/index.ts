@@ -11,6 +11,7 @@ export * from './types.js'
 // Re-export auth + manifest for one-stop import
 export {
   BridgeTokenError,
+  buildHostRecordStatus,
   fingerprintPublicKey,
   HostKeyRegistry,
   InMemoryHostKeyRepo,
@@ -19,6 +20,7 @@ export {
   type HostKeyRepo,
   type HostKeyResolver,
   type RegisterHostInput,
+  type RegisterResult,
   type RegistryOptions,
 } from './auth/index.js'
 

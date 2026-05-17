@@ -1,6 +1,6 @@
 {
   "name": "@nexus/plugin-storage-foundation",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Plugin-Storage Foundation — SQLite-Setup + Migrations + Multi-Host-Storage-Pattern + ABI-Cache-Awareness",
   "license": "MIT",
   "type": "module",

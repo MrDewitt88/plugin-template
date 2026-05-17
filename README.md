@@ -2,7 +2,7 @@
 
 > Cross-Repo Plugin-Template für TeamMind/Nexus Plugin-Provider Foundation.
 
-**Status:** Phase-3.5 in development. Layer 1 (Repo-Setup) live; Layer 2-7 in Bearbeitung.
+**Status:** v0.1.0 (2026-05-17) — Foundation-Packages production-ready. Layers 1-6 live; L7 CLI in Bearbeitung. Inherited Cross-Repo-Drifts #103/#200/#203/#206 baked-in. Consume via `pnpm add github:MrDewitt88/plugin-template#v0.1.0`.
 
 ## Zweck
 
@@ -13,12 +13,12 @@ Foundation-Skeleton für Plugin-Provider die gegen TeamMind-Plugin-Bridge-Protoc
 | Layer | Inhalt | Status |
 |---|---|---|
 | L1 | Repo-Setup (pnpm-workspace + tsconfig + vitest + prettier + LICENSE + README) | ✅ done |
-| L2 | Foundation-Packages: bridge / storage / svelte / mcp | ⏳ next |
-| L3 | Doc-Templates: ARCHITECTURE / SQLITE-SCHEMA / WIRE-PROTOCOL / CROSS-REPO-LESSONS / COMPANION-DOC | ⏳ |
-| L4 | PLUGIN-PROVIDER-GUIDE.md | ⏳ |
-| L5 | HOST-INTEGRATION-GUIDE.md | ⏳ |
-| L6 | CLAUDE-TEMPLATE.md (Engineering-Regeln für Plugin-Provider-CCs) | ⏳ |
-| L7 | `@nexus/create-plugin` CLI | ⏳ |
+| L2 | Foundation-Packages: bridge / storage / svelte / mcp | ✅ v0.1.0 |
+| L3 | Doc-Templates: ARCHITECTURE / SQLITE-SCHEMA / WIRE-PROTOCOL / CROSS-REPO-LESSONS / COMPANION-DOC / CLAUDE-SETTINGS-LOCAL | ✅ done |
+| L4 | PLUGIN-PROVIDER-GUIDE.md | ✅ v0.1.0 |
+| L5 | HOST-INTEGRATION-GUIDE.md | ✅ done |
+| L6 | CLAUDE-TEMPLATE.md (Engineering-Regeln für Plugin-Provider-CCs) | ✅ done |
+| L7 | `@nexus/create-plugin` CLI | ⏳ in progress |
 
 ## Cross-Repo-Reference
 

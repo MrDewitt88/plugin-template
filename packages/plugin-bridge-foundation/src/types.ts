@@ -109,6 +109,42 @@ export interface HostKeyRecord {
   approved_at: string | null
 }
 
+// --- Drift #206: Schema-Drift Signaling im Handshake ---
+//
+// Plugins evolve manifest/registration-schemas additively (z.B. neue optional
+// fields wie host_metadata). Hosts die pre-Field-Addition registriert haben
+// bleiben sonst dauerhaft stale. host_record_status signalisiert dem Host wo
+// er steht und ob er re-registrieren sollte.
+//
+// Block ist ALWAYS-PRESENT — auch bei first-register und bei schon-current
+// records — damit der Vertrag symmetrisch bleibt und Host nie zwischen
+// 'kein Block' vs 'Block-mit-current' raten muss.
+//
+// Source-of-Truth Cross-Repo: oracle/plug-ea adopted symmetric contract
+// (chatbus msg #246), plug-elec etmind-bridge auth/host-registry.ts:48-68.
+
+export const PLUGIN_REGISTRATION_SCHEMA_VERSION = 1 as const
+
+/**
+ * Optional fields die ein Host bei register-host mitschicken KANN. Wenn fehlend
+ * → in missing_optional_fields[] und reregister_recommended=true.
+ *
+ * v0.1.0 baseline:
+ *  - host_version: host's app-version (für Capability-gating)
+ *
+ * Erweiterungen pro Plugin-Provider via BridgeAppOptions.optionalRegisterFields.
+ */
+export const BASELINE_OPTIONAL_REGISTER_FIELDS = ['host_version'] as const
+
+export const HostRecordStatusSchema = z.object({
+  schema_version: z.number().int().min(1),
+  plugin_current_schema: z.number().int().min(1),
+  is_first_register: z.boolean(),
+  reregister_recommended: z.boolean(),
+  missing_optional_fields: z.array(z.string()).default([]),
+})
+export type HostRecordStatus = z.infer<typeof HostRecordStatusSchema>
+
 // --- Bridge-Endpoint Request/Response Schemas ---
 
 export const HandshakeRequestSchema = z.object({
@@ -126,8 +162,33 @@ export const HandshakeResponseSchema = z.object({
   manifest: PluginManifestSchema,
   capabilities_acknowledged: z.array(z.enum(['routes', 'mcp_tools', 'module_extensions'])),
   health: z.enum(['ok', 'degraded', 'unhealthy']),
+  // Drift #206 — symmetric, always-present
+  host_record_status: HostRecordStatusSchema,
 })
 export type HandshakeResponse = z.infer<typeof HandshakeResponseSchema>
+
+// --- register-host Request/Response ---
+//
+// Bootstrap-Endpoint — Host posted seinen Public-Key zur Plugin-Bridge bevor
+// JWT-Auth funktional ist. Drift #12: idempotent — same key preserves status.
+
+export const RegisterHostRequestSchema = z.object({
+  host_id: z.string().min(1),
+  public_key_pem: z.string().min(1),
+  // Optional fields — wenn fehlend → in host_record_status.missing_optional_fields
+  host_version: z.string().optional(),
+})
+export type RegisterHostRequest = z.infer<typeof RegisterHostRequestSchema>
+
+export const RegisterHostResponseSchema = z.object({
+  host_id: z.string(),
+  status: z.enum(['pending', 'active', 'rejected']),
+  fingerprint: z.string(),
+  registered_at: z.string(),
+  // Drift #206 — symmetric, always-present
+  host_record_status: HostRecordStatusSchema,
+})
+export type RegisterHostResponse = z.infer<typeof RegisterHostResponseSchema>
 
 export const HealthResponseSchema = z.object({
   status: z.enum(['ok', 'degraded', 'unhealthy']),

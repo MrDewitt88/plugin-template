@@ -1,0 +1,51 @@
+{
+  "_meta": {
+    "purpose": "Cross-Repo Auto-Classifier-Override-Convention für plug-tmpl. Skeleton-Vorlage für jeden Plugin-Provider — siehe docs/templates/CLAUDE-SETTINGS-LOCAL-TEMPLATE.md.",
+    "merge_command_for_user": "cp .claude/settings.local.json.suggested .claude/settings.local.json",
+    "convention_source": "chatbus #213 (plug-design) + #216 (plug-elec) + #219 (plug-db) — adoptiert von 5+ Repos im mindgarden-Ökosystem",
+    "last_updated": "2026-05-17"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(pnpm install:*)",
+      "Bash(pnpm install --frozen-lockfile:*)",
+      "Bash(pnpm -r:*)",
+      "Bash(pnpm --filter:*)",
+      "Bash(pnpm typecheck:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm build:*)",
+      "Bash(pnpm format:*)",
+      "Bash(pnpm format:check)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr edit:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh auth status)",
+      "Bash(gh auth setup-git)",
+      "Bash(git push origin main:*)",
+      "Bash(git push origin feat/:*)",
+      "Bash(git push origin fix/:*)",
+      "Bash(git push origin docs/:*)",
+      "Bash(git push origin chore/:*)",
+      "Bash(git push origin v0.:*)",
+      "Bash(git tag:*)",
+      "Bash(git fetch origin:*)"
+    ]
+  },
+  "_notes": {
+    "rationale": "plug-tmpl ist TS-only/pnpm-workspace. Safe-for-template: keine prod-DB, kein force-push, keine destructive ops. Direct push origin main ist OK weil plug-tmpl single-developer Foundation-Repo ist (PR-Workflow optional). Branch-prefix-scoped pushes für künftige feat/-Workflow-Migration.",
+    "bleibt_classifier_gated": [
+      "Bash(rm -rf:*)",
+      "Bash(git push --force:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git stash --include-untracked:*)",
+      "Bash(pnpm publish:*)",
+      "Bash(npm publish:*)",
+      "Edit auf .claude/settings.local.json (Self-Modification-Block)"
+    ],
+    "distribution_note": "Foundation-Packages werden NICHT via npm published (siehe docs/PLUGIN-PROVIDER-GUIDE.md §10.1). Consumer-Pfad: pnpm add github:MrDewitt88/plugin-template#v0.1.0. Daher kein pnpm publish in allow-list."
+  }
+}

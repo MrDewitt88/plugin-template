@@ -27,10 +27,11 @@
 import { Hono, type MiddlewareHandler } from 'hono'
 import { cors } from 'hono/cors'
 import {
+  buildHostRecordStatus,
   HostKeyRegistry,
   verifyAuthorizationHeader,
-  type RegisterHostInput,
 } from './auth/index.js'
+import { RegisterHostRequestSchema } from './types.js'
 import { handshakeHandler } from './endpoints/handshake.js'
 import { manifestHandler } from './endpoints/manifest.js'
 import { healthHandler } from './endpoints/health.js'
@@ -97,27 +98,39 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
     } catch {
       return c.json({ error: { code: 'invalid_request', message: 'malformed JSON' } }, 400)
     }
-    const b = body as Partial<RegisterHostInput>
-    if (typeof b.host_id !== 'string' || typeof b.public_key_pem !== 'string') {
+    const parsed = RegisterHostRequestSchema.safeParse(body)
+    if (!parsed.success) {
       return c.json(
         {
           error: {
             code: 'invalid_request',
-            message: 'host_id and public_key_pem required',
+            message: parsed.error.issues
+              .map((i) => `${i.path.join('.')}: ${i.message}`)
+              .join('; '),
           },
         },
         400,
       )
     }
-    const record = await opts.registry.register({
-      host_id: b.host_id,
-      public_key_pem: b.public_key_pem,
+    const req = parsed.data
+    const providedOptionalFields = Object.keys(req).filter(
+      (k) => k !== 'host_id' && k !== 'public_key_pem' && req[k as keyof typeof req] !== undefined,
+    )
+    const { record, isFirstRegister } = await opts.registry.register({
+      host_id: req.host_id,
+      public_key_pem: req.public_key_pem,
+      ...(req.host_version !== undefined ? { host_version: req.host_version } : {}),
     })
     return c.json({
       host_id: record.host_id,
       status: record.status,
       fingerprint: record.fingerprint,
       registered_at: record.registered_at,
+      host_record_status: buildHostRecordStatus({
+        isFirstRegister,
+        providedFields: providedOptionalFields,
+        optionalFields: opts.registry.optionalFields,
+      }),
     })
   })
 
@@ -130,7 +143,7 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
   app.use('/plugin-bridge/v1/invoke-hook', authMiddleware(opts.registry))
 
   // --- Endpoints ---
-  app.post('/plugin-bridge/v1/handshake', handshakeHandler(opts.manifest))
+  app.post('/plugin-bridge/v1/handshake', handshakeHandler(opts.manifest, opts.registry))
   app.get('/plugin-bridge/v1/manifest', manifestHandler(opts.manifest))
   app.get('/plugin-bridge/v1/health', healthHandler({ pluginVersion, manifestHash }))
   app.post('/plugin-bridge/v1/execute-tool', executeToolHandler(opts.toolHandlers))

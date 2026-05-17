@@ -5,10 +5,12 @@ export {
   type HostKeyResolver,
 } from './jwt.js'
 export {
+  buildHostRecordStatus,
   fingerprintPublicKey,
   HostKeyRegistry,
   InMemoryHostKeyRepo,
   type HostKeyRepo,
   type RegisterHostInput,
+  type RegisterResult,
   type RegistryOptions,
 } from './host-keys.js'

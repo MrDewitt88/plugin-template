@@ -11,6 +11,7 @@ Templates für Plugin-Provider die ein neues Plugin gegen TeamMind/Nexus Plugin-
 | [`WIRE-PROTOCOL-TEMPLATE.md`](./WIRE-PROTOCOL-TEMPLATE.md) | Wenn Plugin custom MCP-Tools/Hooks/Render-Routes hat. Standard-Endpoints sind canonical in V8 PLUGIN-BRIDGE-PROTOCOL.md. |
 | [`CROSS-REPO-LESSONS-TEMPLATE.md`](./CROSS-REPO-LESSONS-TEMPLATE.md) | Plugin-internal Drift-Catalog (#100+ range). Cross-Repo-adopted Lessons aus V8s canonical-#1-#24. |
 | [`COMPANION-DOC-PATTERN.md`](./COMPANION-DOC-PATTERN.md) | Meta-Pattern: wann/wie Plugin-Host Companion-Docs schreibt für Spec-Implementation-Reality. |
+| [`CLAUDE-SETTINGS-LOCAL-TEMPLATE.md`](./CLAUDE-SETTINGS-LOCAL-TEMPLATE.md) | Auto-Classifier-Override-Convention für Claude-Code in Plugin-Provider-Repos. Cross-Repo etabliert 2026-05-17. |
 
 ## Recommended Reading-Order
 

@@ -10,7 +10,13 @@
 //   - new host_id → pending (oder active wenn autoAccept)
 
 import { createHash } from 'node:crypto'
-import type { HostKeyRecord, HostKeyStatus } from '../types.js'
+import {
+  BASELINE_OPTIONAL_REGISTER_FIELDS,
+  PLUGIN_REGISTRATION_SCHEMA_VERSION,
+  type HostKeyRecord,
+  type HostKeyStatus,
+  type HostRecordStatus,
+} from '../types.js'
 import { BridgeTokenError, type HostKeyResolver } from './jwt.js'
 
 export interface HostKeyRepo {
@@ -23,11 +29,39 @@ export interface HostKeyRepo {
 export interface RegisterHostInput {
   host_id: string
   public_key_pem: string
+  /** Optional. Provided fields tracked für Drift #206 host_record_status. */
+  host_version?: string
 }
 
 export interface RegistryOptions {
   /** Default false — privacy-by-default. Neue Hosts brauchen User-Confirm. */
   autoAccept?: boolean
+  /**
+   * Optional fields die DIESES Plugin von register-host requests akzeptiert.
+   * Default = BASELINE_OPTIONAL_REGISTER_FIELDS. Plugin-Provider können erweitern
+   * (z.B. ['host_version', 'relay_url', 'host_metadata']). Fehlende Fields
+   * landen in host_record_status.missing_optional_fields.
+   */
+  optionalRegisterFields?: readonly string[]
+}
+
+/**
+ * Drift #206 helper — baut den symmetric host_record_status-Block. Wird
+ * sowohl von register-host als auch handshake als ALWAYS-PRESENT Block returned.
+ */
+export function buildHostRecordStatus(opts: {
+  isFirstRegister: boolean
+  providedFields: readonly string[]
+  optionalFields: readonly string[]
+}): HostRecordStatus {
+  const missing = opts.optionalFields.filter((f) => !opts.providedFields.includes(f))
+  return {
+    schema_version: PLUGIN_REGISTRATION_SCHEMA_VERSION,
+    plugin_current_schema: PLUGIN_REGISTRATION_SCHEMA_VERSION,
+    is_first_register: opts.isFirstRegister,
+    reregister_recommended: missing.length > 0,
+    missing_optional_fields: missing,
+  }
 }
 
 /**
@@ -40,19 +74,34 @@ export function fingerprintPublicKey(publicKeyPem: string): string {
   return hash.match(/.{1,4}/g)?.join(':') ?? hash
 }
 
+export interface RegisterResult {
+  record: HostKeyRecord
+  /** True wenn dies die erste Registrierung für diesen host_id ist (Drift #206). */
+  isFirstRegister: boolean
+}
+
 export class HostKeyRegistry implements HostKeyResolver {
   constructor(
     private readonly repo: HostKeyRepo,
     private readonly options: RegistryOptions = {},
   ) {}
 
-  async register(input: RegisterHostInput): Promise<HostKeyRecord> {
+  /**
+   * Liste der optional fields die DIESES Plugin akzeptiert. Drift #206 nutzt
+   * diese zum Vergleich gegen tatsächlich provided fields im register-Body.
+   */
+  get optionalFields(): readonly string[] {
+    return this.options.optionalRegisterFields ?? BASELINE_OPTIONAL_REGISTER_FIELDS
+  }
+
+  async register(input: RegisterHostInput): Promise<RegisterResult> {
     const existing = await this.repo.get(input.host_id)
     const fingerprint = fingerprintPublicKey(input.public_key_pem)
+    const isFirstRegister = existing === null
 
     // Same key + existing → preserve status (Drift #12 idempotency)
     if (existing && existing.public_key_pem.trim() === input.public_key_pem.trim()) {
-      return existing
+      return { record: existing, isFirstRegister: false }
     }
 
     // New host_id OR key rotation → pending (or active if autoAccept)
@@ -68,7 +117,11 @@ export class HostKeyRegistry implements HostKeyResolver {
       approved_at: initialStatus === 'active' ? now : null,
     }
 
-    return this.repo.upsert(record, this.options.autoAccept ? { forceStatus: 'active' } : {})
+    const upserted = await this.repo.upsert(
+      record,
+      this.options.autoAccept ? { forceStatus: 'active' } : {},
+    )
+    return { record: upserted, isFirstRegister }
   }
 
   async approve(hostId: string): Promise<HostKeyRecord | null> {

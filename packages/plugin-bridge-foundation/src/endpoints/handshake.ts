@@ -1,11 +1,13 @@
 // POST /plugin-bridge/v1/handshake — initial Activation-Roundtrip.
 // Host minted bridge-token + posted handshake. Plugin returnt manifest +
-// capabilities-acknowledgement + initial health-status.
+// capabilities-acknowledgement + initial health-status + host_record_status
+// (Drift #206 symmetric block).
 
 import type { Context } from 'hono'
+import { buildHostRecordStatus, type HostKeyRegistry } from '../auth/host-keys.js'
 import { HandshakeRequestSchema, type PluginManifest } from '../types.js'
 
-export function handshakeHandler(manifest: PluginManifest) {
+export function handshakeHandler(manifest: PluginManifest, registry: HostKeyRegistry) {
   return async (c: Context) => {
     let body: unknown
     try {
@@ -44,12 +46,24 @@ export function handshakeHandler(manifest: PluginManifest) {
       )
     }
 
+    // Drift #206: handshake-time-status — host hat schon registriert (sonst
+    // hätte auth-Middleware vorher 401 geworfen), wir signalisieren ob
+    // re-registration empfohlen ist basierend auf optional-fields-coverage.
+    // Bei handshake selbst übermittelt der Host host_version im JWT-Body —
+    // wir können es als 'provided' werten (subset der register-fields).
+    const providedOptionalFields = ['host_version']
+
     return c.json({
       plugin_id: manifest.id,
       version: manifest.version,
       manifest,
       capabilities_acknowledged: ['routes', 'mcp_tools', 'module_extensions'],
       health: 'ok',
+      host_record_status: buildHostRecordStatus({
+        isFirstRegister: false,
+        providedFields: providedOptionalFields,
+        optionalFields: registry.optionalFields,
+      }),
     })
   }
 }
