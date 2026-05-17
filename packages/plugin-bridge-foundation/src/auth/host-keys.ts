@@ -31,6 +31,8 @@ export interface RegisterHostInput {
   public_key_pem: string
   /** Optional. Provided fields tracked für Drift #206 host_record_status. */
   host_version?: string
+  /** Optional. Pfad-C-Collab WebSocket / Reverse-Call-Channel (v0.2.0). */
+  relay_url?: string
 }
 
 export interface RegistryOptions {

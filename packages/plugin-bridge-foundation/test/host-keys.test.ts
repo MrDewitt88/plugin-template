@@ -142,9 +142,9 @@ describe('buildHostRecordStatus — Drift #206', () => {
 })
 
 describe('HostKeyRegistry.optionalFields — configurable via RegistryOptions', () => {
-  it('defaults to BASELINE_OPTIONAL_REGISTER_FIELDS', () => {
+  it('defaults to BASELINE_OPTIONAL_REGISTER_FIELDS (host_version + relay_url since v0.2.0)', () => {
     const reg = new HostKeyRegistry(new InMemoryHostKeyRepo())
-    expect(reg.optionalFields).toEqual(['host_version'])
+    expect(reg.optionalFields).toEqual(['host_version', 'relay_url'])
   })
 
   it('overrides via optionalRegisterFields', () => {

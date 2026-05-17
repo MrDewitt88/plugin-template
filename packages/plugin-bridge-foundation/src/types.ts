@@ -129,12 +129,16 @@ export const PLUGIN_REGISTRATION_SCHEMA_VERSION = 1 as const
  * Optional fields die ein Host bei register-host mitschicken KANN. Wenn fehlend
  * → in missing_optional_fields[] und reregister_recommended=true.
  *
- * v0.1.0 baseline:
+ * v0.2.0 baseline:
  *  - host_version: host's app-version (für Capability-gating)
+ *  - relay_url: WebSocket-Endpoint für Pfad-C-Collab (markview) /
+ *    Reverse-Call-Channel (plug-elec 'reverse_call_url'). Optional aber
+ *    cross-repo-etabliert genug für baseline-Aufnahme (msg #237 markview,
+ *    msg #242 plug-elec).
  *
  * Erweiterungen pro Plugin-Provider via BridgeAppOptions.optionalRegisterFields.
  */
-export const BASELINE_OPTIONAL_REGISTER_FIELDS = ['host_version'] as const
+export const BASELINE_OPTIONAL_REGISTER_FIELDS = ['host_version', 'relay_url'] as const
 
 export const HostRecordStatusSchema = z.object({
   schema_version: z.number().int().min(1),
@@ -177,6 +181,8 @@ export const RegisterHostRequestSchema = z.object({
   public_key_pem: z.string().min(1),
   // Optional fields — wenn fehlend → in host_record_status.missing_optional_fields
   host_version: z.string().optional(),
+  // v0.2.0 — Pfad-C-Collab / reverse-call-channel (markview, plug-elec)
+  relay_url: z.string().url().optional(),
 })
 export type RegisterHostRequest = z.infer<typeof RegisterHostRequestSchema>
 
@@ -255,6 +261,8 @@ export const InvokeHookResponseSchema = z.discriminatedUnion('ok', [
     error: z.object({
       code: z.string(),
       message: z.string(),
+      // v0.2.0 — Parity mit ExecuteToolResponseSchema (Drift #103 canonical)
+      details: z.unknown().optional(),
     }),
   }),
 ])

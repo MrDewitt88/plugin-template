@@ -8,7 +8,7 @@ const VALID: PluginManifest = {
   name: { de: 'Test', en: 'Test' },
   description: { de: 'Test', en: 'Test' },
   version: '0.1.0',
-  distribution: { type: 'external-service', service_endpoint: 'http://localhost:3500' },
+  distribution: { type: 'external-service', service_endpoint: 'http://127.0.0.1:3500' },
   compatibility: { apps: ['teammind'], min_app_version: '0.1.0' },
   provides: {
     routes: [],

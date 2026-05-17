@@ -2,6 +2,55 @@
 
 All notable changes to `@nexus/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-05-17
+
+Seven-gap closure release. Full upgrade-guide für CCs: [`docs/UPGRADE-v0.2.0.md`](docs/UPGRADE-v0.2.0.md).
+
+Cross-Repo-Provenance: alle 7 Lücken stammen aus heutigem chatbus-Traffic — duplicate-work zwischen plug-elec, plug-db, oracle/plug-ea, markview die jetzt Foundation-Level abgedeckt sind. Keine breaking changes vs v0.1.x — alles additive.
+
+### Added
+
+- **Observability primitives** in neuem subpath `@nexus/plugin-bridge-foundation/observability`:
+  - `Logger` — dependency-free JSON-Lines structured logger, 4 levels (debug/info/warn/error), bound-context via `.child()`, env-override BRIDGE_LOG_FORMAT=text, warn/error → stderr
+  - `Counter` / `Gauge` / `MetricsRegistry` — dependency-free Prometheus exposition-format 0.0.4
+  - Source-Pattern: plug-elec etmind-bridge/src/{logger,metrics}.ts (msg #240) + plug-db OBS1/OBS2 (msg #221)
+- **`BridgeAppOptions.observability`** — opt-in wiring:
+  - HTTP-request counter `plugin_bridge_http_requests_total{method,path,status}`
+  - Uptime gauge `plugin_bridge_uptime_seconds`
+  - Registry-size gauge `plugin_bridge_host_registry_size`
+  - `/metrics` endpoint (unauth, top-level, content-type `text/plain; version=0.0.4`)
+  - Per-request access-logs via Logger
+- **`staticUiHandler` + `BridgeAppOptions.staticUi`** (`/static/ui/*`) — path-traversal-safe file-serving mit content-type detection (.js/.css/.svg/etc.) + immutable cache-control + canonical Drift #103 404-shape. Source-pattern: oracle Q5 in render-ui-Thread (msg #259)
+- **Drift #203 enforcement in `loadManifest()` + `validateManifest()`** — `service_endpoint: http://localhost:*` flagged in 'warn' mode (default), or 'strict' (throws `ManifestError('drift_203')`), or 'off' (legacy migration path). `ManifestValidationOptions` + `Drift203Mode` types exported.
+- **`StorageError` + `toCanonicalError()`** in `@nexus/plugin-storage-foundation` — Drift #103-compliant error class für storage-throwables. `migrate()` rollback-blocked now throws `StorageError` instead of plain `Error`.
+- **`relay_url` in `BASELINE_OPTIONAL_REGISTER_FIELDS`** — Pfad-C-Collab (markview) + reverse-call (plug-elec) jetzt baseline. `RegisterHostRequestSchema` accepts optional `relay_url: z.string().url().optional()`. `host_record_status` tracks it in `missing_optional_fields[]`.
+- **Test-Utilities** in neuem subpath `@nexus/plugin-bridge-foundation/testing`:
+  - `buildTestRegistry()` — one-shot Ed25519-keypair + HostKeyRegistry mit pre-approved bootstrap-host
+  - `mintTestBridgeToken()` — JWT-signer für custom-claims
+- **Subpath-exports erweitert**: `./observability` + `./testing` in `package.json`
+- **Top-level re-exports erweitert**: `staticUiHandler`, `BridgeObservabilityOptions`, `StaticUiHandlerOptions`
+
+### Changed
+
+- `InvokeHookResponseSchema.error` now includes optional `details?: unknown` field — Drift #103 parity mit `ExecuteToolResponseSchema`. invoke-hook handler propagates `e.details` from thrown errors. execute-tool handler same.
+- `tsconfig.json` für `plugin-bridge-foundation`: `lib` erweitert auf `["ES2022", "DOM"]` (needed for jose `KeyLike` types in testing-utilities)
+
+### Confirmed (audit pass)
+
+- Drift #103 error-shape durchgängig in allen Bridge-Endpoints
+- Drift #200 bare tool-namespace documented in Provider-Guide §4.2
+- Drift #12 idempotent register-host preserves status
+
+### Tests
+
+- bridge-foundation: 43 → 77 (+34 — Observability 11, static-ui 6, drift-203 6, testing-utils 4, server-observability 7)
+- storage-foundation: 22 → 31 (+9 — errors module)
+- Total workspace: 151 → **206 grün**
+
+### Reference
+
+[`docs/UPGRADE-v0.2.0.md`](docs/UPGRADE-v0.2.0.md) — comprehensive upgrade guide for affected CCs (plug-elec, oracle/plug-ea, markview) mit migration-snippets.
+
 ## [0.1.1] — 2026-05-17
 
 Persistence-gap closure. Foundation v0.1.0 was in-memory-only — Plugin-Provider verloren registrierte Hosts beim Restart. plug-db's REL4 (chatbus #271) zeigte den Need; diese Patch-Release schließt das.

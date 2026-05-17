@@ -38,7 +38,9 @@ import { healthHandler } from './endpoints/health.js'
 import { executeToolHandler } from './endpoints/execute-tool.js'
 import { renderUiHandler } from './endpoints/render-ui.js'
 import { invokeHookHandler } from './endpoints/invoke-hook.js'
+import { staticUiHandler, type StaticUiHandlerOptions } from './endpoints/static-ui.js'
 import { computeManifestHash } from './manifest/hash.js'
+import { Counter, Gauge, MetricsRegistry, type Logger } from './observability/index.js'
 import type {
   BridgeTokenClaims,
   HookHandler,
@@ -67,6 +69,29 @@ export interface BridgeAppOptions {
   corsOrigin?: string | string[]
   /** Optional: fixed plugin-version-string für /health.version (default manifest.version) */
   pluginVersion?: string
+  /**
+   * v0.2.0 — Observability opt-ins. Wenn provided wired Foundation:
+   *  - HTTP-request-counter (method, path, status)
+   *  - /metrics endpoint (unauth, Prometheus exposition-format 0.0.4)
+   *  - HTTP-access-logs via Logger
+   * Wenn weggelassen: kein observability-wiring (backward-compat mit v0.1.x).
+   */
+  observability?: BridgeObservabilityOptions
+  /**
+   * v0.2.0 — Static UI serving. Wenn provided mounted Foundation `urlPrefix`
+   * (default '/static/ui') als unauth file-server gegen `staticDir` mit
+   * content-type-detection, immutable cache-control, path-traversal-safety.
+   */
+  staticUi?: StaticUiHandlerOptions
+}
+
+export interface BridgeObservabilityOptions {
+  /** MetricsRegistry — Foundation registriert HTTP-counter + uptime + registry-size. */
+  registry?: MetricsRegistry
+  /** Logger für HTTP-access-logs (1 line per request). */
+  logger?: Logger
+  /** Default true wenn registry provided. /metrics-endpoint at `/metrics` (unauth, top-level). */
+  exposeMetricsEndpoint?: boolean
 }
 
 export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
@@ -89,6 +114,81 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
   // Pre-compute manifest_hash damit /health-handler nicht jedes mal hashes.
   const manifestHash = computeManifestHash(opts.manifest)
   const pluginVersion = opts.pluginVersion ?? opts.manifest.version
+
+  // --- Observability (v0.2.0) ---
+  const obs = opts.observability
+  const obsLogger = obs?.logger
+  let httpCounter: Counter | null = null
+  if (obs?.registry) {
+    httpCounter = obs.registry.register(
+      new Counter(
+        'plugin_bridge_http_requests_total',
+        'Total HTTP requests handled by plugin-bridge by method, path, status',
+        ['method', 'path', 'status'],
+      ),
+    )
+    const startedAt = Date.now()
+    obs.registry.register(
+      new Gauge(
+        'plugin_bridge_uptime_seconds',
+        'Uptime of the plugin-bridge process in seconds',
+        [],
+        () => (Date.now() - startedAt) / 1000,
+      ),
+    )
+    obs.registry.register(
+      new Gauge(
+        'plugin_bridge_host_registry_size',
+        'Number of registered hosts in the bridge HostKeyRegistry',
+        [],
+        // best-effort sync — Registry.list() is async; we cache last-known count.
+        () => lastKnownRegistrySize,
+      ),
+    )
+  }
+  let lastKnownRegistrySize = 0
+  const refreshRegistrySize = () => {
+    void opts.registry.list().then((rs) => {
+      lastKnownRegistrySize = rs.length
+    })
+  }
+  refreshRegistrySize()
+
+  // HTTP-counter + access-log middleware. Runs für alle requests.
+  if (httpCounter || obsLogger) {
+    app.use('*', async (c, next) => {
+      const started = Date.now()
+      await next()
+      const status = String(c.res.status)
+      // Normalize path: strip query, collapse trailing-slash, keep route-shape.
+      const path = c.req.path.replace(/\/$/, '') || '/'
+      httpCounter?.inc({ method: c.req.method, path, status })
+      obsLogger?.info('http_request', {
+        method: c.req.method,
+        path,
+        status: c.res.status,
+        duration_ms: Date.now() - started,
+      })
+    })
+  }
+
+  // /metrics — unauth, top-level. Default-on wenn registry provided.
+  if (obs?.registry && obs.exposeMetricsEndpoint !== false) {
+    app.get('/metrics', async (c) => {
+      // Refresh registry-size gauge sync-ish before scrape.
+      const records = await opts.registry.list()
+      lastKnownRegistrySize = records.length
+      const body = obs.registry!.collect()
+      return c.text(body, 200, { 'content-type': 'text/plain; version=0.0.4; charset=utf-8' })
+    })
+  }
+
+  // Static UI serving (v0.2.0) — unauth, mounted at opts.staticUi.urlPrefix.
+  if (opts.staticUi) {
+    const urlPrefix = (opts.staticUi.urlPrefix ?? '/static/ui').replace(/\/$/, '')
+    const handler = staticUiHandler(opts.staticUi)
+    app.get(`${urlPrefix}/*`, handler)
+  }
 
   // --- register-host (kein bridge-token required — bootstrap-flow) ---
   app.post('/plugin-bridge/v1/register-host', async (c) => {
@@ -120,6 +220,7 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
       host_id: req.host_id,
       public_key_pem: req.public_key_pem,
       ...(req.host_version !== undefined ? { host_version: req.host_version } : {}),
+      ...(req.relay_url !== undefined ? { relay_url: req.relay_url } : {}),
     })
     return c.json({
       host_id: record.host_id,

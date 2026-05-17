@@ -11,6 +11,7 @@
 // Idempotent: Re-running migrate() ist no-op wenn alle applied.
 
 import type { Database as DatabaseType } from 'better-sqlite3'
+import { StorageError } from '../errors.js'
 
 export interface Migration {
   /** Monotonic ID, z.B. "0001_initial" */
@@ -95,8 +96,10 @@ export function rollbackTo(
     if (mig.id <= targetId) break
     if (!applied.has(mig.id)) continue
     if (!mig.down) {
-      throw new Error(
+      throw new StorageError(
+        'rollback_blocked',
         `migration '${mig.id}' is non-reversible (down: null) — cannot rollback past it`,
+        { migration_id: mig.id, target_id: targetId },
       )
     }
     db.transaction(() => {

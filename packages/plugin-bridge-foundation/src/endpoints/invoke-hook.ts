@@ -59,12 +59,13 @@ export function invokeHookHandler(handlers: Record<string, HookHandler>) {
       })
       return c.json({ ok: true, result })
     } catch (err) {
-      const e = err as { code?: string; message?: string }
+      const e = err as { code?: string; message?: string; details?: unknown }
       return c.json({
         ok: false,
         error: {
           code: e.code ?? 'hook_error',
           message: e.message ?? 'hook execution failed',
+          ...(e.details !== undefined ? { details: e.details } : {}),
         },
       })
     }

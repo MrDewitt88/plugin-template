@@ -52,12 +52,13 @@ export function executeToolHandler(handlers: Record<string, ToolHandler>) {
       })
       return c.json({ ok: true, result })
     } catch (err) {
-      const e = err as { code?: string; message?: string }
+      const e = err as { code?: string; message?: string; details?: unknown }
       return c.json({
         ok: false,
         error: {
           code: e.code ?? 'tool_error',
           message: e.message ?? 'tool execution failed',
+          ...(e.details !== undefined ? { details: e.details } : {}),
         },
       })
     }
