@@ -18,3 +18,9 @@ export {
   JsonFileHostKeyRepo,
   type JsonFileHostKeyRepoOptions,
 } from './host-keys-jsonfile.js'
+export {
+  SqliteHostKeyRepo,
+  type SqliteHostKeyRepoDatabase,
+  type SqliteHostKeyRepoOptions,
+  type SqliteHostKeyRepoStatement,
+} from './host-keys-sqlite.js'

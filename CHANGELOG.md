@@ -2,6 +2,28 @@
 
 All notable changes to `@nexus/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] — 2026-05-17
+
+Follow-up patch closing three cross-repo asks from v0.2.0 ack-DMs.
+
+### Added
+
+- **`SqliteHostKeyRepo`** in `@nexus/plugin-bridge-foundation/auth` — SQLite-backed `HostKeyRepo` für embedded persistent state. Source-Pattern: markview Pfad-C-Collab Migration v5 (msg #302). Drop-in für bestehende Schemas — `CREATE TABLE IF NOT EXISTS` ist no-op auf existing tables, Foundation touched nur die definierten Spalten (`host_id`, `public_key_pem`, `status`, `fingerprint`, `registered_at`, `approved_at`). Plugin-spezifische Extra-Spalten (z.B. markview's `last_used_at`, `relay_url`) bleiben auf der Tabelle unangetastet. Configurable `tableName` (default `'plugin_host_keys'`, markview overridet auf `'host_keys'`). Structural typing via `SqliteHostKeyRepoDatabase`-Interface — kein direct `better-sqlite3`-import → keine Force-Dep für Konsumenten die nur InMemory/JsonFile nutzen.
+- **IPv6 loopback `[::1]` in Drift #203 enforcement** (msg #303 plug-elec) — `validateManifest()` flagged jetzt alle drei loopback-Varianten: `localhost`, `127.0.0.1` (canonical), `[::1]`. Cross-Repo-Pattern aligned mit ET-Mind packages/etmind-bridge/src/manifest-loader.ts.
+- **Provider-Guide §10.3 erweitert** mit SQLite-backed-Repo Beispiel + drop-in compat-Hinweis.
+- **Provider-Guide §10.5 (NEU) "Wann brauche ich Foundation überhaupt?"** — Heuristik runtime-discovery (Foundation) vs build-time-resolve (Library-Counter-Example). Design-Mind als Counter-Example mit Verweis auf brand-skin templates + THEMING.md.
+
+### Tests
+
+- bridge-foundation: 77 → 90 (+13 — 10 new SqliteHostKeyRepo + 3 new IPv6/[::1] drift-203)
+- Total workspace: 206 → **219 grün**
+
+### Reference
+
+- markview DM #302 — v5-schema audit pointers
+- plug-elec DM #303 — `[::1]` Cross-Repo-Konsistenz GO
+- plug-design DM #301 — Counter-Example pin auf `v0.1.0`-tag
+
 ## [0.2.0] — 2026-05-17
 
 Seven-gap closure release. Full upgrade-guide für CCs: [`docs/UPGRADE-v0.2.0.md`](docs/UPGRADE-v0.2.0.md).

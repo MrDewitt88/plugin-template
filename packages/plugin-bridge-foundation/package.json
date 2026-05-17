@@ -1,6 +1,6 @@
 {
   "name": "@nexus/plugin-bridge-foundation",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Plugin-Bridge HTTP-Server Foundation — handshake/manifest/health/execute-tool/render-ui Endpoints + JWT-Auth + Multi-Host-Registry + manifest_hash",
   "license": "MIT",
   "type": "module",
@@ -44,7 +44,9 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
     "@types/node": "^22.0.0",
+    "better-sqlite3": "^11.10.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   }

@@ -482,17 +482,62 @@ Host-Side `service_endpoint` wird im Plugin-Manifest deklariert. Hosts lesen das
 
 Plugin sollte `autoAccept: false` setzen (privacy-by-default). Hosts ruft `register-host` mit Public-Key + landed pending. User approved via Plugin-Settings-UI.
 
-**Persistent HostKeyRepo (Production)** — `InMemoryHostKeyRepo` aus `@nexus/plugin-bridge-foundation` ist nur für Dev/Tests. Production-Plugin-Provider nehmen den persistent `JsonFileHostKeyRepo` (v0.1.1+):
+**Persistent HostKeyRepo (Production)** — `InMemoryHostKeyRepo` aus `@nexus/plugin-bridge-foundation` ist nur für Dev/Tests. Production-Plugin-Provider wählen einen der zwei baked-in persistent Adapters:
+
+**JSON-File** (v0.1.1+) — single-process Plugin-Bridges mit niedrigem Write-Volume. Atomic `.tmp` + rename. Keine Native-Dependency.
 
 ```ts
 import { HostKeyRegistry, JsonFileHostKeyRepo } from '@nexus/plugin-bridge-foundation'
 
 const repo = new JsonFileHostKeyRepo({ path: './data/host-keys.json' })
 const registry = new HostKeyRegistry(repo, { autoAccept: false })
-// Registered hosts überleben Process-Restarts (atomic JSON-write).
 ```
 
-Für SQLite-backed Repo: implementiere eigenen `HostKeyRepo` gegen `@nexus/plugin-storage-foundation`. Für Multi-Process-Plugin (rare): Postgres- oder Redis-backed Repo.
+**SQLite** (v0.2.1+) — Plugin-Bridges mit existing SQLite-State (Electron-Apps, Desktop-Hosts mit `<userData>/...db`). Drop-in für bestehende Schemas via `CREATE TABLE IF NOT EXISTS`:
+
+```ts
+import Database from 'better-sqlite3'
+import { HostKeyRegistry, SqliteHostKeyRepo } from '@nexus/plugin-bridge-foundation'
+
+const db = new Database('./data/plugin-bridge.db')
+const repo = new SqliteHostKeyRepo(db, { tableName: 'host_keys' })
+repo.ensureSchema()  // idempotent, no-op auf bestehenden Tabellen mit matching Spalten
+const registry = new HostKeyRegistry(repo)
+```
+
+Foundation-default Spaltenset: `host_id`, `public_key_pem`, `status`, `fingerprint`, `registered_at`, `approved_at`. Extra plugin-spezifische Spalten (z.B. `last_used_at`, `relay_url`) bleiben auf der Tabelle unangetastet — Foundation touched nur die definierten Spalten.
+
+Für Multi-Process-Plugin (rare): Postgres- oder Redis-backed Repo via Custom `HostKeyRepo`-Implementation.
+
+### 10.5 Wann brauche ich Foundation überhaupt?
+
+Foundation lohnt sich wenn dein Plugin **runtime-discovery** braucht — Host listet Plugin-Components dynamisch, Bridge-Token-Auth-Flow, oder Cross-Frame-Rendering via `/render-ui`. Lohnt sich NICHT wenn dein Consumer-Pfad **build-time-resolve** ist (pnpm/npm-import + dep-tree-resolve, vendoring-friendly, kein server-side state).
+
+**Reference-Implementations (Plugin-Provider mit Foundation):**
+
+| Plugin | Stack | Foundation-Mode |
+|---|---|---|
+| **plug-elec (ET-Mind)** | TS + Hono Bridge | Hand-roll prior to v0.1.0; v0.2.1+ migrating to `createBridgeApp` (msg #302–304) |
+| **oracle (plug-ea / EA-Mind)** | TS + Hono Bridge | v0.2.0 atomic-replace candidate (msg #265) |
+| **markview** | TS + Electron-embedded Bridge | v0.2.1+ candidate für `SqliteHostKeyRepo` drop-in (msg #299, #302) |
+
+**Counter-Example: Library-Only-Path-via-pnpm-sync:public**
+
+Design-Mind ([MrDewitt88/Design-Mind](https://github.com/MrDewitt88/Design-Mind), v0.1.0 tag `0674bbe`) ist explizit **kein** Plugin-Provider — es ist eine UI-Component-Library die per `pnpm add github:MrDewitt88/design-mind-tokens#v0.1.0` + `design-mind-ui#v0.1.0` als build-time-resolve konsumiert wird. Konkrete Templates für Konsumenten:
+
+- [`examples/familymind-brand/theme.css`](https://github.com/MrDewitt88/Design-Mind/tree/main/examples/familymind-brand) — FamilyMindV2 skin (teal + warm off-white)
+- [`examples/teammind-corporate/theme.css`](https://github.com/MrDewitt88/Design-Mind/tree/main/examples/teammind-corporate) — slate + indigo
+- [`examples/eamind-print/theme.css`](https://github.com/MrDewitt88/Design-Mind/tree/main/examples/eamind-print) — AAA-contrast paper-optimized
+
+Plus [`docs/THEMING.md`](https://github.com/MrDewitt88/Design-Mind/blob/main/docs/THEMING.md#examples-gallery) mit WCAG-AA contrast-audit.
+
+Design-Mind's Foundation-Adoption-Decision (msg #261): *"Plug-tmpl streicht uns aus Reference-Implementations-Liste — wir sind kein Plugin-Provider sondern Library-Consumer-Pattern. Mode-A deckt alle aktuellen Use-Cases ab."*
+
+**Heuristik:**
+- Eigener HTTP-Endpoint + Bridge-Token-Auth-Flow → **Foundation** (Plugin-Bridge-Pattern)
+- npm/pnpm-Distribution + `--*` CSS-vars + Web-Components als Library-Atoms → **Counter-Example** (kein Foundation needed)
+
+Beides ist legitim. Foundation ist Pflicht nur wenn dein Plugin am Plugin-Bridge-Protocol teilnimmt.
 
 ### 10.4 Versioning
 

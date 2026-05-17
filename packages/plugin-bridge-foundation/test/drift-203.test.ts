@@ -67,4 +67,34 @@ describe('Drift #203 — service_endpoint validation', () => {
     validateManifest(manifest, { warn: (m) => warnings.push(m) })
     expect(warnings).toHaveLength(0)
   })
+
+  it('IPv6-loopback [::1] is flagged (v0.2.1 — plug-elec cross-repo)', () => {
+    const manifest = {
+      ...BASE,
+      distribution: { ...BASE.distribution, service_endpoint: 'http://[::1]:3600' },
+    }
+    const warnings: string[] = []
+    validateManifest(manifest, { warn: (m) => warnings.push(m) })
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('[::1]')
+    expect(warnings[0]).toContain('Drift #203')
+  })
+
+  it('IPv6-loopback in strict mode throws drift_203', () => {
+    const manifest = {
+      ...BASE,
+      distribution: { ...BASE.distribution, service_endpoint: 'https://[::1]:8443' },
+    }
+    expect(() => validateManifest(manifest, { drift203: 'strict' })).toThrow(ManifestError)
+  })
+
+  it('non-loopback IPv6 (e.g. [::ffff:c000:0280]) is NOT flagged', () => {
+    const manifest = {
+      ...BASE,
+      distribution: { ...BASE.distribution, service_endpoint: 'http://[2001:db8::1]:3600' },
+    }
+    const warnings: string[] = []
+    validateManifest(manifest, { warn: (m) => warnings.push(m) })
+    expect(warnings).toHaveLength(0)
+  })
 })

@@ -30,7 +30,22 @@ export interface ManifestValidationOptions {
   warn?: (msg: string) => void
 }
 
-const DRIFT_203_PATTERN = /^https?:\/\/localhost(:|\/|$)/i
+// v0.2.1 — three loopback-Varianten gleichbehandelt (plug-elec msg #303).
+// V8 bindet `[::1]:3100` per default, manche Hosts nur IPv6, andere nur IPv4 —
+// alle drei sind aus remote-host-Sicht non-routable. Cross-Repo-Pattern aligned
+// mit ET-Mind packages/etmind-bridge/src/manifest-loader.ts.
+const LOOPBACK_PATTERNS: ReadonlyArray<{ regex: RegExp; label: string }> = [
+  { regex: /^https?:\/\/localhost(:\d+)?(\/|$)/i, label: 'localhost' },
+  { regex: /^https?:\/\/127\.0\.0\.1(:\d+)?(\/|$)/, label: '127.0.0.1' },
+  { regex: /^https?:\/\/\[::1\](:\d+)?(\/|$)/, label: '[::1]' },
+]
+
+function detectLoopback(endpoint: string): string | null {
+  for (const p of LOOPBACK_PATTERNS) {
+    if (p.regex.test(endpoint)) return p.label
+  }
+  return null
+}
 
 function applyDrift203Check(
   manifest: PluginManifest,
@@ -39,11 +54,15 @@ function applyDrift203Check(
   const mode = opts.drift203 ?? 'warn'
   if (mode === 'off') return
   const ep = manifest.distribution.service_endpoint
-  if (!ep || !DRIFT_203_PATTERN.test(ep)) return
+  if (!ep) return
+  const loopback = detectLoopback(ep)
+  if (!loopback) return
+  // 127.0.0.1 ist die kanonische Konvention. localhost + [::1] werden flagged.
+  if (loopback === '127.0.0.1') return
   const msg =
-    `manifest.distribution.service_endpoint '${ep}' uses 'localhost' — ` +
-    `Drift #203 mandates '127.0.0.1' (Browser-CSP treats them as different origins). ` +
-    `Replace 'localhost' with '127.0.0.1'.`
+    `manifest.distribution.service_endpoint '${ep}' uses '${loopback}' — ` +
+    `Drift #203 mandates '127.0.0.1' (Browser-CSP treats loopback variants as different origins). ` +
+    `Replace '${loopback}' with '127.0.0.1'.`
   if (mode === 'strict') {
     throw new ManifestError('drift_203', msg)
   }

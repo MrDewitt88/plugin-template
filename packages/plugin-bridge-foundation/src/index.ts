@@ -23,6 +23,7 @@ export {
   HostKeyRegistry,
   InMemoryHostKeyRepo,
   JsonFileHostKeyRepo,
+  SqliteHostKeyRepo,
   verifyAuthorizationHeader,
   verifyBridgeToken,
   type HostKeyRepo,
@@ -31,6 +32,9 @@ export {
   type RegisterHostInput,
   type RegisterResult,
   type RegistryOptions,
+  type SqliteHostKeyRepoDatabase,
+  type SqliteHostKeyRepoOptions,
+  type SqliteHostKeyRepoStatement,
 } from './auth/index.js'
 
 export { computeManifestHash, loadManifest, ManifestError, validateManifest } from './manifest/index.js'
