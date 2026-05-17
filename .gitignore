@@ -32,3 +32,13 @@ Thumbs.db
 # Plugin-Template runtime artefacts (per-plugin generated)
 storage/
 plugins/
+
+# Claude Code + chatbus per-session state (user/machine-specific paths,
+# never sharable). .claude/settings.local.json.suggested is the EXCEPTION
+# — that file is committed as Convention-Seed (siehe docs/templates/
+# CLAUDE-SETTINGS-LOCAL-TEMPLATE.md).
+.chatbus
+.claude/scheduled_tasks.lock
+.claude/settings.json
+.claude/settings.local.json
+.mcp.json
