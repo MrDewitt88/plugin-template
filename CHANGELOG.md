@@ -2,6 +2,48 @@
 
 All notable changes to `@nexus/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] — 2026-05-18
+
+Defensive guard against buggy hosts. Source: plug-elec DM #350 + C.1 cross-repo-debug-thread (msg #332-#357). v8-corp landed the canonical V8-Side supply-or-skip fix (`9494bf7`), Foundation now adds belt-and-suspenders for cross-host robustness.
+
+### Added
+
+- **`reregister_loop_detected: boolean | undefined` in `HostRecordStatus`** — optional field, only present (=true) when Foundation detects a host re-registering in a no-op loop. Plugin-handler can decide ob 429 zurück oder nur warn-log.
+- **`HostKeyRegistry.detectReregisterLoop(hostId, missing_optional_fields)`** — pure check method (no side-effects), returns true if same `{host_id, missing-fields-fingerprint}`-tuple appeared ≥`reregisterLoopThreshold` (default 3) times in `reregisterLoopWindowMs` (default 5min).
+- **In-memory tracking** in `HostKeyRegistry` — Map<host_id, RingBuffer<{timestamp, missingFingerprint}>>, capped at 10 entries per host. Auto-updated on every `register()` call. Set `reregisterLoopThreshold: 0` to disable.
+- **`buildHostRecordStatus({ loopDetected })`** — helper accepts optional flag, includes field only when true.
+- **register-host endpoint + handshake endpoint** automatically populate `reregister_loop_detected` via `registry.detectReregisterLoop()`.
+- **12 neue Tests** für loop-detection (first-register, under-threshold, at-threshold, window-expired, fingerprint-changes, per-host-isolation, disable, configurable, RingBuffer-cap, buildHostRecordStatus integration)
+
+### Tests
+
+- bridge-foundation: 96 → 108 (+12)
+- Total workspace: 225 → **237 grün**
+
+### Cross-Repo Provenance
+
+- plug-elec DM #350 — Pfad-B opt-in request, offered to be consumer + live-test against V8 bug
+- v8-corp `9494bf7` — canonical V8-Side supply-or-skip fix (primary)
+- C.1 cross-repo-CLOSED end-to-end with Drift #206 production-validated (msg #345, #357)
+- Foundation defensive guard = cross-host-robustness (ET-Mind runs in 6+ hosts)
+
+### Usage
+
+```ts
+const registry = new HostKeyRegistry(repo, {
+  optionalRegisterFields: ['host_version', 'relay_url'],
+  // Defaults: 3 same-tuple re-registers in 5min trigger flag
+  reregisterLoopThreshold: 3,
+  reregisterLoopWindowMs: 5 * 60 * 1000,
+})
+
+// In a tool-handler or middleware:
+if (handshakeResponse.host_record_status.reregister_loop_detected) {
+  // Optionally return 429 to the buggy host, or just warn-log
+  logger.warn('host re-registering in loop', { host_id, missing })
+}
+```
+
 ## [0.2.2] — 2026-05-18
 
 Patch release closing follow-ups aus v0.2.1 cross-repo-ack-DMs + adding distributed-tracing primitive.

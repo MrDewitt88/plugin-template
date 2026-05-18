@@ -45,25 +45,42 @@ export interface RegistryOptions {
    * landen in host_record_status.missing_optional_fields.
    */
   optionalRegisterFields?: readonly string[]
+  /**
+   * v0.2.3 Defensive Loop-Detection. Wenn ein Host ≥`reregisterLoopThreshold`
+   * mal in `reregisterLoopWindowMs` Millisekunden re-registriert ohne dass die
+   * `missing_optional_fields` sich ändern, wird `host_record_status
+   * .reregister_loop_detected=true` emittiert. Default-Threshold: 3 in 5min.
+   * Setze threshold auf 0 zum Disablen.
+   */
+  reregisterLoopThreshold?: number
+  reregisterLoopWindowMs?: number
 }
 
 /**
  * Drift #206 helper — baut den symmetric host_record_status-Block. Wird
  * sowohl von register-host als auch handshake als ALWAYS-PRESENT Block returned.
+ *
+ * v0.2.3 `loopDetected` (optional) — Foundation defensive Cross-Host guard
+ * signaling endless-no-op-re-register Pattern (siehe HostKeyRegistry).
  */
 export function buildHostRecordStatus(opts: {
   isFirstRegister: boolean
   providedFields: readonly string[]
   optionalFields: readonly string[]
+  loopDetected?: boolean
 }): HostRecordStatus {
   const missing = opts.optionalFields.filter((f) => !opts.providedFields.includes(f))
-  return {
+  const status: HostRecordStatus = {
     schema_version: PLUGIN_REGISTRATION_SCHEMA_VERSION,
     plugin_current_schema: PLUGIN_REGISTRATION_SCHEMA_VERSION,
     is_first_register: opts.isFirstRegister,
     reregister_recommended: missing.length > 0,
     missing_optional_fields: missing,
   }
+  if (opts.loopDetected) {
+    status.reregister_loop_detected = true
+  }
+  return status
 }
 
 /**
@@ -82,7 +99,19 @@ export interface RegisterResult {
   isFirstRegister: boolean
 }
 
+interface RegisterTraceEntry {
+  timestamp: number
+  /** Sorted comma-joined missing-fields snapshot at the time of register. */
+  missingFingerprint: string
+}
+
+const DEFAULT_LOOP_THRESHOLD = 3
+const DEFAULT_LOOP_WINDOW_MS = 5 * 60 * 1000
+
 export class HostKeyRegistry implements HostKeyResolver {
+  /** In-memory recent-register-trace per host_id (Loop-Detection, v0.2.3). */
+  private readonly recentRegisters = new Map<string, RegisterTraceEntry[]>()
+
   constructor(
     private readonly repo: HostKeyRepo,
     private readonly options: RegistryOptions = {},
@@ -96,7 +125,53 @@ export class HostKeyRegistry implements HostKeyResolver {
     return this.options.optionalRegisterFields ?? BASELINE_OPTIONAL_REGISTER_FIELDS
   }
 
+  get loopThreshold(): number {
+    return this.options.reregisterLoopThreshold ?? DEFAULT_LOOP_THRESHOLD
+  }
+
+  get loopWindowMs(): number {
+    return this.options.reregisterLoopWindowMs ?? DEFAULT_LOOP_WINDOW_MS
+  }
+
+  /**
+   * Track a register-Trace for Loop-Detection. Called automatisch von register().
+   * Trace is kept bounded (last 10 entries per host).
+   */
+  private trackRegister(hostId: string, providedFields: readonly string[]): void {
+    if (this.loopThreshold <= 0) return // Loop-Detection disabled
+    const missing = this.optionalFields.filter((f) => !providedFields.includes(f))
+    const fp = [...missing].sort().join(',')
+    const entries = this.recentRegisters.get(hostId) ?? []
+    entries.push({ timestamp: Date.now(), missingFingerprint: fp })
+    // Cap at 10 entries; drop oldest
+    while (entries.length > 10) entries.shift()
+    this.recentRegisters.set(hostId, entries)
+  }
+
+  /**
+   * Check if a host has been re-registering in a loop with the same missing
+   * fields. Returns true if ≥threshold entries with the same missing-fields
+   * fingerprint appear in the last window. Pure read — does not mutate trace.
+   */
+  detectReregisterLoop(hostId: string, missing_optional_fields: readonly string[]): boolean {
+    if (this.loopThreshold <= 0) return false
+    const entries = this.recentRegisters.get(hostId)
+    if (!entries || entries.length < this.loopThreshold) return false
+    const fp = [...missing_optional_fields].sort().join(',')
+    const cutoff = Date.now() - this.loopWindowMs
+    const matching = entries.filter(
+      (e) => e.timestamp >= cutoff && e.missingFingerprint === fp,
+    )
+    return matching.length >= this.loopThreshold
+  }
+
   async register(input: RegisterHostInput): Promise<RegisterResult> {
+    // Track every register-attempt für Loop-Detection (v0.2.3), regardless of outcome.
+    const providedFields = (Object.keys(input) as Array<keyof RegisterHostInput>).filter(
+      (k) => k !== 'host_id' && k !== 'public_key_pem' && input[k] !== undefined,
+    )
+    this.trackRegister(input.host_id, providedFields)
+
     const existing = await this.repo.get(input.host_id)
     const fingerprint = fingerprintPublicKey(input.public_key_pem)
     const isFirstRegister = existing === null

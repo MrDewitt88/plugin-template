@@ -251,6 +251,10 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
       ...(req.host_version !== undefined ? { host_version: req.host_version } : {}),
       ...(req.relay_url !== undefined ? { relay_url: req.relay_url } : {}),
     })
+    const missingFields = opts.registry.optionalFields.filter(
+      (f) => !providedOptionalFields.includes(f),
+    )
+    const loopDetected = opts.registry.detectReregisterLoop(record.host_id, missingFields)
     return c.json({
       host_id: record.host_id,
       status: record.status,
@@ -260,6 +264,7 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
         isFirstRegister,
         providedFields: providedOptionalFields,
         optionalFields: opts.registry.optionalFields,
+        loopDetected,
       }),
     })
   })

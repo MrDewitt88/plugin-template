@@ -52,6 +52,10 @@ export function handshakeHandler(manifest: PluginManifest, registry: HostKeyRegi
     // Bei handshake selbst übermittelt der Host host_version im JWT-Body —
     // wir können es als 'provided' werten (subset der register-fields).
     const providedOptionalFields = ['host_version']
+    const missingFields = registry.optionalFields.filter(
+      (f) => !providedOptionalFields.includes(f),
+    )
+    const loopDetected = registry.detectReregisterLoop(req.host_id, missingFields)
 
     return c.json({
       plugin_id: manifest.id,
@@ -63,6 +67,7 @@ export function handshakeHandler(manifest: PluginManifest, registry: HostKeyRegi
         isFirstRegister: false,
         providedFields: providedOptionalFields,
         optionalFields: registry.optionalFields,
+        loopDetected,
       }),
     })
   }

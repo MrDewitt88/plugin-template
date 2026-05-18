@@ -146,6 +146,12 @@ export const HostRecordStatusSchema = z.object({
   is_first_register: z.boolean(),
   reregister_recommended: z.boolean(),
   missing_optional_fields: z.array(z.string()).default([]),
+  // v0.2.3 — Defensive Cross-Host guard. True wenn dieselbe
+  // {host_id, missing_optional_fields}-Tuple in den letzten N Minuten
+  // ≥M-mal re-registriert wurde ohne dass die fields populated wurden.
+  // Plugin-handler kann entscheiden ob 429 zurück oder nur warn-log.
+  // Source: plug-elec DM #350 (V8-Bug C.1 supply-without-skip endless loop).
+  reregister_loop_detected: z.boolean().optional(),
 })
 export type HostRecordStatus = z.infer<typeof HostRecordStatusSchema>
 
