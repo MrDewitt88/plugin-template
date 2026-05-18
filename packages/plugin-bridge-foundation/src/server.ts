@@ -49,11 +49,27 @@ import type {
   ToolHandler,
 } from './types.js'
 
-// Hono-Bindings für typed c.set('claims', ...) / c.get('claims')
+// Hono-Bindings für typed c.set('claims', ...) / c.get('claims') / c.get('request_id')
 export type BridgeEnv = {
   Variables: {
     claims: BridgeTokenClaims
+    request_id: string
   }
+}
+
+/**
+ * Generate UUIDv4-shaped request-id für Distributed-Tracing. Cross-language
+ * convention aligned mit plug-db's X-Request-Id middleware (chatbus #294).
+ */
+function generateRequestId(): string {
+  // crypto.randomUUID() ist Node 19+, browser-safe. Foundation Targets Node 20+.
+  if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.randomUUID) {
+    return globalThis.crypto.randomUUID()
+  }
+  // Fallback (sehr defensive — sollte nie erreicht werden auf Node 20+)
+  return Array.from({ length: 4 }, () =>
+    Math.random().toString(16).slice(2, 10),
+  ).join('-')
 }
 
 export interface BridgeAppOptions {
@@ -104,12 +120,24 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
     cors({
       origin: opts.corsOrigin ?? '*',
       allowMethods: ['GET', 'POST', 'OPTIONS'],
-      allowHeaders: ['Authorization', 'Content-Type'],
-      exposeHeaders: ['Content-Length'],
+      allowHeaders: ['Authorization', 'Content-Type', 'X-Request-Id'],
+      exposeHeaders: ['Content-Length', 'X-Request-Id'],
       maxAge: 86400,
       credentials: false,
     }),
   )
+
+  // X-Request-Id middleware (v0.2.2) — distributed-tracing primitive.
+  // Pattern aligned mit plug-db's 3-Service-Tracing (chatbus #294). If client
+  // sends X-Request-Id, propagate it through claims-context + response header.
+  // Otherwise generate UUIDv4. Available via `c.get('request_id')` in handlers.
+  app.use('*', async (c, next) => {
+    const incoming = c.req.header('X-Request-Id') || c.req.header('x-request-id')
+    const requestId = incoming && incoming.length > 0 ? incoming : generateRequestId()
+    c.set('request_id', requestId)
+    c.header('X-Request-Id', requestId)
+    await next()
+  })
 
   // Pre-compute manifest_hash damit /health-handler nicht jedes mal hashes.
   const manifestHash = computeManifestHash(opts.manifest)
@@ -168,6 +196,7 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
         path,
         status: c.res.status,
         duration_ms: Date.now() - started,
+        request_id: c.get('request_id'),
       })
     })
   }

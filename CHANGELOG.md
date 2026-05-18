@@ -2,6 +2,35 @@
 
 All notable changes to `@nexus/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] — 2026-05-18
+
+Patch release closing follow-ups aus v0.2.1 cross-repo-ack-DMs + adding distributed-tracing primitive.
+
+### Added
+
+- **`X-Request-Id` middleware in `createBridgeApp`** — distributed-tracing primitive. Foundation generates UUIDv4 wenn no incoming header (case-insensitive `X-Request-Id` / `x-request-id`), echoes back in response, propagiert über `c.get('request_id')` in handlers + access-log. CORS `allowHeaders` + `exposeHeaders` enthalten `X-Request-Id`. Source-Pattern: plug-db's X-Request-Id 3-Service-Tracing (chatbus #294). Cross-language consistency mit Python/FastAPI Bridges.
+- **`request_id` field in access-log** — wenn `observability.logger` provided, jede HTTP-request-log-line includet `request_id`-field für log-correlation.
+- **`BridgeEnv.Variables.request_id`** — Hono-typed access via `c.get('request_id')` für plugin-handler code.
+- **6 neue Tests** in `test/request-id.test.ts` (generate, propagate, case-insensitive, access-log inclusion, uniqueness, CORS headers exposed)
+
+### Provider-Guide §5.5 (NEU) — render-ui Wire-Spec canonical
+
+- Request-body shape (`route_path`/`tenant_id`/`user_id`/`context` + Authorization Bearer header, KEIN `bridge_token` im body) — aligned mit V8-Side canonical (DM #335, [`docs/PLUGIN-BRIDGE-PROTOCOL.md`](https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/PLUGIN-BRIDGE-PROTOCOL.md))
+- Response shape (`{html, scripts, styles}` mit relative-URL-resolution gegen `service_endpoint`)
+- Reference-Implementations-Tabelle: V8 Frontend-Render (`apps/host/src/routes/(app)/plugins/[plugin_id]/[...path]/+page.svelte`), V8 Bridge-Client (`packages/plugins/src/server/bridge-client.ts:401-426`), MarkView Producer, ET-Mind Producer (post-M3), EA-Mind Producer
+- Drift-Status: V8 ↔ Theseus keine bekannten Wire-Mismatches (msg #335), Pfad-C-Collab `collab`-Block bleibt v0.3.0+ Backlog
+
+### Tests
+
+- bridge-foundation: 90 → 96 (+6 request-id tests)
+- Total workspace: 219 → **225 grün**
+
+### Reference
+
+- v8-corp DM #335 — render-ui canonical-spec
+- plug-db msg #294 — X-Request-Id 3-Service-Tracing Pattern
+- v8-corp/plug-elec C.1 debug-thread (msg #332-#340) — silent-fail diagnostic motivation
+
 ## [0.2.1] — 2026-05-17
 
 Follow-up patch closing three cross-repo asks from v0.2.0 ack-DMs.

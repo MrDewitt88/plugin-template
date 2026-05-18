@@ -254,6 +254,58 @@ console.log('Plugin-Bridge live on :3600')
 
 ---
 
+## 5.5 render-ui Wire-Spec (canonical aus V8-Side, Reference-Implementations)
+
+`POST /plugin-bridge/v1/render-ui` ist der Endpoint über den Hosts (V8/Theseus/MarkView/etc.) Plugin-UI per Route-Pfad anfordern. Foundation `RenderUiRequestSchema` + `RenderUiResponseSchema` matchen canonical wire-shape aus V8 ([`docs/PLUGIN-BRIDGE-PROTOCOL.md`](https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/PLUGIN-BRIDGE-PROTOCOL.md) §POST /plugin-bridge/v1/render-ui).
+
+### 5.5.1 Request-Body
+
+```json
+{
+  "route_path": "/dokumente/edit/abc-123",
+  "tenant_id": "<uuid>",
+  "user_id": "<uuid>",
+  "context": { "<arbitrary>": "<json>" }
+}
+```
+
+- **`route_path`** muss mit `/` starten (Zod-validated in Foundation)
+- **`bridge_token`** ist NICHT im Body — kommt im `Authorization: Bearer <jwt>` Header (Ed25519 V8-signed, JWT-claims tragen plugin_id/tenant_id/user_id/scopes)
+- **`theme` / `locale`** sind aktuell NICHT canonical im Request. Wenn Plugin theme-aware rendert: aus `context` lesen oder via Custom-Element-Attribut (Drift #7 long-form)
+- **`X-Request-Id`** Header (optional) — Foundation v0.2.2+ propagiert + echoed automatisch in Response. Distributed-Tracing-Primitive.
+
+### 5.5.2 Response-Shape
+
+```json
+{
+  "html": "<plugin-myplugin-foo></plugin-myplugin-foo>",
+  "scripts": ["/static/ui/bundle-abc.js"],
+  "styles": ["/static/ui/styles-abc.css"]
+}
+```
+
+Relative Script/Style-URLs werden Host-Side gegen `service_endpoint` aufgelöst (V8 PR 26 — `/static/ui/bundle.js` → `http://127.0.0.1:3600/static/ui/bundle.js`).
+
+### 5.5.3 Reference-Implementations
+
+| Side | Role | File |
+|---|---|---|
+| **V8 Frontend-Render** | catch-all mounts plugin route + lazy-load ESM scripts | `apps/host/src/routes/(app)/plugins/[plugin_id]/[...path]/+page.svelte` |
+| **V8 Bridge-Client (server-side caller)** | `bridgeRenderUi` | `packages/plugins/src/server/bridge-client.ts:401-426` |
+| **MarkView Producer** | `routeBundles`-Pattern | `apps/markview-plugin/src/server/render-ui.ts` |
+| **ET-Mind Producer** | 5 Custom-Elements aus M3 (post-`23d8408`) | `packages/etmind-bridge/src/server.ts` |
+| **EA-Mind Producer** | 3 Custom-Elements `<plugin-eamind-{overview,kunden,angebot}>` | `@eamind/bridge/src/server.ts` |
+
+**Foundation-implementation:** wenn du `createBridgeApp({renderUi: handler})` passt + dein `handler` returnt `{html, scripts, styles}`, ist die Wire-Shape automatisch canonical. Plus `staticUiHandler` (v0.2.0+) für die `scripts:`-URLs path-traversal-safe.
+
+### 5.5.4 Drift-Catalog (Cross-Repo Status)
+
+- **V8 ↔ Theseus render-ui**: keine bekannten Wire-Mismatches (msg #335)
+- **Drift #103** canonical error-shape `{error:{code,message,details?}}` für 4xx/5xx gilt
+- **Pfad-C-Collab `collab`-Block** (markview Pattern): wenn Host mit `relay_url` registriert, render-ui darf optional `collab`-Block emittieren (`relay_url + channel_id + snapshot_endpoint`). Aktuell crosstask-BACKLOG bei V8, Foundation noch nicht baked-in (geplant für v0.3.0+ wenn V8 canonical adoptiert)
+
+---
+
 ## 6. Layer-4-Walkthrough — UI-Component (Svelte 5)
 
 ```svelte
