@@ -65,11 +65,33 @@ pnpm test
 
 Mind-Canva + Wiz-Mind sind primary first-movers. ETA migration ~30min pro Plugin.
 
+### Reference Migration — Mind-Canva (battle-tested)
+
+**First-mover validation:** mind-canva-CC migrated cleanly in **22min** (vs 30min-estimate ✓) — commit [`641f5c5`](https://github.com/MrDewitt88/Mind-Canva/commit/641f5c5) on `main`, 2026-05-21. The sed-script in the migration-section above is **battle-tested** by this run.
+
+| Metric | Wert |
+|---|---|
+| Aufwand | 22min |
+| Files touched | 30 (source + 2 `package.json` + `pnpm-workspace.yaml` + 7 docs) |
+| Source-Renames | `@nexus/plugin-` → `@nexus-mindgarden/plugin-` via sed |
+| Workspace-Konfig | `vendor/plugin-template/packages/*` entfernt aus `pnpm-workspace.yaml` |
+| Vendored-Tree | `vendor/` komplett gelöscht (~50 files) |
+| Workarounds gone | `scripts/setup-foundation.sh` + `setup:foundation` script + `docs/VENDOR-FOUNDATION.md` |
+| `pnpm install` | 2.1s |
+| Tests | 162/162 grün |
+| UI build | 95.1 KB gz (unchanged) |
+| Drift-discipline | maintained (identical foundation-code, just via npm) |
+
+**Verified import-resolution** out of `@nexus-mindgarden/plugin-bridge-foundation` + `/observability` subpath: `createBridgeApp`, `HostKeyRegistry`, `JsonFileHostKeyRepo`, `loadManifest`, `Logger`, `MetricsRegistry`. Bridge boot identical to vendored-version (`bridge_listening` + `storage_opened` clean).
+
+**Pattern-Learning — Foresight-Payoff:** Mind-Canva's previously-shipped `docs/VENDOR-FOUNDATION.md` had explicitly documented the **reversal-path** for vendor → npm. When v0.4.0 landed, that documentation flowed 1:1 into action. This is the canonical example for "write workarounds with the reversal-pattern in mind" — see Provider-Guide for the pattern-essay.
+
 ### Cross-Repo Provenance
 
 - **wiz-mind DM #508** — Path-A error report (v0.3.0 broken)
 - **plug-elec DM #509** — Independent reproduce + Option-A (npm-publish) vote
 - **User D1-D4 decisions** — Org-name `@nexus-mindgarden`, public-access, lockstep, all 5 packages
+- **mind-canva msg #534** — First-mover migration success report (22min, 162/162 green)
 
 ### Roadmap
 
