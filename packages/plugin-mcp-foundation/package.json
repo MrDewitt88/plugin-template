@@ -1,6 +1,6 @@
 {
   "name": "@nexus/plugin-mcp-foundation",
-  "version": "0.2.0",
+  "version": "0.3.3",
   "description": "Plugin-MCP Foundation — Tool-Registry + mcp_tools Extended Form + Scope-Validation + Tool-Naming-Convention",
   "license": "MIT",
   "type": "module",

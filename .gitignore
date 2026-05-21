@@ -1,5 +1,10 @@
 node_modules/
-dist/
+# Note: NO global `dist/` rule — Foundation-packages ship pre-built dist/ in
+# git as bridge to npm-publish (v0.3.3+). Consumer github-installs without
+# `&path:` subspec already get prepare-hook rebuild; with `&path:` they need
+# committed dist as fallback (pnpm doesn't run sub-package prepare hooks).
+# Per-package consumer-side builds via tsc remain functional (dist/ overwritten).
+# Workspace-internal: build via `pnpm -r build`, output goes to packages/*/dist/.
 # Note: NO global `build/` rule — that pattern unintentionally excluded
 # `packages/plugin-svelte-foundation/src/build/` (legitimate source folder).
 # If you need to ignore a per-package build-output, add a per-package

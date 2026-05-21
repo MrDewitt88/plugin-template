@@ -2,6 +2,66 @@
 
 All notable changes to `@nexus/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.3] — 2026-05-21
+
+Third hotfix in 4 hours. wiz-mind (msg #508) + plug-elec (msg #509) independently reproduced that v0.3.2 still didn't work for consumers. **Real root-cause finally diagnosed + fixed.**
+
+### The Real Problem (both install-paths broken before v0.3.3)
+
+**Path A: `pnpm add github:...#v0.3.2`** (no subspec):
+- pnpm aliases `@nexus/plugin-bridge-foundation` → ROOT `@nexus/plugin-template` package
+- Root has no `main`/`exports` (`"private": true`) → "Failed to resolve entry"
+
+**Path B: `pnpm add github:...#v0.3.2&path:/packages/plugin-bridge-foundation`** (subspec):
+- pnpm installs sub-package isolated
+- BUT prepare-hook only runs at ROOT install, not at sub-package install
+- `dist/` doesn't exist in installed package → ERR_MODULE_NOT_FOUND
+
+v0.3.1's prepare-hook only helped Path A — but Path A is broken for a different reason.
+
+### Fix (Option B — Pre-Built dist/ Committed)
+
+Per plug-elec msg #509 recommendation + wiz-mind msg #508 fallback:
+
+- **Removed `dist/` from `.gitignore`** — Foundation packages ship pre-built dist/ in git
+- **Force-built all packages** + committed `packages/*/dist/` (~218 files)
+- **All Foundation packages aligned to `0.3.3`** (were drifted: bridge 0.3.1, svelte 0.3.2, storage/mcp 0.2.0)
+
+Consumer install via `&path:` subspec now finds `dist/` immediately:
+```bash
+pnpm add 'github:MrDewitt88/plugin-template#v0.3.3&path:/packages/plugin-bridge-foundation'
+```
+
+### Anti-Pattern Acknowledgement
+
+Committing build-output to git is anti-pattern. We're doing it as a **bridge to npm-publish** (v0.4.0 roadmap, per Option A consensus). Trade-offs:
+- ✅ Consumers can install via github immediately
+- ✅ Foundation surface stable enough to commit
+- ⚠️ Diffs include dist/ — git-blame/code-review noise
+- ⚠️ Manual `pnpm -r build` discipline before tagging (until v0.4.0 CI automates)
+
+### v0.4.0 Roadmap (npm-publish)
+
+Per wiz-mind #508 + plug-elec #509 consensus:
+
+1. Setup `@nexus` npm-org
+2. CI workflow on tag: `pnpm -r build && pnpm -r publish`
+3. Re-introduce `dist/` to `.gitignore`
+4. Consumers migrate from `github:...` to `@nexus/plugin-bridge-foundation@0.4.x`
+
+### Lessons-Learned (cumulative v0.3.0-0.3.3)
+
+- **Always test consumer-side install via fresh github-clone before tagging** — should be CI gate
+- **gitignore patterns at workspace-root affect sub-package source** — per-package `.gitignore` safer
+- **prepare-hook only runs at root install** — not sub-package isolated install
+- **Version alignment matters** — sub-packages drifted from 0.2.0 → 0.3.x silently
+
+### Cross-Repo Provenance
+
+- **wiz-mind** DM #508 — Path-A error + `link:` workaround
+- **plug-elec** DM #509 — Independent reproduce + Path B failure analysis + 3 fix options with vote
+- Both vote Option A (npm-publish) as long-term, Option B (committed dist) as immediate bridge
+
 ## [0.3.2] — 2026-05-21
 
 Critical fix release — second wiz-mind report DM #487. v0.3.1 prepare-hook unblocked 3 of 4 packages, but plugin-svelte-foundation still failed because **source files were missing from git tracking**.
