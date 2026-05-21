@@ -31,7 +31,7 @@ import {
   HostKeyRegistry,
   verifyAuthorizationHeader,
 } from './auth/index.js'
-import { RegisterHostRequestSchema } from './types.js'
+import { extractPublicKeyPem, RegisterHostRequestSchema } from './types.js'
 import { handshakeHandler } from './endpoints/handshake.js'
 import { manifestHandler } from './endpoints/manifest.js'
 import { healthHandler } from './endpoints/health.js'
@@ -242,12 +242,19 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
       )
     }
     const req = parsed.data
+    // v0.3.1: extract PEM regardless of which field-name the caller sent
+    // (public_key_pem canonical-target vs public_key legacy — markview drift-resolution).
+    const publicKeyPem = extractPublicKeyPem(req)
     const providedOptionalFields = Object.keys(req).filter(
-      (k) => k !== 'host_id' && k !== 'public_key_pem' && req[k as keyof typeof req] !== undefined,
+      (k) =>
+        k !== 'host_id' &&
+        k !== 'public_key_pem' &&
+        k !== 'public_key' &&
+        req[k as keyof typeof req] !== undefined,
     )
     const { record, isFirstRegister } = await opts.registry.register({
       host_id: req.host_id,
-      public_key_pem: req.public_key_pem,
+      public_key_pem: publicKeyPem,
       ...(req.host_version !== undefined ? { host_version: req.host_version } : {}),
       ...(req.relay_url !== undefined ? { relay_url: req.relay_url } : {}),
     })

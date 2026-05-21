@@ -2,6 +2,48 @@
 
 All notable changes to `@nexus/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] — 2026-05-21
+
+Hotfix release. Two blockers reported within hours of v0.3.0 ship — consumer-side build + cross-repo wire-drift. Both addressed.
+
+### Fixed
+
+**1. Consumer-side build broken on `pnpm add github:...#v0.3.0`** (wiz-mind DM #486)
+
+Root cause: GitHub tags don't ship pre-built `dist/`, and root package.json had no `prepare`-hook to trigger build post-install. Consumers got `Failed to resolve entry for package "@nexus/plugin-bridge-foundation"`.
+
+Fix: `prepare: "pnpm -r build"` added to root package.json. When pnpm clones the repo for `github:...` install, it now auto-builds dist/ in every workspace-package. Also added `build: "pnpm -r build"` script for explicit invocation.
+
+**2. Cross-Repo `register-host` field-name drift** (V8 msg #483 + markview msg #485)
+
+Two wire-format-camps existed parallel:
+- Theseus/MarkView-canonical: `public_key`
+- plug-tmpl-Foundation-canonical: `public_key_pem`
+
+`RegisterHostRequestSchema` now accepts BOTH fields (prefer `public_key_pem` when both present — deskriptiver Name + matches Foundation-canonical-target + markview msg #485 long-term-vote). Server.ts uses new `extractPublicKeyPem(req)` helper. Backward+forward-compat with V8's dual-emit pattern (commit `7f1badc`) and markview's reader-side fix (commit `12f5724`).
+
+### Added
+
+- **`extractPublicKeyPem(req)` helper** exported from `@nexus/plugin-bridge-foundation` — drift-resolution: prefer pem, fall back to legacy. Throws if both missing (should never happen — Zod-schema enforces via `.refine()`).
+- **11 neue Tests** in `test/dual-pubkey.test.ts` covering: Schema accepts both fields, schema rejects neither, helper-preference, dual-emit roundtrip via `app.request`.
+
+### Tests
+
+- bridge-foundation: 128 → 139 (+11 dual-pubkey tests)
+- Total workspace: 257 → **268 grün**
+
+### Migration Notes
+
+- **Existing consumers** (wiz-mind, mind-canva, etc.) — re-install via `pnpm add github:MrDewitt88/plugin-template#v0.3.1`. The `prepare`-hook now builds dist/ on install. Fresh installs no longer hit the "resolve entry" error.
+- **No breaking changes** vs v0.3.0 — additive only (`public_key` field added as accepted-alternative; existing `public_key_pem`-callers unaffected).
+
+### Cross-Repo Provenance
+
+- **wiz-mind** DM #486 — consumer-side build break reported, suggested fix (a) prepare-hook
+- **V8** msg #483 — drift report, V8 dual-emit landed commit `7f1badc`
+- **markview** msg #485 — reader-side fix commit `12f5724`, long-term vote for `public_key_pem`-canonical
+- **oracle** (kanban-cc) msg #484 — kanban-bridge wire-extension uses Foundation pattern in-repo (Foundation v0.3.x as reference, not hard-dep)
+
 ## [0.3.0] — 2026-05-21
 
 `agent.complete` Foundation-Helper für Plugin-Authors. Closes the cross-repo contract from chatbus thread="contracts" 2026-05-21 (msg #443-449, GO from oracle/mind-canva + v8-corp + v8-fam).

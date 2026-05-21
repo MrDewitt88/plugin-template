@@ -182,15 +182,36 @@ export type HandshakeResponse = z.infer<typeof HandshakeResponseSchema>
 // Bootstrap-Endpoint — Host posted seinen Public-Key zur Plugin-Bridge bevor
 // JWT-Auth funktional ist. Drift #12: idempotent — same key preserves status.
 
-export const RegisterHostRequestSchema = z.object({
-  host_id: z.string().min(1),
-  public_key_pem: z.string().min(1),
-  // Optional fields — wenn fehlend → in host_record_status.missing_optional_fields
-  host_version: z.string().optional(),
-  // v0.2.0 — Pfad-C-Collab / reverse-call-channel (markview, plug-elec)
-  relay_url: z.string().url().optional(),
-})
+// v0.3.1 dual-read for ecosystem-wide drift-resolution (V8 msg #483 + markview msg #485):
+// `public_key` is V8/Theseus/MarkView-canonical, `public_key_pem` is plug-tmpl-Foundation-canonical.
+// Foundation accepts BOTH, prefers `public_key_pem` (deskriptiver Name) wenn beide present.
+// Long-term Ecosystem konvergiert auf `public_key_pem` (markview msg #485 vote).
+export const RegisterHostRequestSchema = z
+  .object({
+    host_id: z.string().min(1),
+    public_key_pem: z.string().min(1).optional(),
+    public_key: z.string().min(1).optional(),
+    // Optional fields — wenn fehlend → in host_record_status.missing_optional_fields
+    host_version: z.string().optional(),
+    // v0.2.0 — Pfad-C-Collab / reverse-call-channel (markview, plug-elec)
+    relay_url: z.string().url().optional(),
+  })
+  .refine((data) => data.public_key_pem !== undefined || data.public_key !== undefined, {
+    message: 'either public_key_pem or public_key required',
+    path: ['public_key_pem'],
+  })
 export type RegisterHostRequest = z.infer<typeof RegisterHostRequestSchema>
+
+/**
+ * Drift-resolution helper: prefer `public_key_pem` (canonical-target), fall back to
+ * `public_key` (legacy Theseus/MarkView/V8). Returns the PEM string. Throws if both
+ * missing (should never happen — schema enforces via .refine).
+ */
+export function extractPublicKeyPem(req: RegisterHostRequest): string {
+  if (req.public_key_pem) return req.public_key_pem
+  if (req.public_key) return req.public_key
+  throw new Error('extractPublicKeyPem: neither public_key_pem nor public_key set (schema-bypass?)')
+}
 
 export const RegisterHostResponseSchema = z.object({
   host_id: z.string(),
