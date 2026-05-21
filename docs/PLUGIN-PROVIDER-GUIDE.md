@@ -750,7 +750,106 @@ Bis dahin sind plug-tmpl-Schemas faithful zur Spec (msg #449).
 
 ---
 
-## 12. References
+## 12. Writing Reversible Workarounds
+
+Plugin development in a multi-repo cluster surfaces a recurring tension: the canonical path (e.g. npm-published Foundation packages) takes time to land, but downstream plugins can't wait. They ship a **workaround** — a vendored-tree, a custom helper, a monkey-patch — to unblock themselves. Then, when the canonical path arrives, the workaround has to come out. If the workaround was written without the reversal-path in mind, removing it can be days of detective-work.
+
+This section codifies the **reversal-discipline** that lets workarounds come out cleanly, often in single-digit minutes.
+
+### The pattern
+
+When you ship a workaround, ship **three artifacts** at the same commit:
+
+1. **The workaround itself** — the script, the vendored-code, the monkey-patch
+2. **A `WHY` companion-doc** — short markdown file (~30 lines) explaining what the workaround does, why it exists right now, what canonical-state it bridges to
+3. **A `REVERSAL-PATH` section** — explicit step-by-step undo-instructions, including the sed-commands, file-deletions, and verification-checks that take the plugin back to the canonical-path-consumption shape
+
+Convention: name the companion-doc by the workaround's domain. E.g. if you vendor-tree Foundation under `vendor/plugin-template/`, name the doc `docs/VENDOR-FOUNDATION.md`. The pairing makes the workaround discoverable from its own location.
+
+### Anatomy of a `WHY` companion-doc
+
+```markdown
+# Vendor-Foundation Workaround
+
+## Status
+Active workaround. Will be removed when Foundation publishes to npm
+(tracked: foundation milestone v0.4.0).
+
+## What this is
+Vendor-tree of @nexus-mindgarden/plugin-bridge-foundation at v0.3.3
+copied into `vendor/plugin-template/`. `pnpm-workspace.yaml` references
+this path. `scripts/setup-foundation.sh` populates the tree from
+a git-pinned source.
+
+## Why this exists
+Foundation v0.3.0 broke consumer-installs (github-URL without dist/).
+v0.3.3 added committed-dist as a bridge but only as a 4-iteration
+hotfix. Until npm-publish lands, we vendor to control the upgrade-tempo.
+
+## When to remove
+When Foundation v0.4.0 (or any later version) is on npm:
+`pnpm view @nexus-mindgarden/plugin-bridge-foundation version`
+returns a value.
+
+## Reversal path
+See § Reversal below.
+
+## Reversal
+
+1. Confirm npm-published version:
+   pnpm view @nexus-mindgarden/plugin-bridge-foundation version
+2. Replace vendor-reference in package.json:
+   sed -i '' 's|"@nexus/plugin-bridge-foundation": ".*"|"@nexus-mindgarden/plugin-bridge-foundation": "^0.4.0"|g' package.json
+3. Remove from pnpm-workspace.yaml:
+   yq eval 'del(.packages[] | select(. == "vendor/plugin-template/*"))' \
+     -i pnpm-workspace.yaml
+4. Delete artifacts:
+   rm -rf vendor/ scripts/setup-foundation.sh
+   # Also remove "setup:foundation" from package.json scripts
+5. Re-install + verify:
+   pnpm install
+   pnpm test
+6. Delete this file: rm docs/VENDOR-FOUNDATION.md
+```
+
+### Why this pays off (real reference, anonymized)
+
+A plugin in the `@nexus-mindgarden` cluster shipped a vendored-Foundation workaround during the v0.3.x hotfix-cascade. They wrote a companion `docs/VENDOR-FOUNDATION.md` documenting the reversal-path **at the same commit**, before the canonical npm-published Foundation existed.
+
+When Foundation v0.4.0 landed weeks later, the same CC who was unfamiliar with the workaround's specifics was able to execute the reversal in **~22 minutes** by following the documented steps verbatim. The migration touched 30 files, removed ~50 files of vendored-tree, and stayed 162/162 tests green throughout.
+
+The key insight: **the reversal-doc was written when the workaround was fresh**, not retrofitted later. By the time you need the reversal-doc, the original-context has often paged-out of human-memory. Future-you, or a different CC, or a successor maintainer reads it cold.
+
+### Anti-pattern checklist
+
+Avoid these failure-modes:
+
+- ❌ **No reversal-doc** — workaround ships, six months later nobody remembers why it exists; removing it becomes archaeology
+- ❌ **Reversal-doc lives only in chatbus** — chatbus is for coordination, not artifact-discoverability. Future-readers grep the repo
+- ❌ **Reversal-doc refers to "the canonical version"** — name the specific version the reversal targets. "When Foundation lands" is vague; "When `pnpm view ... version` returns ≥0.4.0" is concrete
+- ❌ **Workaround-script and reversal-script in separate commits** — they must ship together so a reader sees both at the same `git log` entry
+- ❌ **Reversal-doc has no verification-checks** — the reader needs to know how to confirm the reversal worked (which tests, which grep, which build-step)
+
+### When the pattern is NOT worth the cost
+
+Skip the reversal-doc discipline for:
+
+- Trivial one-line workarounds (a `// TODO: remove after #1234` comment is enough)
+- Workarounds that touch only your own code (no cross-package shape-change to undo)
+- Time-bound workarounds where the canonical path lands within hours (chatbus-thread sufficient for that lifetime)
+
+The discipline is for workarounds that **span repos or persist past a single sprint**. That's where context decays and reversal-friction compounds.
+
+### Cross-Repo Provenance
+
+- **mind-canva pattern (anonymized in this guide):** `docs/VENDOR-FOUNDATION.md` shipped with `vendor/plugin-template/` workaround during v0.3.x cascade. Used 1:1 during v0.4.0 npm-publish reversal. Commit-link available via plugin-author's chatbus reference if needed.
+- **kanban in-repo-mirror pattern:** `host-record-status.ts` 56-LoC mirror documents trade-offs (zero supply-chain-Surface vs drift-risk) inline as code-comments + chatbus-trail. For a mirror this small, code-comment + chatbus is sufficient; for larger workarounds (>150 LoC or multi-file), the full `WHY` companion-doc pattern is recommended.
+
+See also: [`MIGRATION-COOKBOOK.md`](./MIGRATION-COOKBOOK.md) for the three adoption-patterns that reversal-disciplined workarounds bridge between.
+
+---
+
+## 13. References
 
 - [`PLUGIN-BRIDGE-PROTOCOL.md`](https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/PLUGIN-BRIDGE-PROTOCOL.md) — Wire-Spec + mcp_tools Extended Form
 - [`PLUGIN-KIARA-INTEGRATION.md`](https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/PLUGIN-KIARA-INTEGRATION.md) — Frag-Kiara

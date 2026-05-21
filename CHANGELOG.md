@@ -43,6 +43,7 @@ All notable changes to `@nexus-mindgarden/plugin-template` and its foundation pa
 ### Documentation
 
 - **`docs/MIGRATION-COOKBOOK.md`** (new) — consolidated three-pattern adoption-playbook (Full-Replace / Helper-Lib / In-Repo-Mirror) with decision-matrix, step-by-step recipes, drift-discipline guidance per pattern, and reversal-path documentation. Distilled from three real-world v0.4.0+ adoption events; consumer-names anonymized pending naming-approval.
+- **`docs/PLUGIN-PROVIDER-GUIDE.md` §12** (new) — "Writing Reversible Workarounds" — codified discipline for shipping workarounds with same-commit reversal-docs. Three-artifact pattern (workaround / `WHY`-doc / `REVERSAL-PATH` section), anatomy-template, anti-pattern checklist, when-NOT-to-apply guidance. Distilled from the real-world `docs/VENDOR-FOUNDATION.md` reversal-success-story (consumer anonymized).
 - `README.md` — new "Migration & Adoption" section linking the Cookbook + Provider-Guide + Host-Integration-Guide.
 
 ## [0.4.0] — 2026-05-21
