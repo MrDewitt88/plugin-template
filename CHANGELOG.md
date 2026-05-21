@@ -2,6 +2,44 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] — 2026-05-21
+
+**Per-package patch: `@nexus-mindgarden/plugin-bridge-foundation@0.4.1`** — adds slim `/shapes` subpath for drift-immunity types without runtime-cost. Other Foundation packages remain at `0.4.0` (lockstep relaxed for per-package patches; lockstep retained for minor/major bumps).
+
+### Added
+
+- **`@nexus-mindgarden/plugin-bridge-foundation/shapes` subpath** — wire-shape-only re-exports (zod-schemas + inferred-types + canonical-constants). Designed for two adoption-patterns surfaced by v0.4.0 consumer-feedback:
+
+  1. **In-Repo-Mirror consumers** (zero supply-chain-Surface): Replace hand-rolled shape-mirrors with `import type { HostRecordStatus } from '@nexus-mindgarden/plugin-bridge-foundation/shapes'`. Drift-immunity without pulling hono/jose/storage-runtimes. The shape-only `import type` syntax + TS-elision means zero bundled bytes for type-only consumers.
+
+  2. **Helper-Lib consumers** (selective Foundation-adoption): Pair with main subpath's runtime-helpers (e.g. `buildHostRecordStatus()` from `/auth`) without pulling `createBridgeApp` or full server-runtime.
+
+  Re-exported surface (intentionally narrow):
+  - `PluginManifestSchema` + `PluginManifest` + manifest sub-schemas
+  - `HostRecordStatusSchema` + `HostRecordStatus` + drift-#206 constants (`PLUGIN_REGISTRATION_SCHEMA_VERSION`, `BASELINE_OPTIONAL_REGISTER_FIELDS`)
+  - All endpoint request/response wire-shapes (handshake, register-host, health, execute-tool, render-ui, invoke-hook)
+  - `BridgeTokenClaims` (JWT-wire-shape between Host and Bridge)
+
+  Architecture-fence (NOT re-exported, by design):
+  - `HostKeyRecord` / `HostKeyStatus` — internal-storage shapes (v0.5.0 spec-extension candidate for per-host `expectedIssuer`/`expectedAudience` for multi-issuer-bridge support)
+  - `extractPublicKeyPem()` — runtime helper, lives in main subpath
+  - `BridgeAuthContext` / handler-types — server-runtime
+  - `createBridgeApp` etc. — runtime building-blocks
+
+### Tests
+
+- `test/shapes-subpath.test.ts` — 17 new tests covering canonical-constants, drift-#206 schema validation, all endpoint wire-shapes, architecture-fence (negative tests verify runtime-internals are NOT re-exported)
+- Total: 155/155 grün (was 138 in v0.4.0 → +17 shapes-subpath)
+
+### Motivation (Cross-Repo Provenance)
+
+- **kanban msg #543** — Reported in-repo-mirror pattern (56-LoC `host-record-status.ts`, zero-dep). Legitimate engineering trade-off but drift-fragile if Foundation-spec evolves. `/shapes` gives kanban-style consumers drift-immunity via `import type` without forcing full-Foundation adoption.
+- **markview msg #549** — Adopted Foundation@^0.4.0 as Helper-Lib (Pfad B), `buildHostRecordStatus()` live. `/shapes` makes the helper-lib pattern cleaner: types-only from `/shapes`, runtime-helpers from `/auth`, no full-server-runtime needed.
+
+### Roadmap signal
+
+- **v0.5.0 candidate (markview msg #549):** Extend `HostKeyRecord` with per-host `expectedIssuer`/`expectedAudience` fields to support multi-issuer-bridge architectures (e.g. one bridge serving V8 + FamilyMind + Theseus with distinct JWT-verifier-configs). Currently parked in `HostKeyRecord` (NOT in `/shapes` surface) so this spec-extension stays consumer-coordinated.
+
 ## [0.4.0] — 2026-05-21
 
 🎉 **npm-publish landed — Foundation as canonical npm-packages under `@nexus-mindgarden` scope.**
