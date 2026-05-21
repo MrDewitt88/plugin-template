@@ -2,6 +2,61 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] — 2026-05-21
+
+**Minor bump — lockstep across all Foundation packages.** Adds `/persona` subpath as SHAPE-ONLY contract for cross-plugin persona-anchoring (Wiz-Mind's M17 SOUL/DIARY/MEMORY-pattern). Per wiz-mind msg #573 vote 3c: lock the contract early, ship runtime helper in v0.6.0 when ≥2 consumers signal explicit runtime need. Plus Provider-Guide §13 "Pre-Coding to Surface Contract-Drift" — codified dry-run-spec-validation discipline.
+
+### Added
+
+- **`@nexus-mindgarden/plugin-bridge-foundation/persona` subpath (SHAPE-ONLY)** — canonical `PersonaAnchorInput` schema + type + v0.6.0-runtime-contract types. **No runtime helper in v0.5.0.** Consumers `import type { PersonaAnchorInput }` for compile-time-check against their own prompt-builders; Foundation-types become de-facto canonical through usage instead of fiat.
+
+  Re-exported surface:
+  - **Sub-shapes:** `PersonaSoulSchema/PersonaSoul`, `PersonaDiaryEntrySchema/PersonaDiaryEntry`, `PersonaDiarySchema/PersonaDiary`, `PersonaMemorySchema/PersonaMemory`
+  - **Enums:** `PersonaLocaleSchema/PersonaLocale` (`'de' | 'en'`), `PersonaRelationshipDispositionSchema/PersonaRelationshipDisposition` (`'trust' | 'neutral' | 'distrust' | 'hostile' | 'dead'`)
+  - **Canonical input:** `PersonaAnchorInputSchema/PersonaAnchorInput`
+  - **v0.6.0+ runtime-contract types:** `PersonaPromptBuildResult`, `BuildPersonaPromptFn`, `PersonaAnchoredAgentOptions`, `PersonaAnchoredAgent`
+
+  Wiz-mind shape-extensions integrated (msg #570):
+  - `locale: 'de' | 'en'` — required, narrator-persona is language-dependent (Granite-Floor §3.5 finding)
+  - `setting_anchor: string` — required, prevents Granite-class drift to contemporary-fiction baseline
+  - `npc_voice_style?: string` — optional Phase-7 NPC-dialogue voice-anchor
+  - `relationship_disposition?: 'trust' | 'neutral' | 'distrust' | 'hostile' | 'dead'` — optional NPC-state-aware tone-mutation
+  - `npc_id?: string` — optional metadata for multi-NPC parallel-instances pattern (one anchor per NPC, NOT a `Record<NpcId, ...>`-map)
+
+- **`docs/PLUGIN-PROVIDER-GUIDE.md` §13 (new) — "Pre-Coding to Surface Contract-Drift"** — codified discipline for using consumer-adapters as compile-time fuzzers of cross-plugin wire-specs. Distilled from a real anecdote where a Phase-7-prep plugin's `LiveAdapter` against an in-flight TS-client surfaced two contract-bugs (arg-naming drift + silent-arg-stripping) before live-deploy. Includes when-applies / when-doesn't checklist + mitigations against wasted-effort + cross-link to §12 reversible-workarounds.
+
+### Lockstep version bumps
+
+All Foundation packages re-versioned from `0.4.x` → `0.5.0`:
+
+| Package | 0.4.x → 0.5.0 |
+|---|---|
+| `@nexus-mindgarden/plugin-bridge-foundation` | 0.4.1 → 0.5.0 (adds `/persona`) |
+| `@nexus-mindgarden/plugin-storage-foundation` | 0.4.0 → 0.5.0 (no source change) |
+| `@nexus-mindgarden/plugin-svelte-foundation` | 0.4.0 → 0.5.0 (no source change) |
+| `@nexus-mindgarden/plugin-mcp-foundation` | 0.4.0 → 0.5.0 (no source change) |
+| `@nexus-mindgarden/create-plugin` | 0.4.0 → 0.5.0 (no source change) |
+
+Per v0.4.1 CHANGELOG: lockstep is relaxed for per-package patches, retained for minor/major bumps. v0.5.0 is a minor bump → lockstep.
+
+### Tests
+
+- `test/persona-shapes.test.ts` — 22 new tests covering all sub-schemas + canonical input + locale-validation + disposition-validation (incl. dead-NPC use-case) + multi-NPC parallel-instances pattern + v0.6.0-runtime-contract types (compile-shape only, no runtime asserted)
+- Total: 177/177 grün (was 155 in v0.4.1 → +22 persona-shapes)
+
+### Roadmap
+
+**v0.6.0 candidate:** `createPersonaAnchoredAgent()` runtime helper under the same `/persona` subpath (additive expansion). Ships when ≥2 consumers signal explicit runtime need. Default-anchoring-logic + `buildPrompt`-override-callback already shape-locked in v0.5.0 — implementation is non-breaking.
+
+**v0.5.0 carry-overs from v0.4.x roadmap:**
+- Extend `HostKeyRecord` with per-host `expectedIssuer`/`expectedAudience` for multi-issuer-bridges (markview msg #549) — NOT in v0.5.0, deferred until concrete consumer-need lands
+
+### Cross-Repo Provenance
+
+- **wiz-mind msg #573** — Vote 3c (shape-only contract in v0.5.0) + permission for anonymized Pre-Coding anecdote in §13
+- **wiz-mind msg #570** — Original 4 shape-extensions + override-callback-pattern + multi-NPC parallel-instances design
+- **wiz-mind msg #570 close** — Live-adapter-caught-2-drifts-in-plug-db-contract anecdote (anonymized as "Phase-7-prep plugin" + "in-flight TS-client" in §13)
+
 ## [0.4.1] — 2026-05-21
 
 **Per-package patch: `@nexus-mindgarden/plugin-bridge-foundation@0.4.1`** — adds slim `/shapes` subpath for drift-immunity types without runtime-cost. Other Foundation packages remain at `0.4.0` (lockstep relaxed for per-package patches; lockstep retained for minor/major bumps).

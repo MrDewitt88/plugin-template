@@ -849,7 +849,64 @@ See also: [`MIGRATION-COOKBOOK.md`](./MIGRATION-COOKBOOK.md) for the three adopt
 
 ---
 
-## 13. References
+## 13. Pre-Coding to Surface Contract-Drift
+
+A counter-intuitive pattern surfaced repeatedly across the `@nexus-mindgarden` cluster: **writing a consumer-adapter against a contract _before_ that contract's runtime is live** is one of the most effective ways to surface contract-drift early. The adapter, even un-executed, acts as a compile-time fuzzer of the wire-spec.
+
+### The pattern
+
+You're about to integrate with another plugin's tool-surface, RAG-client, or HTTP-API. The other side isn't live yet — they're a week out from shipping, or you don't have credentials, or the host-app activation is queued. Conventional wisdom says: wait for the live endpoint, then write the adapter against real responses.
+
+**Counter-pattern:** write the adapter NOW, against the documented contract (the TS-client types, the YAML mcp_tool spec, the swagger). Treat your adapter code as a **dry-run spec-validator**:
+
+1. Import the other plugin's published types/schemas (or hand-mirror them if not published yet)
+2. Write the integration-layer in your own plugin — full call-shape, full error-handling, full response-mapping
+3. Compile + unit-test against fixtures (mock the wire-layer, but commit to the documented shape)
+4. Iterate **on the contract**, not on the runtime — when you trip over an inconsistency, the contract is drift-prone and needs fixing before the runtime lands
+
+### Why this works
+
+The author of the contract (whoever shipped the TS-client surface or YAML spec) usually wrote it from the **provider's** perspective — "here's what my tool emits / accepts." The first consumer who writes against it from the **opposite side** ("here's how I have to call it") routinely surfaces 2-3 kinds of drift:
+
+- **Argument-name drift** — the spec says `documentId` but the actual handler reads `document_id` (or vice versa)
+- **Silent argument stripping** — the wire-handler accepts the argument but ignores it (e.g. validation passes through but the field never reaches the storage-layer)
+- **Optional-vs-required asymmetry** — the type says `field?: string` but the handler 500s when omitted
+
+These are exactly the bugs that produce **wrong output on the first live call** — the call succeeds, the response shape looks correct, but the actual semantics diverge from spec. Pre-coding catches them in cold light.
+
+### Anonymized reference
+
+> Plugin-Author X coded a live-adapter against Plugin-Author Y's TS-client surface BEFORE Y's live-activation arrived. The dry-run-as-spec-validation caught 2 real contract-bugs in Y's wire (one arg-naming drift + one silent-arg-stripping) that would have produced wrong outputs in the first live call. Pre-coding pays off even before live-deploy — your adapter IS your contract-fuzz-tester.
+
+### When this pattern applies
+
+| Pattern fits | Pattern doesn't fit |
+|---|---|
+| You depend on a cross-plugin contract (MCP-tool, RAG-client, REST API) | Your code only consumes Foundation runtime |
+| The provider has published types/schemas you can import | The provider hasn't documented the shape at all |
+| You can write meaningful unit-fixtures of the response shape | The contract is purely behavioral (e.g. UI-event timing) |
+| The provider's roadmap has them live in days-to-weeks | The provider is live now (just integrate normally) |
+
+### How to do it without burning effort
+
+The risk of pre-coding is **wasted work if the contract changes drastically before live-deploy**. Mitigations:
+
+- **Import the provider's published types** if available — those are the authoritative shape, and any spec-doc-drift is the provider's drift to fix
+- **Build your adapter behind a `NullAdapter` / `LiveAdapter` interface** so the consumer-code calling-side stays stable even if your impl swaps
+- **Commit fixtures alongside the adapter** so future-you (or another CC) can re-run the dry-validation when the contract bumps
+- **Report drift back via chatbus #contracts** — pre-coding only pays the cluster if your findings flow back to the provider
+
+### Cross-link
+
+See §12 "Writing Reversible Workarounds" for a related discipline: shipping workarounds with reversal-path-docs so they come out cleanly when the canonical path arrives. Pre-coding and reversible-workarounds are two sides of the same approach: **don't wait for clean conditions, build with the wiring in mind**.
+
+### Real-world reference (anonymized)
+
+A Phase-7-prep plugin in the `@nexus-mindgarden` cluster wrote a `LiveAdapter` against an in-flight `@plug-db/client` TS-surface before the corresponding live-deploy. The adapter compiled, unit-tested clean, and surfaced two real contract-bugs (one argument-naming drift, one silent-argument-stripping) that the upstream provider then fixed in a patch-release. Total elapsed time from adapter-write to drift-resolved: under a working day.
+
+---
+
+## 14. References
 
 - [`PLUGIN-BRIDGE-PROTOCOL.md`](https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/PLUGIN-BRIDGE-PROTOCOL.md) — Wire-Spec + mcp_tools Extended Form
 - [`PLUGIN-KIARA-INTEGRATION.md`](https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/PLUGIN-KIARA-INTEGRATION.md) — Frag-Kiara
