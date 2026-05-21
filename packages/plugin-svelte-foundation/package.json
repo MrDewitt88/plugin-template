@@ -1,6 +1,6 @@
 {
   "name": "@nexus/plugin-svelte-foundation",
-  "version": "0.2.0",
+  "version": "0.3.2",
   "description": "Plugin-UI Foundation — Svelte 5 Custom-Elements + Theme-Attribut + 16-Token-Convention + Bundle-Pipeline",
   "license": "MIT",
   "type": "module",

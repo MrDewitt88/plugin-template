@@ -2,6 +2,35 @@
 
 All notable changes to `@nexus/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] — 2026-05-21
+
+Critical fix release — second wiz-mind report DM #487. v0.3.1 prepare-hook unblocked 3 of 4 packages, but plugin-svelte-foundation still failed because **source files were missing from git tracking**.
+
+### Fixed
+
+**`.gitignore` `build/` pattern accidentally excluded `packages/plugin-svelte-foundation/src/build/`**
+
+Root cause: `.gitignore` line 3 had bare `build/` pattern, which matched any directory named `build/` at any depth. `src/build/` in plugin-svelte-foundation is a **legitimate source-folder** containing `esbuild-config.ts` + `index.ts` for build-pipeline-helpers exposed at `@nexus/plugin-svelte-foundation/build` subpath. These files were untracked since v0.0.1 — locally everything compiled because the files existed on disk, but consumer-clones via `pnpm add github:...` got tarballs without these files.
+
+Fix:
+- Removed `build/` rule from `.gitignore` (was overzealous — no package outputs to `build/` directory; everything uses `dist/`)
+- Force-added `packages/plugin-svelte-foundation/src/build/{index.ts,esbuild-config.ts}` to git
+- plugin-svelte-foundation bumped to `v0.3.2` (matches monorepo version, was stuck at `0.2.0` since v0.1.0 release)
+
+### Lessons-Learned
+
+- **Always test consumer-side install via fresh github-clone before tagging.** Local builds mask gitignore-excluded source files.
+- **Per-package `.gitignore` > root-level shotgun-patterns** for monorepos. v0.3.x kept the global pattern minimal.
+
+### Tests
+
+- Foundation tests unchanged (268/268 grün)
+- Consumer-side smoke test (future): scaffold a temp-repo + `pnpm add github:...#tag` + verify resolve
+
+### Cross-Repo Provenance
+
+- **wiz-mind** DM #487 — TS2307 build error report with root-cause analysis + repro-steps + variant (c) workaround already adopted
+
 ## [0.3.1] — 2026-05-21
 
 Hotfix release. Two blockers reported within hours of v0.3.0 ship — consumer-side build + cross-repo wire-drift. Both addressed.

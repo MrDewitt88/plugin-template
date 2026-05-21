@@ -1,6 +1,9 @@
 node_modules/
 dist/
-build/
+# Note: NO global `build/` rule — that pattern unintentionally excluded
+# `packages/plugin-svelte-foundation/src/build/` (legitimate source folder).
+# If you need to ignore a per-package build-output, add a per-package
+# `.gitignore` or use a more specific pattern.
 .turbo/
 .cache/
 *.tsbuildinfo
