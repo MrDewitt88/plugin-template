@@ -63,6 +63,13 @@ packages/
 
 Each package has its own `package.json`, `tsconfig.json`, `vitest.config.ts`, `README.md`.
 
+## Migration & Adoption
+
+- [`docs/MIGRATION-COOKBOOK.md`](./docs/MIGRATION-COOKBOOK.md) — three battle-tested adoption-patterns (Full-Replace / Helper-Lib / In-Repo-Mirror) with decision-matrix, step-by-step recipes, and drift-discipline guidance
+- [`docs/PLUGIN-PROVIDER-GUIDE.md`](./docs/PLUGIN-PROVIDER-GUIDE.md) — canonical patterns for plugin authors (render-ui wire-spec, agent.complete contract, JWT-auth, manifest_hash, observability)
+- [`docs/HOST-INTEGRATION-GUIDE.md`](./docs/HOST-INTEGRATION-GUIDE.md) — for host-app developers integrating with bridges
+- [`CHANGELOG.md`](./CHANGELOG.md) — release notes with cross-repo provenance for each version
+
 ## License
 
 MIT — see `LICENSE`.

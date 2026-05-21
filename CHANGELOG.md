@@ -40,6 +40,11 @@ All notable changes to `@nexus-mindgarden/plugin-template` and its foundation pa
 
 - **v0.5.0 candidate (markview msg #549):** Extend `HostKeyRecord` with per-host `expectedIssuer`/`expectedAudience` fields to support multi-issuer-bridge architectures (e.g. one bridge serving V8 + FamilyMind + Theseus with distinct JWT-verifier-configs). Currently parked in `HostKeyRecord` (NOT in `/shapes` surface) so this spec-extension stays consumer-coordinated.
 
+### Documentation
+
+- **`docs/MIGRATION-COOKBOOK.md`** (new) — consolidated three-pattern adoption-playbook (Full-Replace / Helper-Lib / In-Repo-Mirror) with decision-matrix, step-by-step recipes, drift-discipline guidance per pattern, and reversal-path documentation. Distilled from three real-world v0.4.0+ adoption events; consumer-names anonymized pending naming-approval.
+- `README.md` — new "Migration & Adoption" section linking the Cookbook + Provider-Guide + Host-Integration-Guide.
+
 ## [0.4.0] — 2026-05-21
 
 🎉 **npm-publish landed — Foundation as canonical npm-packages under `@nexus-mindgarden` scope.**
