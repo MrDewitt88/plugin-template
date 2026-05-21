@@ -597,7 +597,160 @@ Beides ist legitim. Foundation ist Pflicht nur wenn dein Plugin am Plugin-Bridge
 
 ---
 
-## 11. References
+## 11. `agent.complete` — canonical Plugin-to-LLM Tool (v0.3.0+)
+
+> **Pflicht-Pattern** für Plugin-Authors die LLM-Calls machen. Direct-HTTP zu LM Studio / OpenAI ist Anti-Pattern.
+
+Contract etabliert in chatbus thread="contracts" 2026-05-21 (msg #443-449). Theseus shipped `v0.15.0-agent-complete-endpoint` (commit `51921ff`). V8/v8-fam dispatchen via `/mcp/v1/call-tool` per Design-Y zu Theseus' `POST /agent/complete`.
+
+### 11.1 Warum nicht direct-HTTP?
+
+Wenn N Plugins jeweils ihren eigenen OpenAI/LM-Studio-Client haben:
+
+| Risiko | Direct-HTTP-each | Via `agent.complete` |
+|---|---|---|
+| LM-Studio inflight-limit (typ. 1-2) | N racing clients, 1 wins, others fail | 1 serialisiertes Queue |
+| Cloud-Consent-Gates | jedes Plugin re-implementiert (oder vergisst) | 1× zentral in Theseus |
+| Prompt-Cache-Hit-Rate | N× cold (Sticky-Session-Affinity broken) | 1 sticky cache, echte cache-savings |
+| Tenant-Policy / Audit | N× implementiert | 1× zentral |
+| Provider-Token-Rotation | N Credential-Pools | 1 |
+
+Das LM-Studio-Inflight-Argument allein zerlegt direct-HTTP für jedes Multi-Plugin-Setup.
+
+### 11.2 Foundation-Helper
+
+```ts
+import { createAgentComplete } from '@nexus/plugin-bridge-foundation/agent-complete'
+
+const agentComplete = createAgentComplete({
+  bridgeEndpoint: ctx.bridgeEndpoint,  // aus M17 accept-response
+  sessionToken: ctx.sessionToken,      // ebenfalls aus M17
+  callerId: 'my-plugin@host-tenant-x', // optional forensic-tracing
+})
+
+// In a tool-handler / engine call:
+const result = await agentComplete({
+  messages: [
+    { role: 'system', content: 'Du bist ein hilfsbereiter Layout-Assistent.' },
+    { role: 'user', content: 'Schlage 5 Headlines für Frühlingsfest-A4-Flyer vor.' },
+  ],
+  responseFormat: { type: 'json_schema', schema: zodToJsonSchema(HeadlineSchema) },
+  maxTokens: 200,
+  cacheRetention: 'short',
+})
+
+if (result.error) {
+  // Drift #103 canonical-error envelope
+  logger.warn('agent.complete error', { code: result.error.code, message: result.error.message })
+  throw { code: result.error.code, message: result.error.message }
+}
+
+const headlines = HeadlineSchema.parse(JSON.parse(result.text))  // defense-in-depth
+```
+
+### 11.3 Capability-Request bei M17 guest-registration
+
+Plugin-Authors fordern beim M17-guest-registration die Capability an:
+
+```json
+{
+  "protocol_version": 1,
+  "agent_id": "my-plugin-uuid",
+  "display_name": "My Plugin",
+  "tenant_id": "dev",
+  "capabilities_requested": ["agent.llm:invoke", "fs.read:workspace", "memory.read"]
+}
+```
+
+V8/v8-fam policy-intersection: `agent.llm:invoke` ist in der `ki-user`-Policy default-allowed. Host kann das per-tenant deaktivieren wenn nötig.
+
+### 11.4 Granite-Floor + agent.complete
+
+Granite-Floor-Philosophy (siehe Mind-Canva / Wiz-Mind `docs/GRANITE-FLOOR.md`) bleibt **Caller-Verantwortung**:
+
+- **JSON-Schema-Constraint:** Caller passiert `responseFormat: { type: 'json_schema', schema }` — Provider-side enforced
+- **Max-Token-Caps:** Caller setzt `maxTokens` per Feature-Need (Headline-Suggest 200, Layout-Critique 400, etc.)
+- **defense-in-depth-zod:** auch wenn Provider strict-output enforced, Caller validated Output mit zod nochmal (Cloud-Fallback hat oft schwächere grammar-constraints)
+- **Pilot-Test-Suite:** Caller's `test/granite-pilot/*.test.ts` muss weiter ≥80% pass-rate haben — `agent.complete` ändert nichts an dem Architectural-Commitment
+
+### 11.5 Cache-Retention Pattern
+
+Caller-side decision per call:
+
+| Wert | TTL | Use-Case |
+|---|---|---|
+| `'none'` | kein Marker | hohe Prompt-Entropy (jeder Call differs substantiell) |
+| `'short'` | ~5min (Anthropic-compat) | ad-hoc-User-Triggers, hits innerhalb Minuten erwartet |
+| `'long'` | ~1h (Anthropic-compat) | session-long prompt-prefix |
+
+Bei reinem LM Studio kein-Effekt. Bei späterem Cloud-opt-in (User-triggered) Marker schon korrekt gesetzt → kein Code-Change in Migration-Wave.
+
+### 11.6 Dev-Preview Anti-Pattern (mind-canva Reference)
+
+Mind-Canva hat einen `OpenAIProvider` als **dev-only-fallback** für `pnpm dev:preview` (standalone-Browser ohne V8/Theseus). Conditions die das akzeptabel machen:
+
+1. **Doc-stamp** in CLAUDE.md / README: "dev-only, bypasses cloud-consent + tenant-policy + audit"
+2. **Runtime feature-flag:** Constructor wirft wenn `MC_ALLOW_DIRECT_HTTP_PROVIDER` env-var nicht gesetzt ist. Default in production = unset.
+3. **CI-grep:** `pnpm test` runs `scripts/check-no-direct-provider-in-prod.mjs` — Bridge-side darf NIE OpenAIProvider importieren
+
+Wenn alle drei drin sind, bleibt dev-experience nicht trocken bei standalone-Plugin-Entwicklung. Sonst: weg damit + nur `agent.complete`-Pfad.
+
+### 11.7 Error-Envelope (Drift #103 cross-language)
+
+`agent.complete`-response ist NIE thrown bei server-side errors. Stattdessen:
+
+```json
+{
+  "text": "",
+  "toolCalls": [],
+  "stopReason": "error",
+  "error": {
+    "code": "rate_limited",
+    "message": "LM Studio inflight-limit exceeded; retry in 30s",
+    "retryable": true
+  }
+}
+```
+
+Foundation's `createAgentComplete` throws nur bei **transport-failures** (network-error) und **schema-mismatches** (response-body ist nicht spec-konform). Server-side-errors landen im envelope.
+
+**Convenience:** `agentCompleteText(client, req)` throws auch bei error-envelope — wenn du nur den text willst und das wegabstrahieren möchtest.
+
+### 11.8 X-Request-Id Distributed-Tracing (v0.2.2+)
+
+```ts
+const agentComplete = createAgentComplete({
+  bridgeEndpoint, sessionToken,
+  requestId: parentRequestId,  // propagate from upstream
+})
+```
+
+Foundation echoed `X-Request-Id` zurück. Wenn Plugin-Authors X-Request-Id von ihrem eigenen incoming-request weiterpropagieren, ist Cross-Service-Trace-Korrelation gratis — vom V8-User-Click bis zum LM-Studio-Token.
+
+### 11.9 Migration-Reihenfolge
+
+Per chatbus consensus (msg #445):
+
+1. **Week 1:** Mind-Canva als first-mover (24-48h migration committed)
+2. **Week 1-2:** plug-db (Embeddings + LM-Studio-Probe direct-HTTP-paths)
+3. **Week 2:** plug-elec (M3 MCP-UI hat lokale LLM-Hints)
+4. **Week 2:** markview, ea-plug, kanban (wenn LLM-Konsum)
+
+V8 selbst ist passive — V8 macht keine LLM-calls direkt, dispatched nur.
+
+### 11.10 Schema-Source-of-Truth
+
+**Canonical**: `@theseus/agent-complete-schema` (Theseus monorepo). plug-tmpl's Foundation-Helper dupliziert die Schemas als **stop-gap** bis Theseus npm-publish'd. Wenn Theseus publishes:
+
+- Foundation v0.3.x bumpst auf peer-dep `@theseus/agent-complete-schema`
+- Type-re-exports bleiben kompatibel (semver-stable contract)
+- Migration ist `pnpm install`
+
+Bis dahin sind plug-tmpl-Schemas faithful zur Spec (msg #449).
+
+---
+
+## 12. References
 
 - [`PLUGIN-BRIDGE-PROTOCOL.md`](https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/PLUGIN-BRIDGE-PROTOCOL.md) — Wire-Spec + mcp_tools Extended Form
 - [`PLUGIN-KIARA-INTEGRATION.md`](https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/PLUGIN-KIARA-INTEGRATION.md) — Frag-Kiara
@@ -606,3 +759,5 @@ Beides ist legitim. Foundation ist Pflicht nur wenn dein Plugin am Plugin-Bridge
 - [`CROSS-REPO-LESSONS.md`](https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/CROSS-REPO-LESSONS.md) — Drift-Catalog #1-#24
 - `docs/templates/` (this repo) — Doc-Templates
 - `HOST-INTEGRATION-GUIDE.md` (this repo) — gegenüberliegende Sicht für Plugin-Host-Integration
+- **`agent.complete` Contract** — chatbus thread="contracts" 2026-05-21 + Theseus `v0.15.0-agent-complete-endpoint` (commit `51921ff`) + V8 Reverse-Call Design-Y
+- **`@theseus/agent-complete-schema`** — canonical Wire-Schema (Theseus monorepo, npm publish pending)

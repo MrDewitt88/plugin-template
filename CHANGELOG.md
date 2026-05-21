@@ -2,6 +2,59 @@
 
 All notable changes to `@nexus/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-05-21
+
+`agent.complete` Foundation-Helper für Plugin-Authors. Closes the cross-repo contract from chatbus thread="contracts" 2026-05-21 (msg #443-449, GO from oracle/mind-canva + v8-corp + v8-fam).
+
+### Source-Story
+
+User-Argument (2026-05-21):
+
+> *"wenn jedes Plugin extra zugriff für LM Studio benötigt, hab ich jetzt schon 11 Verbindungen obwohl eine ausreichen würde und zwar über den Chat von Theseus-Agent"*
+
+Agent (Luma) proposed `agent.complete` als canonical Plugin-to-LLM Tool — 1 client am LM Studio statt N racing connections. Theseus shipped `v0.15.0-agent-complete-endpoint` (commit `51921ff`) mit `@theseus/agent-complete-schema` (Theseus monorepo, npm-publish pending). V8 + v8-fam implementieren `/mcp/v1/call-tool` Reverse-Call zu Theseus `POST /agent/complete` per Design-Y.
+
+### Added
+
+- **`@nexus/plugin-bridge-foundation/agent-complete` subpath** mit:
+  - **`createAgentComplete({bridgeEndpoint, sessionToken, callerId?, requestId?})`** — typed wrapper around `fetch(bridgeEndpoint + '/mcp/v1/call-tool')` mit `{tool: 'agent.complete', arguments: validated}`. Zod-validation auf Request + Response.
+  - **`agentCompleteText(client, req)`** — convenience helper, throws on error-envelope für callers die nur den text wollen.
+  - **`AgentCompleteError`** typed Error-Class mit codes (invalid_request / http_error / invalid_response / transport_failure).
+  - **Schemas dupliziert als stop-gap** bis `@theseus/agent-complete-schema` npm-published wird (AgentCompleteRequestSchema, AgentCompleteResponseSchema, ResponseFormatSchema, CacheRetentionSchema, ChatMessageSchema, ToolCallSchema, UsageSchema)
+  - 20 neue Tests
+
+- **`docs/PLUGIN-PROVIDER-GUIDE.md` §11 (NEU)** — `agent.complete` als Pflicht-Pattern dokumentiert mit 10 sub-sections (Anti-Pattern direct-HTTP, Foundation-Helper-Usage, Capability-Request, Granite-Floor-Compat, Cache-Retention, Dev-Preview-Anti-Pattern, Error-Envelope, X-Request-Id-Tracing, Migration-Reihenfolge, Schema-Source-of-Truth).
+
+### Tests
+
+- bridge-foundation: 108 → **128** (+20 agent-complete tests)
+- Total workspace: **257 grün** (128 + 30 + 33 + 31 + 35)
+
+### Cross-Repo Provenance
+
+- **agent** msg #443 — original contract proposal (LM-Studio-inflight-limit argument)
+- **oracle/mind-canva** msg #444 — GO + 3 follow-ups (A streaming, B responseFormat, C cache-retention)
+- **v8-corp** msg #445 — GO + Design-Y Reverse-Call-Endpoint sketch
+- **v8-fam** msg #446 — GO + mirror-adoption commitment
+- **agent** msg #447 — answers to A/B/C
+- **agent** msg #449 — Theseus tag `v0.15.0-agent-complete-endpoint` shipped
+- **v8-fam** msg #448 — Schema-Hosting Option (b) Shared-Package wins
+
+### Migration Notes for Plugin-Authors
+
+Wenn ihr direct-HTTP zu LM Studio macht (plug-elec / plug-db / markview / ea-plug / kanban):
+
+1. Add `pnpm add github:MrDewitt88/plugin-template#v0.3.0`
+2. Replace `OpenAIProvider`-direct-HTTP with `createAgentComplete({...})`
+3. Request `agent.llm:invoke` capability bei M17 guest-registration
+4. Re-run Granite-Pilot pre-merge (Caller's responsibility, unchanged)
+
+Mind-Canva first-mover committed to 24-48h migration once V8 Reverse-Call live (msg #444).
+
+### Schema-Stop-Gap Note
+
+Foundation v0.3.0 dupliziert die Schemas faithful zu Theseus' msg #449 spec. Wenn Theseus `@theseus/agent-complete-schema` npm-published wird, kommt Foundation v0.3.x bump auf peer-dep — Type-re-exports bleiben backward-kompatibel.
+
 ## [0.2.3] — 2026-05-18
 
 Defensive guard against buggy hosts. Source: plug-elec DM #350 + C.1 cross-repo-debug-thread (msg #332-#357). v8-corp landed the canonical V8-Side supply-or-skip fix (`9494bf7`), Foundation now adds belt-and-suspenders for cross-host robustness.

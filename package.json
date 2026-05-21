@@ -1,6 +1,6 @@
 {
   "name": "@nexus/plugin-template",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Cross-Repo Plugin Template — TeamMind/Nexus Plugin-Provider Foundation",
   "private": true,
   "type": "module",
