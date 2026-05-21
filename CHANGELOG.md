@@ -1,6 +1,79 @@
 # Changelog
 
-All notable changes to `@nexus/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.4.0] — 2026-05-21
+
+🎉 **npm-publish landed — Foundation as canonical npm-packages under `@nexus-mindgarden` scope.**
+
+Closes the v0.3.0 → v0.3.3 anti-pattern bridge. github-URL+`&path:` subspec is now legacy; canonical consumer-pattern is `pnpm add @nexus-mindgarden/plugin-bridge-foundation@^0.4.0`.
+
+### Breaking Changes (consumer-side)
+
+- **Scope rename** `@nexus/*` → `@nexus-mindgarden/*` in ALL package names + imports:
+  - `@nexus-mindgarden/plugin-bridge-foundation`
+  - `@nexus-mindgarden/plugin-storage-foundation`
+  - `@nexus-mindgarden/plugin-svelte-foundation`
+  - `@nexus-mindgarden/plugin-mcp-foundation`
+  - `@nexus-mindgarden/create-plugin`
+
+- **Consumer dependency-syntax change**:
+  ```diff
+  - "@nexus/plugin-bridge-foundation": "github:MrDewitt88/plugin-template#v0.3.3&path:/packages/plugin-bridge-foundation"
+  + "@nexus-mindgarden/plugin-bridge-foundation": "^0.4.0"
+  ```
+
+- **All imports must update**:
+  ```diff
+  - import { createBridgeApp } from '@nexus/plugin-bridge-foundation'
+  + import { createBridgeApp } from '@nexus-mindgarden/plugin-bridge-foundation'
+  ```
+
+### Added
+
+- **npm-org `@nexus-mindgarden`** (https://www.npmjs.com/org/nexus-mindgarden) — all 5 packages public-MIT.
+- **`.github/workflows/publish.yml`** — Tag-trigger (`v*`) → builds + typechecks + tests + `pnpm -r publish` mit `--access=public` + `--provenance` (npm OIDC). Required GitHub-Secret: `NPM_TOKEN` (automation-type, bypasses 2FA for CI).
+- **`publishConfig: { access: "public" }`** in alle 5 publishable packages.
+- **`prepublishOnly: "tsc -p tsconfig.json"`** per-package — guarantees fresh-build on publish.
+- **`repository.directory`** field — npm renders package as monorepo-subpath correctly.
+- **`homepage` + `bugs` + `keywords`** populated für npm-discovery.
+- **All Foundation packages aligned to `0.4.0`** (lockstep versioning, simpler migration).
+
+### Removed
+
+- **`dist/` zurück in `.gitignore`** — npm-publish ships dist/ in tarball. No more committed build-output.
+- **Anti-pattern bridge ended.** v0.3.0-v0.3.3 mit committed-dist was pragmatic-bridge; npm-publish ist canonical-target erreicht.
+
+### Migration für Konsumenten
+
+```bash
+# 1. Update package.json deps
+sed -i '' 's|@nexus/plugin-|@nexus-mindgarden/plugin-|g' package.json packages/*/package.json
+sed -i '' 's|github:MrDewitt88/plugin-template#v0\.3\.[0-9]&path:/packages/|@nexus-mindgarden/|g' package.json packages/*/package.json
+
+# Manuell: ersetze die "@nexus-mindgarden/plugin-X-foundation": "@nexus-mindgarden/plugin-X-foundation"
+# Doppelung mit echtem semver-pin:
+#   "@nexus-mindgarden/plugin-bridge-foundation": "^0.4.0"
+
+# 2. Update imports
+find packages -name "*.ts" | xargs sed -i '' 's|@nexus/plugin-|@nexus-mindgarden/plugin-|g'
+
+# 3. Re-install + test
+pnpm install
+pnpm test
+```
+
+Mind-Canva + Wiz-Mind sind primary first-movers. ETA migration ~30min pro Plugin.
+
+### Cross-Repo Provenance
+
+- **wiz-mind DM #508** — Path-A error report (v0.3.0 broken)
+- **plug-elec DM #509** — Independent reproduce + Option-A (npm-publish) vote
+- **User D1-D4 decisions** — Org-name `@nexus-mindgarden`, public-access, lockstep, all 5 packages
+
+### Roadmap
+
+v0.4.x patches (bug fixes), v0.5.0 wenn nächste feature-iteration. v0.4.0 ist Foundation-distribution-stable.
 
 ## [0.3.3] — 2026-05-21
 

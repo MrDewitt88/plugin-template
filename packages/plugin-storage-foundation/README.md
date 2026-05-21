@@ -1,4 +1,4 @@
-# @nexus/plugin-storage-foundation
+# @nexus-mindgarden/plugin-storage-foundation
 
 SQLite-Connection + Migration-Pattern + Multi-Host-Storage-Pattern für Plugin-Provider.
 
@@ -11,7 +11,7 @@ import {
   resolvePaths,
   ensurePaths,
   type Migration,
-} from '@nexus/plugin-storage-foundation'
+} from '@nexus-mindgarden/plugin-storage-foundation'
 
 const paths = resolvePaths({
   storageRoot: '/Users/me/Library/Application Support/my-plugin/plugins',

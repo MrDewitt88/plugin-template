@@ -1,6 +1,6 @@
 {
-  "name": "@nexus/plugin-bridge-foundation",
-  "version": "0.3.3",
+  "name": "@nexus-mindgarden/plugin-bridge-foundation",
+  "version": "0.4.0",
   "description": "Plugin-Bridge HTTP-Server Foundation — handshake/manifest/health/execute-tool/render-ui Endpoints + JWT-Auth + Multi-Host-Registry + manifest_hash",
   "license": "MIT",
   "type": "module",
@@ -39,8 +39,22 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prepublishOnly": "tsc -p tsconfig.json"
   },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MrDewitt88/plugin-template.git",
+    "directory": "packages/plugin-bridge-foundation"
+  },
+  "homepage": "https://github.com/MrDewitt88/plugin-template/tree/main/packages/plugin-bridge-foundation#readme",
+  "bugs": {
+    "url": "https://github.com/MrDewitt88/plugin-template/issues"
+  },
+  "keywords": ["nexus-mindgarden", "plugin", "bridge", "hono", "jwt", "mcp"],
   "dependencies": {
     "hono": "^4.6.0",
     "jose": "^5.9.0",

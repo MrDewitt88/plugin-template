@@ -1,11 +1,11 @@
-// @nexus/plugin-bridge-foundation — Plugin-Bridge HTTP-Server Foundation
+// @nexus-mindgarden/plugin-bridge-foundation — Plugin-Bridge HTTP-Server Foundation
 //
 // Re-exports public API. Sub-paths verfügbar:
-//   - @nexus/plugin-bridge-foundation              (this index — server + types)
-//   - @nexus/plugin-bridge-foundation/auth         (jwt + host-keys-registry)
-//   - @nexus/plugin-bridge-foundation/manifest     (loader + hash)
-//   - @nexus/plugin-bridge-foundation/observability (logger + metrics) [v0.2.0]
-//   - @nexus/plugin-bridge-foundation/testing      (mintTestBridgeToken) [v0.2.0]
+//   - @nexus-mindgarden/plugin-bridge-foundation              (this index — server + types)
+//   - @nexus-mindgarden/plugin-bridge-foundation/auth         (jwt + host-keys-registry)
+//   - @nexus-mindgarden/plugin-bridge-foundation/manifest     (loader + hash)
+//   - @nexus-mindgarden/plugin-bridge-foundation/observability (logger + metrics) [v0.2.0]
+//   - @nexus-mindgarden/plugin-bridge-foundation/testing      (mintTestBridgeToken) [v0.2.0]
 
 export {
   createBridgeApp,

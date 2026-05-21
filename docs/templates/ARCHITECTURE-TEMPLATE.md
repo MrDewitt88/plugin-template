@@ -19,10 +19,10 @@
 ```
 {plugin-name}/
 ├── packages/
-│   ├── {plugin-name}-bridge/         # uses @nexus/plugin-bridge-foundation
-│   ├── {plugin-name}-storage/        # uses @nexus/plugin-storage-foundation (optional)
-│   ├── {plugin-name}-svelte/         # uses @nexus/plugin-svelte-foundation
-│   └── {plugin-name}-mcp/            # uses @nexus/plugin-mcp-foundation
+│   ├── {plugin-name}-bridge/         # uses @nexus-mindgarden/plugin-bridge-foundation
+│   ├── {plugin-name}-storage/        # uses @nexus-mindgarden/plugin-storage-foundation (optional)
+│   ├── {plugin-name}-svelte/         # uses @nexus-mindgarden/plugin-svelte-foundation
+│   └── {plugin-name}-mcp/            # uses @nexus-mindgarden/plugin-mcp-foundation
 ├── apps/
 │   └── {plugin-name}-app/            # Electron app oder dev-server (optional)
 └── docs/
@@ -85,9 +85,9 @@ ui:
 {IF SQLite: Schema-overview, primary-tables, foreign-keys}
 {IF stateless: data-flow + transient-state}
 
-**Persistence-Strategy:** {SQLite via @nexus/plugin-storage-foundation / file-system / in-memory / remote-API}
+**Persistence-Strategy:** {SQLite via @nexus-mindgarden/plugin-storage-foundation / file-system / in-memory / remote-API}
 
-**Multi-Host-Storage:** {Pattern wie MarkView's `<storageRoot>/<plugin>/<host>/<tenant>/` — siehe @nexus/plugin-storage-foundation `resolvePaths`}
+**Multi-Host-Storage:** {Pattern wie MarkView's `<storageRoot>/<plugin>/<host>/<tenant>/` — siehe @nexus-mindgarden/plugin-storage-foundation `resolvePaths`}
 
 ---
 
@@ -97,12 +97,12 @@ ui:
 - `<plugin-{plugin-name}-{component-1}>` — {purpose}
 - `<plugin-{plugin-name}-{component-2}>` — {purpose}
 
-**Bridge-Attrs:** All components reading via `readBridgeAttrs()` from `@nexus/plugin-svelte-foundation` — Standard 8 attrs (bridge-token/endpoint, host-id, tenant-id, user-id, user-locale, actor-class, theme).
+**Bridge-Attrs:** All components reading via `readBridgeAttrs()` from `@nexus-mindgarden/plugin-svelte-foundation` — Standard 8 attrs (bridge-token/endpoint, host-id, tenant-id, user-id, user-locale, actor-class, theme).
 
 **Plus component-specific attrs:**
 - `<plugin-{plugin-name}-foo document-id="<uuid>">` — {warum brauchen?}
 
-**Theme:** 16-token convention via `@nexus/plugin-svelte-foundation/theme`. Prefix `--{prefix}-color-*` (e.g. `--mv-color-fg`).
+**Theme:** 16-token convention via `@nexus-mindgarden/plugin-svelte-foundation/theme`. Prefix `--{prefix}-color-*` (e.g. `--mv-color-fg`).
 
 ---
 
@@ -132,10 +132,10 @@ ui:
 
 ## 8. Cross-Repo-References
 
-- `@nexus/plugin-bridge-foundation` — Bridge HTTP-Server
-- `@nexus/plugin-storage-foundation` — SQLite + Multi-Host-paths (if applicable)
-- `@nexus/plugin-svelte-foundation` — Custom-Element + Theme + bundle-config
-- `@nexus/plugin-mcp-foundation` — Tool-Registry + scope-validation
+- `@nexus-mindgarden/plugin-bridge-foundation` — Bridge HTTP-Server
+- `@nexus-mindgarden/plugin-storage-foundation` — SQLite + Multi-Host-paths (if applicable)
+- `@nexus-mindgarden/plugin-svelte-foundation` — Custom-Element + Theme + bundle-config
+- `@nexus-mindgarden/plugin-mcp-foundation` — Tool-Registry + scope-validation
 
 V8/Theseus/FamilyMind Plugin-Standards die dieses Plugin honoriert:
 - [`PLUGIN-BRIDGE-PROTOCOL.md`](https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/PLUGIN-BRIDGE-PROTOCOL.md) — Wire-Spec

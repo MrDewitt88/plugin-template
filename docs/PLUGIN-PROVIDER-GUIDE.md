@@ -16,7 +16,7 @@
 
 ## 2. Quick-Start (manueller Setup)
 
-> L7 `@nexus/create-plugin` CLI macht das Bootstrap automatic. Bis das landed: manueller Pfad.
+> L7 `@nexus-mindgarden/create-plugin` CLI macht das Bootstrap automatic. Bis das landed: manueller Pfad.
 
 ```sh
 # 1. Clone Plugin-Template
@@ -48,10 +48,10 @@ mkdir -p packages/my-plugin-bridge/src
 
 | Foundation | Brauche ich es wenn... |
 |---|---|
-| `@nexus/plugin-bridge-foundation` | **Pflicht** — Plugin hat HTTP-Endpoint für Host-Communication |
-| `@nexus/plugin-storage-foundation` | Plugin persistiert Daten (SQLite-backed) |
-| `@nexus/plugin-svelte-foundation` | Plugin hat UI-Components die in Hosts gemounted werden |
-| `@nexus/plugin-mcp-foundation` | Plugin exposiert MCP-Tools (fast jeder Plugin) |
+| `@nexus-mindgarden/plugin-bridge-foundation` | **Pflicht** — Plugin hat HTTP-Endpoint für Host-Communication |
+| `@nexus-mindgarden/plugin-storage-foundation` | Plugin persistiert Daten (SQLite-backed) |
+| `@nexus-mindgarden/plugin-svelte-foundation` | Plugin hat UI-Components die in Hosts gemounted werden |
+| `@nexus-mindgarden/plugin-mcp-foundation` | Plugin exposiert MCP-Tools (fast jeder Plugin) |
 
 **Zero-UI-Plugin** (z.B. nur Hooks für `notes.versioning.on_save`): bridge + mcp reicht.
 
@@ -186,7 +186,7 @@ Plugin-Bridge-Protocol erweitert `register-host`-Body additiv (z.B. neue optiona
 - Wenn `missing_optional_fields` leer und `schema_version` matched → Host ist current.
 - `is_first_register` lässt Host wissen ob das die Bootstrap-Registrierung war (vs idempotenter Replay).
 
-**Foundation-Default:** `@nexus/plugin-bridge-foundation` v0.1.0+ baked das automatisch ein. Baseline-Optional-Fields = `['host_version']`. Plugin-Provider erweitern via:
+**Foundation-Default:** `@nexus-mindgarden/plugin-bridge-foundation` v0.1.0+ baked das automatisch ein. Baseline-Optional-Fields = `['host_version']`. Plugin-Provider erweitern via:
 
 ```ts
 const registry = new HostKeyRegistry(repo, {
@@ -208,7 +208,7 @@ import {
   InMemoryHostKeyRepo,
   loadManifest,
   type ToolHandler,
-} from '@nexus/plugin-bridge-foundation'
+} from '@nexus-mindgarden/plugin-bridge-foundation'
 import { serve } from '@hono/node-server'
 import { resolve } from 'node:path'
 
@@ -235,7 +235,7 @@ const documentsList: ToolHandler = async (args, ctx) => {
 const documentsCreate: ToolHandler = async (args, ctx) => {
   const { title } = args as { title?: string }
   if (!title) throw { code: 'invalid_args', message: 'title required' }
-  // ... persist via @nexus/plugin-storage-foundation ...
+  // ... persist via @nexus-mindgarden/plugin-storage-foundation ...
   return { id: 'new-uuid', title }
 }
 
@@ -316,7 +316,7 @@ Relative Script/Style-URLs werden Host-Side gegen `service_endpoint` aufgelöst 
     dispatchAskKiara,
     trimToMaxBytes,
     type BridgeAttrs,
-  } from '@nexus/plugin-svelte-foundation'
+  } from '@nexus-mindgarden/plugin-svelte-foundation'
 
   // Drift #7 mitigation: long-form props mit explicit attribute-mapping
   let { bridgeToken, bridgeEndpoint, hostId, tenantId, userId, theme,
@@ -375,7 +375,7 @@ Relative Script/Style-URLs werden Host-Side gegen `service_endpoint` aufgelöst 
 </div>
 
 <style>
-  /* Theme-Tokens via @nexus/plugin-svelte-foundation/theme generated */
+  /* Theme-Tokens via @nexus-mindgarden/plugin-svelte-foundation/theme generated */
   /* see packages/my-plugin-svelte/build.mjs */
 </style>
 ```
@@ -390,7 +390,7 @@ import {
   buildThemeCss,
   pluginBundleConfig,
   nodeBuiltinsStubPlugin,
-} from '@nexus/plugin-svelte-foundation/build'
+} from '@nexus-mindgarden/plugin-svelte-foundation/build'
 
 const themeBlock = buildThemeCss('mp')  // mp = my-plugin prefix
 
@@ -534,12 +534,12 @@ Host-Side `service_endpoint` wird im Plugin-Manifest deklariert. Hosts lesen das
 
 Plugin sollte `autoAccept: false` setzen (privacy-by-default). Hosts ruft `register-host` mit Public-Key + landed pending. User approved via Plugin-Settings-UI.
 
-**Persistent HostKeyRepo (Production)** — `InMemoryHostKeyRepo` aus `@nexus/plugin-bridge-foundation` ist nur für Dev/Tests. Production-Plugin-Provider wählen einen der zwei baked-in persistent Adapters:
+**Persistent HostKeyRepo (Production)** — `InMemoryHostKeyRepo` aus `@nexus-mindgarden/plugin-bridge-foundation` ist nur für Dev/Tests. Production-Plugin-Provider wählen einen der zwei baked-in persistent Adapters:
 
 **JSON-File** (v0.1.1+) — single-process Plugin-Bridges mit niedrigem Write-Volume. Atomic `.tmp` + rename. Keine Native-Dependency.
 
 ```ts
-import { HostKeyRegistry, JsonFileHostKeyRepo } from '@nexus/plugin-bridge-foundation'
+import { HostKeyRegistry, JsonFileHostKeyRepo } from '@nexus-mindgarden/plugin-bridge-foundation'
 
 const repo = new JsonFileHostKeyRepo({ path: './data/host-keys.json' })
 const registry = new HostKeyRegistry(repo, { autoAccept: false })
@@ -549,7 +549,7 @@ const registry = new HostKeyRegistry(repo, { autoAccept: false })
 
 ```ts
 import Database from 'better-sqlite3'
-import { HostKeyRegistry, SqliteHostKeyRepo } from '@nexus/plugin-bridge-foundation'
+import { HostKeyRegistry, SqliteHostKeyRepo } from '@nexus-mindgarden/plugin-bridge-foundation'
 
 const db = new Database('./data/plugin-bridge.db')
 const repo = new SqliteHostKeyRepo(db, { tableName: 'host_keys' })
@@ -620,7 +620,7 @@ Das LM-Studio-Inflight-Argument allein zerlegt direct-HTTP für jedes Multi-Plug
 ### 11.2 Foundation-Helper
 
 ```ts
-import { createAgentComplete } from '@nexus/plugin-bridge-foundation/agent-complete'
+import { createAgentComplete } from '@nexus-mindgarden/plugin-bridge-foundation/agent-complete'
 
 const agentComplete = createAgentComplete({
   bridgeEndpoint: ctx.bridgeEndpoint,  // aus M17 accept-response

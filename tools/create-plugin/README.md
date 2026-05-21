@@ -1,11 +1,11 @@
-# @nexus/create-plugin
+# @nexus-mindgarden/create-plugin
 
 CLI-Scaffold für `@nexus` Plugin-Provider. Generiert ein neues Plugin-Repo mit Foundation-Packages-Wiring + Manifest + CLAUDE.md + ARCHITECTURE-skeleton.
 
 ## Usage
 
 ```sh
-npx @nexus/create-plugin <plugin-name> [options]
+npx @nexus-mindgarden/create-plugin <plugin-name> [options]
 ```
 
 ### Options
@@ -21,13 +21,13 @@ npx @nexus/create-plugin <plugin-name> [options]
 
 ```sh
 # Minimal — Default hosts + features
-npx @nexus/create-plugin my-plugin
+npx @nexus-mindgarden/create-plugin my-plugin
 
 # Custom features
-npx @nexus/create-plugin docs-plugin --features=mcp,storage,svelte
+npx @nexus-mindgarden/create-plugin docs-plugin --features=mcp,storage,svelte
 
 # Single host + custom target
-npx @nexus/create-plugin v8-only-plugin --hosts=teammind --target=/Users/me/Plugins/v8-only
+npx @nexus-mindgarden/create-plugin v8-only-plugin --hosts=teammind --target=/Users/me/Plugins/v8-only
 ```
 
 ## Generated Files

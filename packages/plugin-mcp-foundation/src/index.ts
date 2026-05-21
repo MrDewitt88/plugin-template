@@ -1,4 +1,4 @@
-// @nexus/plugin-mcp-foundation — Plugin-MCP Foundation.
+// @nexus-mindgarden/plugin-mcp-foundation — Plugin-MCP Foundation.
 // Tool-Registry mit Extended-Form support + Scope-Validation +
 // Tool-Naming-Convention für Cross-Repo-Konsistenz.
 

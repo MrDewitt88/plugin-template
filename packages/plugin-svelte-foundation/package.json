@@ -1,6 +1,6 @@
 {
-  "name": "@nexus/plugin-svelte-foundation",
-  "version": "0.3.3",
+  "name": "@nexus-mindgarden/plugin-svelte-foundation",
+  "version": "0.4.0",
   "description": "Plugin-UI Foundation — Svelte 5 Custom-Elements + Theme-Attribut + 16-Token-Convention + Bundle-Pipeline",
   "license": "MIT",
   "type": "module",
@@ -27,8 +27,22 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prepublishOnly": "tsc -p tsconfig.json"
   },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MrDewitt88/plugin-template.git",
+    "directory": "packages/plugin-svelte-foundation"
+  },
+  "homepage": "https://github.com/MrDewitt88/plugin-template/tree/main/packages/plugin-svelte-foundation#readme",
+  "bugs": {
+    "url": "https://github.com/MrDewitt88/plugin-template/issues"
+  },
+  "keywords": ["nexus-mindgarden", "plugin", "svelte", "custom-elements", "theme"],
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.6.0",

@@ -1,4 +1,4 @@
-# @nexus/plugin-svelte-foundation
+# @nexus-mindgarden/plugin-svelte-foundation
 
 Svelte 5 Custom-Element Foundation für Plugin-UI-Components — bridge-attrs reader + plugin→host events + 16-token theme convention + esbuild bundle config.
 
@@ -14,7 +14,7 @@ Svelte 5 Custom-Element Foundation für Plugin-UI-Components — bridge-attrs re
     dispatchAskKiara,
     trimToMaxBytes,
     MAX_CONTENT_BYTES,
-  } from '@nexus/plugin-svelte-foundation'
+  } from '@nexus-mindgarden/plugin-svelte-foundation'
 
   // Drift #7 mitigation: long-form props mit explicit attribute-mapping
   // (short-form deriviert lowercase observedAttributes, NOT kebab-case).
@@ -50,7 +50,7 @@ Svelte 5 Custom-Element Foundation für Plugin-UI-Components — bridge-attrs re
 <button onclick={askKiara}>Frag Kiara</button>
 
 <style>
-  /* THEME-TOKENS-BEGIN — generiert via @nexus/plugin-svelte-foundation */
+  /* THEME-TOKENS-BEGIN — generiert via @nexus-mindgarden/plugin-svelte-foundation */
   /* hier den buildThemeCss()-output einfügen */
   /* THEME-TOKENS-END */
 </style>
@@ -59,7 +59,7 @@ Svelte 5 Custom-Element Foundation für Plugin-UI-Components — bridge-attrs re
 ### Theme-Tokens-CSS (in build-step generieren)
 
 ```ts
-import { buildThemeCss } from '@nexus/plugin-svelte-foundation/theme'
+import { buildThemeCss } from '@nexus-mindgarden/plugin-svelte-foundation/theme'
 
 const themeBlock = buildThemeCss('mv') // prefix=mv für MarkView
 // inject into Component <style> via build-time-template
@@ -72,7 +72,7 @@ import esbuild from 'esbuild'
 import {
   pluginBundleConfig,
   nodeBuiltinsStubPlugin,
-} from '@nexus/plugin-svelte-foundation/build'
+} from '@nexus-mindgarden/plugin-svelte-foundation/build'
 
 await esbuild.build({
   ...pluginBundleConfig({

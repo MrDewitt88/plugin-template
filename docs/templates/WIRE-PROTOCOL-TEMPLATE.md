@@ -129,7 +129,7 @@ curl -X POST http://localhost:{port}/plugin-bridge/v1/execute-tool \
 
 ### `route_path: /{view-1}` → `<plugin-{plugin}-{component-1}>`
 
-**Bridge-Attrs gesetzt vom Host (siehe @nexus/plugin-svelte-foundation OBSERVED_BRIDGE_ATTRS):**
+**Bridge-Attrs gesetzt vom Host (siehe @nexus-mindgarden/plugin-svelte-foundation OBSERVED_BRIDGE_ATTRS):**
 - `bridge-token`, `bridge-endpoint`, `host-id`, `tenant-id`, `user-id`, `user-locale`, `actor-class`, `theme`
 
 **Plus component-specific attrs:**
@@ -168,4 +168,4 @@ Aus [`CROSS-REPO-LESSONS.md`](https://github.com/MrDewitt88/TeamMindV8/blob/main
 - [`PLUGIN-BRIDGE-PROTOCOL.md`](https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/PLUGIN-BRIDGE-PROTOCOL.md) — Standard-Endpoints + mcp_tools Extended Form
 - [`PLUGIN-CAPABILITIES.md`](https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/PLUGIN-CAPABILITIES.md) — capabilities[]-Convention
 - [`PLUGIN-KIARA-INTEGRATION.md`](https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/PLUGIN-KIARA-INTEGRATION.md) — Frag-Kiara-Pattern
-- `@nexus/plugin-mcp-foundation` — Tool-Registry + scope-validation
+- `@nexus-mindgarden/plugin-mcp-foundation` — Tool-Registry + scope-validation

@@ -9,8 +9,8 @@
 // bleiben unangetastet.
 //
 // Konsumenten-Pattern:
-//   import { openConnection } from '@nexus/plugin-storage-foundation'
-//   import { SqliteHostKeyRepo, HostKeyRegistry } from '@nexus/plugin-bridge-foundation'
+//   import { openConnection } from '@nexus-mindgarden/plugin-storage-foundation'
+//   import { SqliteHostKeyRepo, HostKeyRegistry } from '@nexus-mindgarden/plugin-bridge-foundation'
 //
 //   const db = openConnection({ path: './data/plugin-bridge.db' })
 //   const repo = new SqliteHostKeyRepo(db)

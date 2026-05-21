@@ -1,4 +1,4 @@
-# @nexus/plugin-mcp-foundation
+# @nexus-mindgarden/plugin-mcp-foundation
 
 Plugin-MCP Foundation — Tool-Registry mit mcp_tools Extended-Form-Support, Scope-Validation, Tool-Naming-Convention für Cross-Repo-Konsistenz.
 
@@ -7,8 +7,8 @@ Plugin-MCP Foundation — Tool-Registry mit mcp_tools Extended-Form-Support, Sco
 ### Tool-Registry aus Manifest
 
 ```ts
-import { ToolRegistry, checkScopes } from '@nexus/plugin-mcp-foundation'
-import { loadManifest } from '@nexus/plugin-bridge-foundation'
+import { ToolRegistry, checkScopes } from '@nexus-mindgarden/plugin-mcp-foundation'
+import { loadManifest } from '@nexus-mindgarden/plugin-bridge-foundation'
 
 const manifest = await loadManifest('./manifest.yaml')
 const registry = new ToolRegistry()
@@ -41,7 +41,7 @@ if (!scopeResult.ok) {
 
 ```ts
 import { synthesizeNamespacedName, parseNamespacedName }
-  from '@nexus/plugin-mcp-foundation'
+  from '@nexus-mindgarden/plugin-mcp-foundation'
 
 // Plugin manifest hat bare-name 'documents.create'
 // Host (V8/Theseus) synthesizes:

@@ -3,7 +3,7 @@
 // Bootstrapping in jedem Plugin-Repo.
 //
 // Usage:
-//   import { mintTestBridgeToken, buildTestRegistry } from '@nexus/plugin-bridge-foundation/testing'
+//   import { mintTestBridgeToken, buildTestRegistry } from '@nexus-mindgarden/plugin-bridge-foundation/testing'
 //
 //   const { registry, mintToken } = await buildTestRegistry({ hostId: 'teammind' })
 //   const token = await mintToken({ tenantId: '...', userId: '...', scopes: ['read'] })

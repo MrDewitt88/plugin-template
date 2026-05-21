@@ -1,6 +1,6 @@
 {
-  "name": "@nexus/plugin-storage-foundation",
-  "version": "0.3.3",
+  "name": "@nexus-mindgarden/plugin-storage-foundation",
+  "version": "0.4.0",
   "description": "Plugin-Storage Foundation — SQLite-Setup + Migrations + Multi-Host-Storage-Pattern + ABI-Cache-Awareness",
   "license": "MIT",
   "type": "module",
@@ -27,8 +27,22 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prepublishOnly": "tsc -p tsconfig.json"
   },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MrDewitt88/plugin-template.git",
+    "directory": "packages/plugin-storage-foundation"
+  },
+  "homepage": "https://github.com/MrDewitt88/plugin-template/tree/main/packages/plugin-storage-foundation#readme",
+  "bugs": {
+    "url": "https://github.com/MrDewitt88/plugin-template/issues"
+  },
+  "keywords": ["nexus-mindgarden", "plugin", "storage", "sqlite", "migrations"],
   "dependencies": {
     "better-sqlite3": "^11.10.0"
   },

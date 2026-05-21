@@ -1,7 +1,7 @@
 {
-  "name": "@nexus/create-plugin",
-  "version": "0.0.1",
-  "description": "CLI scaffold für @nexus Plugin-Provider — npx @nexus/create-plugin <name>",
+  "name": "@nexus-mindgarden/create-plugin",
+  "version": "0.4.0",
+  "description": "CLI scaffold for @nexus-mindgarden Plugin-Provider — npx @nexus-mindgarden/create-plugin <name>",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -23,8 +23,22 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prepublishOnly": "tsc -p tsconfig.json"
   },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MrDewitt88/plugin-template.git",
+    "directory": "tools/create-plugin"
+  },
+  "homepage": "https://github.com/MrDewitt88/plugin-template/tree/main/tools/create-plugin#readme",
+  "bugs": {
+    "url": "https://github.com/MrDewitt88/plugin-template/issues"
+  },
+  "keywords": ["nexus-mindgarden", "create-plugin", "scaffold", "cli", "plugin-template"],
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.6.0",

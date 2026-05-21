@@ -80,7 +80,7 @@ V8s 24 catalogued Drifts (#1-#24, see V8 [`CROSS-REPO-LESSONS.md`](https://githu
 
 ### Vor neuem MCP-Tool
 
-- [ ] Tool-Name snake_case + dot-namespace (siehe `@nexus/plugin-mcp-foundation/tools/naming`)
+- [ ] Tool-Name snake_case + dot-namespace (siehe `@nexus-mindgarden/plugin-mcp-foundation/tools/naming`)
 - [ ] input_schema definiert (Phase-3 Extended Form)
 - [ ] scopes_required minimaler-Set (least-privilege)
 - [ ] Wire-snake_case enforced
@@ -107,7 +107,7 @@ V8s 24 catalogued Drifts (#1-#24, see V8 [`CROSS-REPO-LESSONS.md`](https://githu
 ## 6. References
 
 - V8 [`CROSS-REPO-LESSONS.md`](https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/CROSS-REPO-LESSONS.md) — canonical Cross-Repo Drift-Catalog #1-#24
-- `@nexus/plugin-bridge-foundation` — bridge with Drift #6/#8/#12/#14 baked-in
-- `@nexus/plugin-svelte-foundation` — UI with Drift #7/#13/#20+#21 baked-in
-- `@nexus/plugin-storage-foundation` — Storage with Drift #11/#13/#20 ABI-mismatch detection
-- `@nexus/plugin-mcp-foundation` — Tool-Registry with Phase-3 Extended Form support
+- `@nexus-mindgarden/plugin-bridge-foundation` — bridge with Drift #6/#8/#12/#14 baked-in
+- `@nexus-mindgarden/plugin-svelte-foundation` — UI with Drift #7/#13/#20+#21 baked-in
+- `@nexus-mindgarden/plugin-storage-foundation` — Storage with Drift #11/#13/#20 ABI-mismatch detection
+- `@nexus-mindgarden/plugin-mcp-foundation` — Tool-Registry with Phase-3 Extended Form support

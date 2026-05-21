@@ -155,8 +155,8 @@ MIT — see \`LICENSE\`
 
 const CLAUDE_MD = `# {{pluginNamePascal}} — Engineering-Regeln
 
-> Generated from @nexus/create-plugin. Customize §6 Plugin-Specific-Rules.
-> Reference: \`@nexus/plugin-template\` docs/CLAUDE-TEMPLATE.md
+> Generated from @nexus-mindgarden/create-plugin. Customize §6 Plugin-Specific-Rules.
+> Reference: \`@nexus-mindgarden/plugin-template\` docs/CLAUDE-TEMPLATE.md
 
 ## 0. Identität
 
@@ -202,7 +202,7 @@ kanban comment t_abc123 "<text>"
 - V8 Cross-Repo-Lessons: https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/CROSS-REPO-LESSONS.md
 - Plugin-Bridge-Protocol: https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/PLUGIN-BRIDGE-PROTOCOL.md
 
-Volle Engineering-Regeln-Reference: \`@nexus/plugin-template\` docs/CLAUDE-TEMPLATE.md
+Volle Engineering-Regeln-Reference: \`@nexus-mindgarden/plugin-template\` docs/CLAUDE-TEMPLATE.md
 `
 
 const MANIFEST_YAML = `id: {{pluginName}}
@@ -228,7 +228,7 @@ provides:
 
 const ARCHITECTURE_MD = `# {{pluginNamePascal}} — Architecture
 
-> Generated from @nexus/create-plugin. Customize sections marked {...}.
+> Generated from @nexus-mindgarden/create-plugin. Customize sections marked {...}.
 
 ## 1. Vision
 
@@ -239,10 +239,10 @@ const ARCHITECTURE_MD = `# {{pluginNamePascal}} — Architecture
 \`\`\`
 {{pluginName}}/
 ├── packages/
-{{#if features.bridge}}│   ├── {{pluginName}}-bridge/        # @nexus/plugin-bridge-foundation
-{{/if}}{{#if features.storage}}│   ├── {{pluginName}}-storage/       # @nexus/plugin-storage-foundation
-{{/if}}{{#if features.svelte}}│   ├── {{pluginName}}-svelte/        # @nexus/plugin-svelte-foundation
-{{/if}}{{#if features.mcp}}│   └── {{pluginName}}-mcp/           # @nexus/plugin-mcp-foundation
+{{#if features.bridge}}│   ├── {{pluginName}}-bridge/        # @nexus-mindgarden/plugin-bridge-foundation
+{{/if}}{{#if features.storage}}│   ├── {{pluginName}}-storage/       # @nexus-mindgarden/plugin-storage-foundation
+{{/if}}{{#if features.svelte}}│   ├── {{pluginName}}-svelte/        # @nexus-mindgarden/plugin-svelte-foundation
+{{/if}}{{#if features.mcp}}│   └── {{pluginName}}-mcp/           # @nexus-mindgarden/plugin-mcp-foundation
 {{/if}}└── docs/
     ├── ARCHITECTURE.md           # this doc
     └── CROSS-REPO-LESSONS.md
@@ -276,8 +276,8 @@ const PKG_BRIDGE_JSON = `{
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@nexus/plugin-bridge-foundation": "^0.0.1",
-    "@nexus/plugin-mcp-foundation": "^0.0.1",
+    "@nexus-mindgarden/plugin-bridge-foundation": "^0.0.1",
+    "@nexus-mindgarden/plugin-mcp-foundation": "^0.0.1",
     "@hono/node-server": "^1.13.0",
     "hono": "^4.6.0"
   },
@@ -311,7 +311,7 @@ const PKG_BRIDGE_INDEX = `import {
   InMemoryHostKeyRepo,
   loadManifest,
   type ToolHandler,
-} from '@nexus/plugin-bridge-foundation'
+} from '@nexus-mindgarden/plugin-bridge-foundation'
 
 const documentsList: ToolHandler = async (_args, _ctx) => {
   // TODO: implement {{pluginName}} list
@@ -334,7 +334,7 @@ export async function createApp() {
 `
 
 const PKG_BRIDGE_TEST = `import { describe, expect, it } from 'vitest'
-import { HostKeyRegistry, InMemoryHostKeyRepo } from '@nexus/plugin-bridge-foundation'
+import { HostKeyRegistry, InMemoryHostKeyRepo } from '@nexus-mindgarden/plugin-bridge-foundation'
 
 describe('{{pluginNameCamel}} bridge', () => {
   it('HostKeyRegistry can be instantiated', () => {

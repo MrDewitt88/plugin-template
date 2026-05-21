@@ -161,12 +161,12 @@ Folgende Operations brauchen **explicit User-Approval pro session**:
 
 ## 5. Plugin-Foundation-Pattern
 
-Diese Patterns sind in `@nexus/plugin-*-foundation`-packages baked-in. Wenn dein Code davon abweicht, ist es ein Drift.
+Diese Patterns sind in `@nexus-mindgarden/plugin-*-foundation`-packages baked-in. Wenn dein Code davon abweicht, ist es ein Drift.
 
 ### 5.1 Bridge-Endpoint
 
 ```ts
-import { createBridgeApp } from '@nexus/plugin-bridge-foundation'
+import { createBridgeApp } from '@nexus-mindgarden/plugin-bridge-foundation'
 // Bridge wird via createBridgeApp + Hono-app served. Nie eigenen
 // HTTP-server bauen.
 ```
@@ -174,7 +174,7 @@ import { createBridgeApp } from '@nexus/plugin-bridge-foundation'
 ### 5.2 SQLite-Connection
 
 ```ts
-import { openConnection, migrate } from '@nexus/plugin-storage-foundation'
+import { openConnection, migrate } from '@nexus-mindgarden/plugin-storage-foundation'
 // Production-Pragmas (WAL/FK/busy_timeout) aus Foundation. Nie own
 // new Database() ohne Foundation-Setup.
 ```
@@ -182,7 +182,7 @@ import { openConnection, migrate } from '@nexus/plugin-storage-foundation'
 ### 5.3 Custom-Element-Setup
 
 ```ts
-import { bridgeAttrPropsMapping } from '@nexus/plugin-svelte-foundation'
+import { bridgeAttrPropsMapping } from '@nexus-mindgarden/plugin-svelte-foundation'
 // Long-form props mapping (Drift #7). Nie short-form
 // `<svelte:options customElement="tag" />`.
 ```
@@ -190,7 +190,7 @@ import { bridgeAttrPropsMapping } from '@nexus/plugin-svelte-foundation'
 ### 5.4 MCP-Tool-Registry
 
 ```ts
-import { ToolRegistry, checkScopes } from '@nexus/plugin-mcp-foundation'
+import { ToolRegistry, checkScopes } from '@nexus-mindgarden/plugin-mcp-foundation'
 // Tool-Naming + Scope-Check via Foundation. Nie own scope-validation
 // (Drift-Risk wenn host-side-checks divergieren).
 ```

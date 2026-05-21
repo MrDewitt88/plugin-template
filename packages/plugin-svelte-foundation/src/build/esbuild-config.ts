@@ -33,7 +33,7 @@ export interface PluginBundleOptions {
  *   - target: 'es2022'
  *   - platform: 'browser'
  *   - external: [] (siehe Drift #20+#21)
- *   - alias: node-builtins → '@nexus/plugin-svelte-foundation/build/node-stubs'
+ *   - alias: node-builtins → '@nexus-mindgarden/plugin-svelte-foundation/build/node-stubs'
  *     (Drift #13 — node-builtins als empty-module gestubt)
  */
 export function pluginBundleConfig(opts: PluginBundleOptions): {
@@ -101,7 +101,7 @@ export const NODE_BUILTINS = [
  *
  * Usage:
  *   import esbuild from 'esbuild'
- *   import { nodeBuiltinsStubPlugin } from '@nexus/plugin-svelte-foundation/build'
+ *   import { nodeBuiltinsStubPlugin } from '@nexus-mindgarden/plugin-svelte-foundation/build'
  *   esbuild.build({ ..., plugins: [nodeBuiltinsStubPlugin()] })
  */
 export function nodeBuiltinsStubPlugin(): {

@@ -149,7 +149,7 @@ async function issueBridgeToken(opts) {
 Plugin manifest declared bare-names (`documents.list`). Host synthesizes namespaced names für eigene MCP-Pipeline:
 
 ```ts
-import { synthesizeNamespacedName } from '@nexus/plugin-mcp-foundation'
+import { synthesizeNamespacedName } from '@nexus-mindgarden/plugin-mcp-foundation'
 
 // Plugin manifest mcp_tools: ['documents.list', { name: 'documents.create', ... }]
 // Host adds prefix:
@@ -515,8 +515,8 @@ Pattern skaliert linear: pro neuem Host eine zusätzliche Tabellenzeile + Compan
 - Theseus' Companion-Docs: `MrDewitt88/Theseus-Agent/docs/PLUGIN-KIARA-INTEGRATION-THESEUS.md`, `MrDewitt88/Theseus-Agent/docs/PLUGIN-TEMPLATE-HOST-SECTION-THESEUS.md`
 
 - Foundation-Packages (this repo):
-  - `@nexus/plugin-bridge-foundation` — wenn Host gleichzeitig Plugin-Provider ist
-  - `@nexus/plugin-mcp-foundation/tools/naming` — synthesizeNamespacedName / parseNamespacedName
+  - `@nexus-mindgarden/plugin-bridge-foundation` — wenn Host gleichzeitig Plugin-Provider ist
+  - `@nexus-mindgarden/plugin-mcp-foundation/tools/naming` — synthesizeNamespacedName / parseNamespacedName
 
 - Cross-Repo-Standards:
   - [PLUGIN-BRIDGE-PROTOCOL.md](https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/PLUGIN-BRIDGE-PROTOCOL.md)

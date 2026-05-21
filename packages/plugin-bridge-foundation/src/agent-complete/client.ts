@@ -7,7 +7,7 @@
 //
 // Plugin-Author-API:
 //
-//   import { createAgentComplete } from '@nexus/plugin-bridge-foundation/agent-complete'
+//   import { createAgentComplete } from '@nexus-mindgarden/plugin-bridge-foundation/agent-complete'
 //
 //   const agentComplete = createAgentComplete({
 //     bridgeEndpoint: ctx.bridgeEndpoint,  // aus M17 accept-response

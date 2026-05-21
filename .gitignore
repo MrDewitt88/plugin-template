@@ -1,10 +1,10 @@
 node_modules/
-# Note: NO global `dist/` rule — Foundation-packages ship pre-built dist/ in
-# git as bridge to npm-publish (v0.3.3+). Consumer github-installs without
-# `&path:` subspec already get prepare-hook rebuild; with `&path:` they need
-# committed dist as fallback (pnpm doesn't run sub-package prepare hooks).
-# Per-package consumer-side builds via tsc remain functional (dist/ overwritten).
+# v0.4.0+: dist/ ist wieder gitignored — Foundation-packages are npm-published
+# via .github/workflows/publish.yml on tag push. Konsumenten ziehen jetzt via
+# `pnpm add @nexus-mindgarden/plugin-bridge-foundation@^0.4.0` (kein github-URL
+# + kein subspec mehr nötig).
 # Workspace-internal: build via `pnpm -r build`, output goes to packages/*/dist/.
+dist/
 # Note: NO global `build/` rule — that pattern unintentionally excluded
 # `packages/plugin-svelte-foundation/src/build/` (legitimate source folder).
 # If you need to ignore a per-package build-output, add a per-package

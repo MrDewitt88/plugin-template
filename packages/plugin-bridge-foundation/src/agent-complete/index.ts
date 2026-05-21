@@ -1,4 +1,4 @@
-// @nexus/plugin-bridge-foundation/agent-complete — canonical Plugin-to-LLM
+// @nexus-mindgarden/plugin-bridge-foundation/agent-complete — canonical Plugin-to-LLM
 // Tool helper. Wire-Contract aus chatbus thread="contracts" 2026-05-21.
 
 export {

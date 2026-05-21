@@ -115,7 +115,7 @@ export function buildThemeCss(
   dark: ThemeTokenSet = STANDARD_DARK,
 ): string {
   return `
-/* THEME-TOKENS-BEGIN — generated via @nexus/plugin-svelte-foundation */
+/* THEME-TOKENS-BEGIN — generated via @nexus-mindgarden/plugin-svelte-foundation */
 :host {
 ${tokensToCss(prefix, light)}
 }

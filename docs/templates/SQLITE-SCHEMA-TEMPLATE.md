@@ -51,10 +51,10 @@ CREATE INDEX idx_{plugin}_{related}_parent ON {plugin}_{related_entity}(parent_i
 
 ## 3. Migrations
 
-Use `@nexus/plugin-storage-foundation/sqlite` Migration-Pattern:
+Use `@nexus-mindgarden/plugin-storage-foundation/sqlite` Migration-Pattern:
 
 ```ts
-import type { Migration } from '@nexus/plugin-storage-foundation'
+import type { Migration } from '@nexus-mindgarden/plugin-storage-foundation'
 
 export const MIGRATIONS: Migration[] = [
   {
@@ -132,7 +132,7 @@ CREATE TABLE {plugin}_audit_log (
 
 ## 6. Performance-Hinweise
 
-- **WAL-Mode default** (set by `@nexus/plugin-storage-foundation`): concurrent-reads OK, serialized writes
+- **WAL-Mode default** (set by `@nexus-mindgarden/plugin-storage-foundation`): concurrent-reads OK, serialized writes
 - **Prepare-Statements cachen:** `db.prepare('SELECT ...')` einmal, dann `.all()`/`.get()`/`.run()` reuse
 - **VACUUM:** periodic (e.g. weekly) für reclaim-deleted-pages
 - **Index-Strategy:** EXPLAIN QUERY PLAN für hot-paths. Composite-indexes wenn `WHERE a AND b` häufig
@@ -143,7 +143,7 @@ CREATE TABLE {plugin}_audit_log (
 
 Plugin-Provider die in mehreren Runtimes laufen (Node-CLI für Tests + Electron für App):
 
-`@nexus/plugin-storage-foundation` detected `NODE_MODULE_VERSION`-mismatch + wirft `SqliteConnectionError({ code: 'abi_mismatch' })`. Fix-Pattern:
+`@nexus-mindgarden/plugin-storage-foundation` detected `NODE_MODULE_VERSION`-mismatch + wirft `SqliteConnectionError({ code: 'abi_mismatch' })`. Fix-Pattern:
 - Single-Runtime: `npm rebuild better-sqlite3 --build-from-source`
 - Multi-Runtime: ABI-Cache (siehe MarkView's `scripts/sqlite-abi.mjs`) — beide Binaries cached, swap-on-demand pre-test/dev
 
@@ -151,7 +151,7 @@ Plugin-Provider die in mehreren Runtimes laufen (Node-CLI für Tests + Electron 
 
 ## 8. References
 
-- `@nexus/plugin-storage-foundation` — Connection + Migrations + Multi-Host-Paths
+- `@nexus-mindgarden/plugin-storage-foundation` — Connection + Migrations + Multi-Host-Paths
 - MarkView SQLite-Schema (Reference): `MrDewitt88/MarkView/packages/plugin-bridge/src/storage/`
 - Kanban SQLite-Schema (Reference): `MrDewitt88/TeamMind-Kanban/packages/kanban-sqlite/`
 - MarkView ABI-Dance (für multi-runtime): `MrDewitt88/MarkView/scripts/sqlite-abi.mjs` + `docs/SQLITE-ABI-DANCE.md`

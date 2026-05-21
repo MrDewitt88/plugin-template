@@ -1,6 +1,6 @@
 # Upgrade Guide: plug-tmpl v0.1.x → v0.2.0
 
-> Comprehensive upgrade guide für Plugin-Provider-CCs die `@nexus/plugin-bridge-foundation` (oder `@nexus/plugin-storage-foundation`) konsumieren. v0.2.0 schließt 7 Lücken die in v0.1.x als Hand-Roll pro Plugin gelandet wären.
+> Comprehensive upgrade guide für Plugin-Provider-CCs die `@nexus-mindgarden/plugin-bridge-foundation` (oder `@nexus-mindgarden/plugin-storage-foundation`) konsumieren. v0.2.0 schließt 7 Lücken die in v0.1.x als Hand-Roll pro Plugin gelandet wären.
 
 **Status:** released 2026-05-17 · main commit pending · git tag `v0.2.0`
 **Consumer-Pfad:** `pnpm add github:MrDewitt88/plugin-template#v0.2.0`
@@ -12,13 +12,13 @@
 
 | # | Feature | Subpath | Adoption-Cost |
 |---|---|---|---|
-| 1 | **Observability primitives** (JSON-Lines logger + Prometheus `/metrics` + HTTP-request-middleware) | `@nexus/plugin-bridge-foundation/observability` | Opt-in via `BridgeAppOptions.observability` |
-| 2 | **Static UI serving helper** (path-traversal-safe `/static/ui/*` mit immutable cache) | `@nexus/plugin-bridge-foundation` (root) | Opt-in via `BridgeAppOptions.staticUi` |
-| 3 | **Drift #203 manifest-validation** — `validateManifest()` flagged `localhost:*` in `service_endpoint` (warn-default, strict-opt) | `@nexus/plugin-bridge-foundation/manifest` | Default-on (warn-mode). Strict via `{drift203: 'strict'}` |
-| 4 | **Storage-Foundation `StorageError` + `toCanonicalError()`** — Drift #103 wire-shape für storage-errors | `@nexus/plugin-storage-foundation` | Drop-in `throw` replacement |
-| 5 | **`relay_url` in BASELINE_OPTIONAL_REGISTER_FIELDS** — markview Pfad-C-Collab + plug-elec reverse-call | `@nexus/plugin-bridge-foundation` | Transparent — register-host accepts `relay_url?` |
-| 6 | **Test-Utilities** (`buildTestRegistry()` + `mintTestBridgeToken()`) | `@nexus/plugin-bridge-foundation/testing` | Drop-in replacement for hand-rolled setup-helpers |
-| 7 | **invoke-hook Drift #103 parity** — `details?` jetzt im error-shape, parity mit execute-tool | `@nexus/plugin-bridge-foundation` | Transparent für Konsumenten die schon `details` in tool-handlers wollten |
+| 1 | **Observability primitives** (JSON-Lines logger + Prometheus `/metrics` + HTTP-request-middleware) | `@nexus-mindgarden/plugin-bridge-foundation/observability` | Opt-in via `BridgeAppOptions.observability` |
+| 2 | **Static UI serving helper** (path-traversal-safe `/static/ui/*` mit immutable cache) | `@nexus-mindgarden/plugin-bridge-foundation` (root) | Opt-in via `BridgeAppOptions.staticUi` |
+| 3 | **Drift #203 manifest-validation** — `validateManifest()` flagged `localhost:*` in `service_endpoint` (warn-default, strict-opt) | `@nexus-mindgarden/plugin-bridge-foundation/manifest` | Default-on (warn-mode). Strict via `{drift203: 'strict'}` |
+| 4 | **Storage-Foundation `StorageError` + `toCanonicalError()`** — Drift #103 wire-shape für storage-errors | `@nexus-mindgarden/plugin-storage-foundation` | Drop-in `throw` replacement |
+| 5 | **`relay_url` in BASELINE_OPTIONAL_REGISTER_FIELDS** — markview Pfad-C-Collab + plug-elec reverse-call | `@nexus-mindgarden/plugin-bridge-foundation` | Transparent — register-host accepts `relay_url?` |
+| 6 | **Test-Utilities** (`buildTestRegistry()` + `mintTestBridgeToken()`) | `@nexus-mindgarden/plugin-bridge-foundation/testing` | Drop-in replacement for hand-rolled setup-helpers |
+| 7 | **invoke-hook Drift #103 parity** — `details?` jetzt im error-shape, parity mit execute-tool | `@nexus-mindgarden/plugin-bridge-foundation` | Transparent für Konsumenten die schon `details` in tool-handlers wollten |
 
 **Validation:** `pnpm -r typecheck` 5/5 clean · `pnpm -r test` **206/206 grün** (bridge 77 · svelte 30 · mcp 33 · storage 31 · create-plugin tool 35).
 
@@ -37,7 +37,7 @@ log.info('manifest loaded', { plugin_id, version })
 
 **Nach v0.2.0:**
 ```ts
-import { Logger, MetricsRegistry } from '@nexus/plugin-bridge-foundation/observability'
+import { Logger, MetricsRegistry } from '@nexus-mindgarden/plugin-bridge-foundation/observability'
 
 const logger = new Logger({ service: 'etmind-bridge' })
 const metrics = new MetricsRegistry()
@@ -57,7 +57,7 @@ Foundation wired automatisch:
 
 Custom-Metrics zusätzlich registrierbar:
 ```ts
-import { Counter } from '@nexus/plugin-bridge-foundation/observability'
+import { Counter } from '@nexus-mindgarden/plugin-bridge-foundation/observability'
 const cableCalcs = metrics.register(
   new Counter('etmind_cable_calculations_total', 'Cable-calc invocations', ['result'])
 )
@@ -88,8 +88,8 @@ import {
   HostKeyRegistry,
   JsonFileHostKeyRepo,
   loadManifest,
-} from '@nexus/plugin-bridge-foundation'
-import { Logger, MetricsRegistry } from '@nexus/plugin-bridge-foundation/observability'
+} from '@nexus-mindgarden/plugin-bridge-foundation'
+import { Logger, MetricsRegistry } from '@nexus-mindgarden/plugin-bridge-foundation/observability'
 
 const manifest = await loadManifest('./manifest.yaml', { drift203: 'strict' })
 const repo = new JsonFileHostKeyRepo({ path: './data/host-keys.json' })
@@ -123,7 +123,7 @@ import {
   createBridgeApp,
   HostKeyRegistry,
   JsonFileHostKeyRepo,
-} from '@nexus/plugin-bridge-foundation'
+} from '@nexus-mindgarden/plugin-bridge-foundation'
 
 const registry = new HostKeyRegistry(new JsonFileHostKeyRepo({ path: '...' }), {
   optionalRegisterFields: ['host_version', 'relay_url', 'channel_id'], // erweiterbar
@@ -142,7 +142,7 @@ Nicht betroffen. v8-corp/v8-fam sind Host-Side; sie sehen Foundation-Wire-Shapes
 
 ## Detailed API-Surface
 
-### `@nexus/plugin-bridge-foundation/observability`
+### `@nexus-mindgarden/plugin-bridge-foundation/observability`
 
 ```ts
 // Logger — JSON-Lines structured, 4 levels
@@ -174,10 +174,10 @@ const gauge = registry.register(
 registry.collect() // → Prometheus text-exposition
 ```
 
-### `@nexus/plugin-bridge-foundation` — staticUiHandler
+### `@nexus-mindgarden/plugin-bridge-foundation` — staticUiHandler
 
 ```ts
-import { createBridgeApp } from '@nexus/plugin-bridge-foundation'
+import { createBridgeApp } from '@nexus-mindgarden/plugin-bridge-foundation'
 
 const app = createBridgeApp({
   manifest, registry, toolHandlers,
@@ -193,10 +193,10 @@ const app = createBridgeApp({
 
 **Content-Types:** `.js`/`.mjs`/`.css`/`.html`/`.svg`/`.ico`/`.png`/`.jpg`/`.gif`/`.webp`/`.json`/`.map`/`.woff(2)?`/`.ttf`/`.otf` → spezifischer content-type. Sonst `application/octet-stream`.
 
-### `@nexus/plugin-bridge-foundation/manifest` — Drift #203 enforcement
+### `@nexus-mindgarden/plugin-bridge-foundation/manifest` — Drift #203 enforcement
 
 ```ts
-import { loadManifest } from '@nexus/plugin-bridge-foundation/manifest'
+import { loadManifest } from '@nexus-mindgarden/plugin-bridge-foundation/manifest'
 
 // default: warn-mode — emits stderr warning, accepts manifest
 const manifest = await loadManifest('./manifest.yaml')
@@ -212,10 +212,10 @@ const warnings: string[] = []
 const manifest = validateManifest(yaml, { warn: (m) => warnings.push(m) })
 ```
 
-### `@nexus/plugin-storage-foundation` — StorageError
+### `@nexus-mindgarden/plugin-storage-foundation` — StorageError
 
 ```ts
-import { StorageError, toCanonicalError } from '@nexus/plugin-storage-foundation'
+import { StorageError, toCanonicalError } from '@nexus-mindgarden/plugin-storage-foundation'
 
 // In your tool-handler:
 const documentsCreate: ToolHandler = async (args, ctx) => {
@@ -238,10 +238,10 @@ try {
 }
 ```
 
-### `@nexus/plugin-bridge-foundation/testing` — Test-Utilities
+### `@nexus-mindgarden/plugin-bridge-foundation/testing` — Test-Utilities
 
 ```ts
-import { buildTestRegistry, mintTestBridgeToken } from '@nexus/plugin-bridge-foundation/testing'
+import { buildTestRegistry, mintTestBridgeToken } from '@nexus-mindgarden/plugin-bridge-foundation/testing'
 
 // One-shot setup für E2E-Tests
 const { registry, mintToken } = await buildTestRegistry({ hostId: 'teammind' })
@@ -260,7 +260,7 @@ const res = await app.request('/plugin-bridge/v1/handshake', {
 })
 
 // For custom claims (custom iss, jti, expiry):
-import { mintTestBridgeToken } from '@nexus/plugin-bridge-foundation/testing'
+import { mintTestBridgeToken } from '@nexus-mindgarden/plugin-bridge-foundation/testing'
 const { privateKey, registry } = await buildTestRegistry()
 const customToken = await mintTestBridgeToken(privateKey, {
   pluginId: 'p1',

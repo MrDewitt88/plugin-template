@@ -1,7 +1,7 @@
 // CLI Argument-Parser. Pure-function, testbar.
 //
 // Usage:
-//   npx @nexus/create-plugin <plugin-name> [--hosts=<list>] [--features=<list>]
+//   npx @nexus-mindgarden/create-plugin <plugin-name> [--hosts=<list>] [--features=<list>]
 //                                          [--target=<dir>] [--help]
 //
 // Defaults:
@@ -106,10 +106,10 @@ export function parseArgs(argv: string[]): ParsedArgs {
 }
 
 export const HELP_TEXT = `
-@nexus/create-plugin — scaffold neues Plugin-Provider-Repo
+@nexus-mindgarden/create-plugin — scaffold neues Plugin-Provider-Repo
 
 Usage:
-  npx @nexus/create-plugin <plugin-name> [options]
+  npx @nexus-mindgarden/create-plugin <plugin-name> [options]
 
 Options:
   --hosts=<list>      Welche Hosts targeten (comma-separated)
@@ -126,10 +126,10 @@ Options:
   --help, -h          Show this help
 
 Examples:
-  npx @nexus/create-plugin my-plugin
-  npx @nexus/create-plugin my-plugin --features=mcp,storage,svelte
-  npx @nexus/create-plugin docs-plugin --hosts=teammind --features=mcp,storage
-  npx @nexus/create-plugin my-plugin --target=/Users/me/Desktop/my-plugin
+  npx @nexus-mindgarden/create-plugin my-plugin
+  npx @nexus-mindgarden/create-plugin my-plugin --features=mcp,storage,svelte
+  npx @nexus-mindgarden/create-plugin docs-plugin --hosts=teammind --features=mcp,storage
+  npx @nexus-mindgarden/create-plugin my-plugin --target=/Users/me/Desktop/my-plugin
 
 After scaffolding:
   cd <plugin-name>

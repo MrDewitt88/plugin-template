@@ -1,4 +1,4 @@
-# @nexus/plugin-bridge-foundation
+# @nexus-mindgarden/plugin-bridge-foundation
 
 Plugin-Bridge HTTP-Server Foundation für TeamMind/Nexus Plugin-Provider.
 
@@ -12,7 +12,7 @@ import {
   HostKeyRegistry,
   InMemoryHostKeyRepo,
   loadManifest,
-} from '@nexus/plugin-bridge-foundation'
+} from '@nexus-mindgarden/plugin-bridge-foundation'
 import { serve } from '@hono/node-server' // or Bun.serve
 
 const manifest = await loadManifest('./manifest.yaml')
