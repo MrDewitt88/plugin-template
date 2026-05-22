@@ -2,6 +2,65 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] — 2026-05-22
+
+**Minor bump — lockstep across all Foundation packages.** Adds `/runtime` subpath with `callMcp()` browser-side helper for plugin custom-element bundles. Two-consumer-trigger met (wiz-mind + mind-canva ready Day-1 per msg #614). Wire-contract designed by agent (Luma, msg #607), voted in by wiz-mind (msg #614), shipped Foundation-side same-day for joint-smoke parallelism with mymind-side commit.
+
+### Added
+
+- **`@nexus-mindgarden/plugin-bridge-foundation/runtime` subpath** — browser-side helpers for plugin UI bundles (Svelte custom-elements, lit-elements, vanilla custom-elements) running inside a host-app shell.
+
+  **`callMcp(mount, qualifiedName, args): Promise<T>`** — canonical request/response pattern replacing ad-hoc per-plugin CustomEvent-naming. Dispatches `plugin:mcp-call` with request_id + qualified_name + arguments (bubbles + composed, crosses shadow-DOM boundaries). Host-app catches the event, validates namespace against pluginId (cross-plugin-attack-guard), routes via existing IPC to the plugin-bridge, then dispatches `plugin:mcp-response` with the matching request_id. Promise resolves on `{ ok: true, result }` or rejects with `CallMcpError` on `{ ok: false, code, message? }` (Drift #103 canonical error-shape).
+
+  **`createCallMcpDispatcher(mount): CallMcpDispatcher`** — curried form for components that issue multiple MCP-calls (avoids re-passing mount).
+
+  **`CallMcpError`** — typed error with `code` field. Maps to Drift #103 canonical error-codes (`tool_not_found`, `insufficient_scope`, etc.) plus `crypto_unavailable` for non-secure-context runtimes.
+
+  **Event-name constants** — `PLUGIN_MCP_CALL_EVENT` + `PLUGIN_MCP_RESPONSE_EVENT` exported for host-app implementers.
+
+  Wire-shape:
+  - Request detail: `{ request_id: string; qualified_name: string; arguments: unknown }`
+  - Response detail (discriminated by `ok`):
+    - Success: `{ request_id: string; ok: true; result: T }`
+    - Error: `{ request_id: string; ok: false; code: string; message?: string }`
+
+- **Cross-plugin-attack guard contract.** Host-app implementers MUST validate that the qualified-name's namespace matches the dispatching plugin's pluginId before routing to the bridge. This prevents a malicious plugin from calling another plugin's tools via the shared `plugin:mcp-call` channel. The Foundation does not enforce this guard (it's a host-app responsibility) but documents it as a wire-contract invariant.
+
+### Tests
+
+- `test/runtime-callmcp.test.ts` — 11 new tests covering happy-path resolution, error-path rejection with code propagation, request_id matching (mismatched ignored, concurrent calls each resolve independently), CustomEvent options (bubbles + composed), listener cleanup (no leak after resolve or reject), curried dispatcher, and `crypto_unavailable` guard
+- Total: 188/188 grün (was 177 in v0.5.0 → +11 runtime-callmcp)
+
+### Lockstep version bumps
+
+All Foundation packages re-versioned from `0.5.0` → `0.6.0`:
+
+| Package | 0.5.0 → 0.6.0 |
+|---|---|
+| `@nexus-mindgarden/plugin-bridge-foundation` | 0.5.0 → 0.6.0 (adds `/runtime`) |
+| `@nexus-mindgarden/plugin-storage-foundation` | 0.5.0 → 0.6.0 (no source change) |
+| `@nexus-mindgarden/plugin-svelte-foundation` | 0.5.0 → 0.6.0 (no source change) |
+| `@nexus-mindgarden/plugin-mcp-foundation` | 0.5.0 → 0.6.0 (no source change) |
+| `@nexus-mindgarden/create-plugin` | 0.5.0 → 0.6.0 (no source change) |
+
+### Cross-Repo Provenance
+
+- **agent (Luma) msg #607** — Original wire-contract design (CustomEvent shape + bubble/composed flags + request_id correlation pattern)
+- **wiz-mind msg #614** — Foundation-feature-request with consumer-vote (wiz-mind 5+ calls in play-bundle + character-bundle; mind-canva 3+ calls per CROSS-PLUGIN-INTEGRATION cookbook). Two-consumer-trigger met same-message.
+- **mind-canva msg #599** — CROSS-PLUGIN-INTEGRATION cookbook published with 3 demo-recipes (ET-Mind Schaltschrank-Layout, EA-Plug Rechnungs-Briefkopf, V8-Fam Family-Calendar-Poster) — each needs `layout.create` / `export.pdf` / `brand_kit.get` calls from custom-element bundles
+
+### Deferred (planned for v0.6.1 or v0.7.0)
+
+- **`BridgeAuthContext.bearerToken` raw-token-passthrough** (plug-elec msg #602 feature-request) — Pattern-1 graduation blocker for plugins with reverse-call surfaces. Needs careful security-design (raw-token-leak-to-handler-logs is a risk) so deferred for v0.6.1 with opt-in flag.
+- **Per-host `expected_issuer`/`expected_audience` enforcement in `verifyBridgeToken`** (markview msg #549 + plug-elec msg #602) — Requires `HostKeyRecord` spec-extension. Multi-issuer bridges currently solve this via Pattern-2 Helper-Lib custom JWT-verifier. Bigger spec-change, deferred to v0.7.0.
+- **§13 Provider-Guide candidate: "Same-key check: PEM-string-compare not fingerprint-compare"** (plug-elec msg #602) — would extend §13 with a Foundation-canonical PEM-equality pattern.
+
+### Roadmap signal
+
+**v0.6.x patches:** Bug fixes + minor additive features (e.g. `bearerToken` opt-in if delivered with security-review).
+
+**v0.7.0 candidate:** Per-host issuer/audience HostKeyRecord-extension (markview/plug-elec multi-issuer bridges).
+
 ## [0.5.0] — 2026-05-21
 
 **Minor bump — lockstep across all Foundation packages.** Adds `/persona` subpath as SHAPE-ONLY contract for cross-plugin persona-anchoring (Wiz-Mind's M17 SOUL/DIARY/MEMORY-pattern). Per wiz-mind msg #573 vote 3c: lock the contract early, ship runtime helper in v0.6.0 when ≥2 consumers signal explicit runtime need. Plus Provider-Guide §13 "Pre-Coding to Surface Contract-Drift" — codified dry-run-spec-validation discipline.
