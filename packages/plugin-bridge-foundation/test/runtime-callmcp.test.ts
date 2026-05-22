@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  CALL_MCP_DEFAULT_TIMEOUT_MS,
   callMcp,
   CallMcpError,
   createCallMcpDispatcher,
@@ -254,6 +255,172 @@ describe('@nexus-mindgarden/plugin-bridge-foundation/runtime — callMcp', () =>
       const r2 = await mcp<string>('wizmind.b', {})
       expect(r1).toBe('wizmind.a')
       expect(r2).toBe('wizmind.b')
+    })
+  })
+
+  describe('v0.6.1: actorClass option (agent msg #619 wire-spec)', () => {
+    it('omits actor_class field when actorClass option not provided (default-actor-class policy)', async () => {
+      const mount = makeMount()
+      const captured = autoReply(mount, (req) => ({
+        request_id: req.request_id,
+        ok: true,
+        result: null,
+      }))
+      await callMcp(mount, 'tool.x', {})
+      const req = await captured
+      expect(req).not.toHaveProperty('actor_class')
+    })
+
+    it('emits actor_class="user" when options.actorClass=user', async () => {
+      const mount = makeMount()
+      const captured = autoReply(mount, (req) => ({
+        request_id: req.request_id,
+        ok: true,
+        result: null,
+      }))
+      await callMcp(mount, 'tool.x', {}, { actorClass: 'user' })
+      const req = await captured
+      expect(req.actor_class).toBe('user')
+    })
+
+    it('emits actor_class="kiara" when options.actorClass=kiara (autonomous-agent calls)', async () => {
+      const mount = makeMount()
+      const captured = autoReply(mount, (req) => ({
+        request_id: req.request_id,
+        ok: true,
+        result: null,
+      }))
+      await callMcp(mount, 'tool.x', {}, { actorClass: 'kiara' })
+      const req = await captured
+      expect(req.actor_class).toBe('kiara')
+    })
+
+    it('actor_class propagates through curried dispatcher (v0.6.1+)', async () => {
+      const mount = makeMount()
+      const captured = autoReply(mount, (req) => ({
+        request_id: req.request_id,
+        ok: true,
+        result: null,
+      }))
+      const mcp = createCallMcpDispatcher(mount)
+      await mcp('tool.x', {}, { actorClass: 'kiara' })
+      const req = await captured
+      expect(req.actor_class).toBe('kiara')
+    })
+  })
+
+  describe('v0.6.1: timeoutMs option (Foundation-side timeout)', () => {
+    it('exports CALL_MCP_DEFAULT_TIMEOUT_MS = 30000', () => {
+      expect(CALL_MCP_DEFAULT_TIMEOUT_MS).toBe(30_000)
+    })
+
+    it('rejects with CallMcpError("timeout") when no response within timeoutMs', async () => {
+      const mount = makeMount()
+      // No autoReply — let it time out
+      const start = Date.now()
+      try {
+        await callMcp(mount, 'slow.tool', {}, { timeoutMs: 50 })
+        expect.fail('should have timed out')
+      } catch (err) {
+        const elapsed = Date.now() - start
+        expect(err).toBeInstanceOf(CallMcpError)
+        expect((err as CallMcpError).code).toBe('timeout')
+        expect((err as CallMcpError).message).toContain('slow.tool')
+        expect((err as CallMcpError).message).toContain('50ms')
+        // Reasonable upper bound — allow setTimeout slack
+        expect(elapsed).toBeGreaterThanOrEqual(40)
+        expect(elapsed).toBeLessThan(500)
+      }
+    })
+
+    it('does NOT time out when response arrives before timeoutMs', async () => {
+      const mount = makeMount()
+      autoReply(mount, (req) => ({
+        request_id: req.request_id,
+        ok: true,
+        result: 'fast',
+      }))
+      // 100ms timeout is plenty for queueMicrotask reply
+      const result = await callMcp(mount, 'fast.tool', {}, { timeoutMs: 100 })
+      expect(result).toBe('fast')
+    })
+
+    it('clears the timeout-handle on resolve (no spurious timeout after success)', async () => {
+      const mount = makeMount()
+      autoReply(mount, (req) => ({ request_id: req.request_id, ok: true, result: 'ok' }))
+      const result = await callMcp(mount, 'tool.x', {}, { timeoutMs: 100 })
+      expect(result).toBe('ok')
+      // Wait > timeoutMs to verify no late rejection
+      await new Promise((r) => setTimeout(r, 150))
+      // Reaching this line without unhandled-rejection = test passes
+    })
+
+    it('clears the timeout-handle on reject (no spurious timeout after error-response)', async () => {
+      const mount = makeMount()
+      autoReply(mount, (req) => ({
+        request_id: req.request_id,
+        ok: false,
+        code: 'tool_not_found',
+      }))
+      await expect(
+        callMcp(mount, 'missing.tool', {}, { timeoutMs: 100 }),
+      ).rejects.toMatchObject({ code: 'tool_not_found' })
+      // Wait > timeoutMs to verify no late timeout-rejection swap
+      await new Promise((r) => setTimeout(r, 150))
+    })
+
+    it('timeoutMs=0 disables timeout (long-running stream opt-out)', async () => {
+      const mount = makeMount()
+      // Delay reply by 100ms — would normally time out at 30s, but timeoutMs=0 disables
+      const handler = (e: Event): void => {
+        const detail = (e as CustomEvent<PluginMcpCallDetail>).detail
+        mount.removeEventListener(PLUGIN_MCP_CALL_EVENT, handler as EventListener)
+        setTimeout(() => {
+          mount.dispatchEvent(
+            new CustomEvent(PLUGIN_MCP_RESPONSE_EVENT, {
+              detail: { request_id: detail.request_id, ok: true, result: 'delayed' },
+            }),
+          )
+        }, 100)
+      }
+      mount.addEventListener(PLUGIN_MCP_CALL_EVENT, handler as EventListener)
+      const result = await callMcp(mount, 'stream.tool', {}, { timeoutMs: 0 })
+      expect(result).toBe('delayed')
+    })
+
+    it('default timeout (30s) applies when timeoutMs is omitted — verified by code-path, not wall-time', async () => {
+      // We don't actually wait 30s; just confirm the call works without an explicit timeout
+      // and that omitting timeoutMs goes through the default-path (covered by typecheck).
+      const mount = makeMount()
+      autoReply(mount, (req) => ({ request_id: req.request_id, ok: true, result: 'ok' }))
+      const result = await callMcp(mount, 'tool.x', {})
+      expect(result).toBe('ok')
+    })
+  })
+
+  describe('v0.6.1: backward-compat (3-arg form continues to work)', () => {
+    it('3-arg form produces identical wire-output to 4-arg form with empty options', async () => {
+      const mount1 = makeMount()
+      const mount2 = makeMount()
+      const captured1 = autoReply(mount1, (req) => ({
+        request_id: req.request_id,
+        ok: true,
+        result: null,
+      }))
+      const captured2 = autoReply(mount2, (req) => ({
+        request_id: req.request_id,
+        ok: true,
+        result: null,
+      }))
+      await callMcp(mount1, 'tool.x', { a: 1 })
+      await callMcp(mount2, 'tool.x', { a: 1 }, {})
+      const r1 = await captured1
+      const r2 = await captured2
+      // Same wire-shape (request_ids differ but everything else matches)
+      expect(r1.qualified_name).toBe(r2.qualified_name)
+      expect(r1.arguments).toEqual(r2.arguments)
+      expect(r1.actor_class).toBeUndefined()
+      expect(r2.actor_class).toBeUndefined()
     })
   })
 

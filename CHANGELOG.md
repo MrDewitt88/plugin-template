@@ -2,6 +2,47 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] — 2026-05-22
+
+**Per-package patch: `@nexus-mindgarden/plugin-bridge-foundation@0.6.1`** — adds `actorClass` + `timeoutMs` additive options to `callMcp()` (full feature-parity with agent's mymind-side spec in msg #607/#619). Plus Provider-Guide §11 cross-link to Mind-Canva's `CROSS-PLUGIN-INTEGRATION.md` cookbook (consumer-perspective companion-doc). Other Foundation packages remain at `0.6.0` (lockstep relaxed for per-package patches).
+
+### Added
+
+- **`callMcp()` 4th-argument `options?: CallMcpOptions`** (v0.6.1+) — backward-compatible additive parameter. Both new fields are optional:
+  - **`actorClass?: 'user' | 'kiara'`** — propagated as `actor_class` in the `plugin:mcp-call` request-detail. When omitted, the host applies its default-actor-class policy (confirmed via agent msg #619 mymind-side parser). Use `'kiara'` for autonomous-agent-initiated calls (e.g. background tasks); `'user'` for explicit user-action mirroring.
+  - **`timeoutMs?: number`** — per-call timeout in milliseconds. Defaults to `CALL_MCP_DEFAULT_TIMEOUT_MS` (30000ms). On elapse rejects with `CallMcpError('timeout')` carrying a diagnostic message including the qualified tool-name and request_id. `timeoutMs: 0` opts out of the timeout (long-running stream pattern).
+- **`createCallMcpDispatcher()` accepts optional 3rd `options` argument** matching `callMcp()`'s 4th argument. 2-arg form remains supported (backward-compat).
+- **`PluginMcpActorClass` type-export** — string-literal-union `'user' | 'kiara'` for consumer-side type-annotations.
+- **`CALL_MCP_DEFAULT_TIMEOUT_MS` exported const** = `30_000`. Exposed so consumers can reference it for parity with their own defaults.
+- **`PluginMcpCallDetail.actor_class?: PluginMcpActorClass` field** — added to wire-shape type (optional; omitted from emit when `options.actorClass` is undefined, matching host-side spread-omit pattern from msg #619).
+
+### Backward compatibility
+
+The 3-arg form `callMcp(mount, qualifiedName, args)` continues to produce **identical wire-output** to `callMcp(mount, qualifiedName, args, {})`. v0.6.0 consumers do not need to migrate; v0.6.1 adoption is opt-in per call-site.
+
+### Tests
+
+- `test/runtime-callmcp.test.ts` — 12 new tests covering `actorClass` propagation (default-omit / `'user'` / `'kiara'` / curried-dispatcher), `timeoutMs` behavior (default constant, rejection on timeout, success-path no spurious timeout, opt-out via `0`, default-path), and explicit backward-compat (3-arg form ≡ 4-arg form with empty options)
+- Total: 200/200 grün (was 188 in v0.6.0 → +12 v0.6.1 additions)
+
+### Wire-Spec — agreement with agent's mymind-side (msg #619)
+
+- `actor_class` is **optional** in request-detail (host parser accepts `'user'`, `'kiara'`, or omitted → default-actor-class policy)
+- `timeoutMs` is **Foundation-side concern** (confirmed correct location by agent — host-IPC layer's own timeouts are infrastructure-level)
+- `CallMcpError` with `.code` field retained (agent msg #619: "dein design ist besser"); `string-concat-error` pattern from initial spec-draft (`new Error('${code}: ${message}')`) NOT adopted
+
+### Documentation
+
+- **`docs/PLUGIN-PROVIDER-GUIDE.md` §11 cross-link to Mind-Canva's `CROSS-PLUGIN-INTEGRATION.md`** — added "See also" callout linking the consumer-perspective companion-cookbook. Mind-Canva approved the cross-link in msg #618 (thread `contracts`). Both docs are orthogonal: this Provider-Guide is provider-perspective, Mind-Canva's is consumer→consumer wire-perspective; they co-exist as paired cluster-docs.
+
+### Cross-Repo Provenance
+
+- **agent msg #607** — Original wire-contract design (CustomEvent shape + `actor_class` field + `timeoutMs` rationale)
+- **agent msg #614** — Spec-snippet with `actorClass`/`timeoutMs` additive options (Foundation-side suggested impl)
+- **agent msg #619** — Confirmed: `actor_class` is host-side optional (not strict-required), `timeoutMs` is Foundation-side correct location, `CallMcpError.code` design endorsed
+- **mind-canva msg #618** — Approved Provider-Guide §11 cross-link to their cookbook
+- **wiz-mind msg #614** — Original 2-consumer-trigger driving v0.6.0; v0.6.1 ships feature-parity without disrupting their in-flight migration
+
 ## [0.6.0] — 2026-05-22
 
 **Minor bump — lockstep across all Foundation packages.** Adds `/runtime` subpath with `callMcp()` browser-side helper for plugin custom-element bundles. Two-consumer-trigger met (wiz-mind + mind-canva ready Day-1 per msg #614). Wire-contract designed by agent (Luma, msg #607), voted in by wiz-mind (msg #614), shipped Foundation-side same-day for joint-smoke parallelism with mymind-side commit.

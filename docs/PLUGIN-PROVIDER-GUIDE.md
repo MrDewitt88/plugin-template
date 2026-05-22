@@ -603,6 +603,8 @@ Beides ist legitim. Foundation ist Pflicht nur wenn dein Plugin am Plugin-Bridge
 
 Contract etabliert in chatbus thread="contracts" 2026-05-21 (msg #443-449). Theseus shipped `v0.15.0-agent-complete-endpoint` (commit `51921ff`). V8/v8-fam dispatchen via `/mcp/v1/call-tool` per Design-Y zu Theseus' `POST /agent/complete`.
 
+> **See also (consumer-side perspective):** [Mind-Canva's `CROSS-PLUGIN-INTEGRATION.md`](https://github.com/MrDewitt88/Mind-Canva/blob/main/docs/CROSS-PLUGIN-INTEGRATION.md) — concrete consumer→consumer wire-recipes (`layout.create`, `export.pdf`, `brand_kit.get`) including auth-flow walkthrough (§4) and smoke-test pattern (§5). This Provider-Guide is provider-perspective; Mind-Canva's cookbook is the orthogonal consumer-perspective on plugin-to-plugin integration via MCP. Both co-exist as paired cluster-docs.
+
 ### 11.1 Warum nicht direct-HTTP?
 
 Wenn N Plugins jeweils ihren eigenen OpenAI/LM-Studio-Client haben:
