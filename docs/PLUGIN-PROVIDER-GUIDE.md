@@ -752,6 +752,10 @@ Bis dahin sind plug-tmpl-Schemas faithful zur Spec (msg #449).
 
 ---
 
+> **See also (plugin↔host wire-protocol):** [`CROSS-PLUGIN-MCP-CALL-COOKBOOK.md`](./CROSS-PLUGIN-MCP-CALL-COOKBOOK.md) — canonical wire-spec for plugin custom-element bundles dispatching MCP-calls back through the host's IPC layer via Foundation's `/runtime` `callMcp()` helper. 3-side ko-authored from the Wiz-Mind v0.1.0 joint-smoke. Complements §11's plugin-to-LLM `agent.complete`-pattern with plugin-to-host MCP-tool-call-pattern.
+
+---
+
 ## 12. Writing Reversible Workarounds
 
 Plugin development in a multi-repo cluster surfaces a recurring tension: the canonical path (e.g. npm-published Foundation packages) takes time to land, but downstream plugins can't wait. They ship a **workaround** — a vendored-tree, a custom helper, a monkey-patch — to unblock themselves. Then, when the canonical path arrives, the workaround has to come out. If the workaround was written without the reversal-path in mind, removing it can be days of detective-work.
@@ -851,6 +855,10 @@ See also: [`MIGRATION-COOKBOOK.md`](./MIGRATION-COOKBOOK.md) for the three adopt
 
 ---
 
+> **Cross-link:** [`CROSS-PLUGIN-MCP-CALL-COOKBOOK.md`](./CROSS-PLUGIN-MCP-CALL-COOKBOOK.md) §5.0-§5.8 (joint failure-mode catalog) is a worked example of the reversal-discipline applied to a cluster-wide debug-session. The DOM-bubble-direction bug-fix shipped with **same-commit reversal-doc** as a debug-helper-section (§5.6), so future readers hit the diagnosis-path in <5 minutes instead of repeating the 2-hour discovery.
+
+---
+
 ## 13. Pre-Coding to Surface Contract-Drift
 
 A counter-intuitive pattern surfaced repeatedly across the `@nexus-mindgarden` cluster: **writing a consumer-adapter against a contract _before_ that contract's runtime is live** is one of the most effective ways to surface contract-drift early. The adapter, even un-executed, acts as a compile-time fuzzer of the wire-spec.
@@ -905,6 +913,10 @@ See §12 "Writing Reversible Workarounds" for a related discipline: shipping wor
 ### Real-world reference (anonymized)
 
 A Phase-7-prep plugin in the `@nexus-mindgarden` cluster wrote a `LiveAdapter` against an in-flight `@plug-db/client` TS-surface before the corresponding live-deploy. The adapter compiled, unit-tested clean, and surfaced two real contract-bugs (one argument-naming drift, one silent-argument-stripping) that the upstream provider then fixed in a patch-release. Total elapsed time from adapter-write to drift-resolved: under a working day.
+
+---
+
+> **See also (joint-author wire-protocol cookbook):** [`CROSS-PLUGIN-MCP-CALL-COOKBOOK.md`](./CROSS-PLUGIN-MCP-CALL-COOKBOOK.md) — the multi-author cluster-doc described in §13 is itself a worked-example of the pattern: plug-tmpl + agent + wiz-mind each pre-coded their section against an evolving shared spec, surfacing wire-shape inconsistencies BEFORE the joint-smoke (rather than during it).
 
 ---
 

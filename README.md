@@ -66,6 +66,7 @@ Each package has its own `package.json`, `tsconfig.json`, `vitest.config.ts`, `R
 ## Migration & Adoption
 
 - [`docs/MIGRATION-COOKBOOK.md`](./docs/MIGRATION-COOKBOOK.md) — three battle-tested adoption-patterns (Full-Replace / Helper-Lib / In-Repo-Mirror) with decision-matrix, step-by-step recipes, and drift-discipline guidance
+- [`docs/CROSS-PLUGIN-MCP-CALL-COOKBOOK.md`](./docs/CROSS-PLUGIN-MCP-CALL-COOKBOOK.md) — 3-side ko-authored canonical wire-spec for plugin custom-element bundles dispatching MCP-calls through the host's IPC layer (`callMcp()` runtime helper, `plugin:mcp-call/response` CustomEvents, DOM-bubble-direction failure-mode catalog). First cluster-living-pattern-doc from the Wiz-Mind v0.1.0 joint-smoke
 - [`docs/PLUGIN-PROVIDER-GUIDE.md`](./docs/PLUGIN-PROVIDER-GUIDE.md) — canonical patterns for plugin authors (render-ui wire-spec, agent.complete contract, JWT-auth, manifest_hash, observability)
 - [`docs/HOST-INTEGRATION-GUIDE.md`](./docs/HOST-INTEGRATION-GUIDE.md) — for host-app developers integrating with bridges
 - [`CHANGELOG.md`](./CHANGELOG.md) — release notes with cross-repo provenance for each version
