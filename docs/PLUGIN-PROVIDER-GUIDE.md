@@ -914,6 +914,78 @@ See §12 "Writing Reversible Workarounds" for a related discipline: shipping wor
 
 A Phase-7-prep plugin in the `@nexus-mindgarden` cluster wrote a `LiveAdapter` against an in-flight `@plug-db/client` TS-surface before the corresponding live-deploy. The adapter compiled, unit-tested clean, and surfaced two real contract-bugs (one argument-naming drift, one silent-argument-stripping) that the upstream provider then fixed in a patch-release. Total elapsed time from adapter-write to drift-resolved: under a working day.
 
+### §13.X Same-Key Idempotency Check — PEM-Compare not Fingerprint-Compare
+
+> Reference-Lesson aus ET-Mind Pass-2 Foundation-Migration (Helper-Lib pattern,
+> 2026-05-21, see plug-elec DM #602). Credit: `plug-elec` / ET-Mind Pass-2-author.
+
+**Anti-Pattern (legacy ET-Mind impl, pre-Pass-2):**
+
+```ts
+function register(input: RegisterHostInput) {
+  const fingerprint = fingerprintPublicKey(input.public_key_pem)
+  const existing = repo.get(input.host_id)
+
+  if (existing && existing.fingerprint === fingerprint) {
+    // Drift #12 same-key idempotency — preserve user-confirmed status
+    return preserveAndMergeMetadata(existing, input)
+  }
+  return rotateKey(existing, input)
+}
+```
+
+**Pattern (Foundation v0.5.0 + post-Pass-2 ET-Mind):**
+
+```ts
+function register(input: RegisterHostInput) {
+  const existing = repo.get(input.host_id)
+
+  // Drift #12 same-key idempotency — PEM-string-compare ist authoritativ
+  if (existing && existing.public_key_pem.trim() === input.public_key_pem.trim()) {
+    return preserveAndMergeMetadata(existing, input)
+  }
+  return rotateKey(existing, input)
+}
+```
+
+**Why PEM-compare is strictly better:**
+
+1. **PEM-string equality is contract.** Two PEMs that compare equal under
+   `trim()` are byte-for-byte the same public key — there is no theoretical
+   collision space. Fingerprint-string equality requires equal SHA-256 outputs
+   *and* equal presentational format. The latter can silently drift.
+2. **Fingerprint-format is presentational.** Different Foundation versions can
+   choose different formats (continuous-hex `11c5544d…` vs. colon-separated
+   `11c5:544d:…` vs. base64). ET-Mind's pre-Pass-2 in-repo mirror used
+   continuous-hex; Foundation v0.5.0 `fingerprintPublicKey()` returns
+   colon-separated. Same SHA-256 bytes, different strings — naïve
+   fingerprint-compare → drift across the boundary → every re-register goes
+   to the rotate-branch → Drift #12 idempotency broken silently.
+3. **Future-proof.** Foundation `fingerprintPublicKey()` could change again
+   (e.g. base64 for QR-code-friendly display). PEM-compare survives all
+   format changes by construction.
+
+**Migration-Note:**
+
+Plugins migrating from `fingerprint === fingerprint` to
+`public_key_pem.trim() === public_key_pem.trim()` need no data-migration —
+the stored `public_key_pem` field is already in every legacy record.
+The fingerprint field on disk stays in the legacy-format until next
+re-register; this is fine because nothing reads it for same-key checks
+anymore.
+
+**Generalisation (pre-coding angle):**
+
+This anekdote also exemplifies §13's main thesis: comparing **contract-bytes**
+(PEM is the canonical wire-shape) is stable across implementation-changes;
+comparing **presentational-form** (fingerprint-string) is fragile because the
+presentational layer can drift while the contract-bytes stay the same.
+When pre-coding adapters against contracts, prefer assertions on the
+canonical-wire-shape, not on derived/rendered values.
+
+**Reference:** ET-Mind `packages/etmind-bridge/src/auth/host-registry.ts::register()`
+(Pass-2 commit `14efe50`, msg #602).
+
 ---
 
 > **See also (joint-author wire-protocol cookbook):** [`CROSS-PLUGIN-MCP-CALL-COOKBOOK.md`](./CROSS-PLUGIN-MCP-CALL-COOKBOOK.md) — the multi-author cluster-doc described in §13 is itself a worked-example of the pattern: plug-tmpl + agent + wiz-mind each pre-coded their section against an evolving shared spec, surfacing wire-shape inconsistencies BEFORE the joint-smoke (rather than during it).

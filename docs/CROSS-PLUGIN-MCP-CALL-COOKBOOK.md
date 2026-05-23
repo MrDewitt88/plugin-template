@@ -872,6 +872,7 @@ collision is in scope for §6.2.
 - **2026-05-22** — Joint-debug session: DOM-bubble-direction bug surfaced + fixed (agent commit `0aff0c5`)
 - **2026-05-22** — Foundation v0.6.1 tagged with `actorClass` + `timeoutMs` additive options (plug-tmpl commit `d44502f`)
 - **2026-05-22** — Wiz-Mind v0.1.0 released — joint-smoke PASS — 6/6 MCP-tools E2E (wiz-mind tag `v0.1.0`, commit `2c2db47`)
+- **2026-05-23** — Wiz-Mind v0.1.0 declared "functionally complete on all internal-scope items" (commit `5dfdf0b`, Phase-8 v8-fam-reward shipped with 230/231 tests grün)
 
 ### §7.2 Tools end-to-end-validated in this smoke
 

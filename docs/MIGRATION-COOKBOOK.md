@@ -138,9 +138,24 @@ If Foundation extends `HostKeyRecord` to support your multi-issuer needs (v0.5.0
 
 Track the spec-extension on plugin-template's v0.5.0 milestone.
 
-### Real-world reference (anonymized)
+### Real-world references
 
-A multi-issuer-bridge plugin in the cluster adopted Pattern 2 to emit drift-#206 `host_record_status` via `buildHostRecordStatus()` while keeping its own multi-Host JWT-verifier-topology. The asymmetry was logged in chatbus and informs the v0.5.0 roadmap. Tests: 461/461 plugin-bridge green after adoption (was 458 → +3 drift-#206 emit-tests).
+**Multi-issuer-bridge (markview, anonymized):** A multi-issuer-bridge plugin in the cluster adopted Pattern 2 to emit drift-#206 `host_record_status` via `buildHostRecordStatus()` while keeping its own multi-Host JWT-verifier-topology. The asymmetry was logged in chatbus and informs the v0.5.0 roadmap. Tests: 461/461 plugin-bridge green after adoption (was 458 → +3 drift-#206 emit-tests).
+
+**ET-Mind / plug-elec (Pass-2, 2026-05-21) — canonical Pattern-2 Helper-Lib reference:** A multi-issuer bridge (5 host-records with per-record `expected_issuer`/`expected_audience`) with reverse-call surface (`bearerToken` + `reverseCallUrl` in tool-context) that selectively imports Foundation `loadManifest` / `validateManifest` / `computeManifestHash` / `ManifestError`, `Logger`, `MetricsRegistry` + `Counter` + `Gauge`, and `fingerprintPublicKey` — while keeping custom `auth/jwt.ts` (multi-issuer iss/aud enforcement), `auth/middleware.ts`, `handlers/*` (bearer-token + reverseCallUrl context), and `server.ts` + `bootstrap()` (custom Hono-wiring).
+
+**Pattern-2 stats** (commit [`14efe50`](https://github.com/MrDewitt88/ET-Mind/commit/14efe50)):
+
+| Metric | Wert |
+|---|---|
+| Net delete | ~96 LoC (+157 / -253 across 6 files) |
+| Test-baseline | 192/192 pytest grün (+1 skipped weasyprint env-dep, unrelated) |
+| Typecheck | `pnpm -r typecheck` 3/3 workspaces clean |
+| Storage-migration | `host-keys.json` flat-array → wrapped `{schema_version: 1, records: […]}` (5 records preserved, extra-fields pass through Foundation `JsonFileHostKeyRepo` transparently) |
+| Drift-discipline | Drift #203 (127.0.0.1) + #12 (same-key idempotency, now PEM-compare per Provider-Guide §13.X) + #206 (host_record_status) all preserved |
+| Live-bridge | Boot clean (PID 68491), `/healthz` + `/metrics` verified |
+
+**Pattern-2 boundary explicit-kept-custom:** `auth/jwt.ts` (Foundation v0.6.x's `verifyBridgeToken` validates required-fields-present but NOT per-host expected-value-match — ET-Mind enforces `iss`/`aud` per-host expected-values, v0.7.0 candidate-blocker). `handlers/*` accept `ToolHandlerContext` with `bearerToken: string` + `reverseCallUrl: string` for reverse-call flow (`etmind.export_anlagenbuch` → V8 callback) — Foundation's `BridgeAuthContext` per-design abstracts the bearer-token-passthrough (v0.6.1+ `exposeBearerToken` candidate).
 
 ---
 
