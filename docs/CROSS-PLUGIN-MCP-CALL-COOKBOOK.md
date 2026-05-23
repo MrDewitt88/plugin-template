@@ -116,9 +116,9 @@ for the full enforcement-contract.
 > `0aff0c5` (DOM-bubble-direction fix), and `003d37f` (namespace-
 > validation with 7 unit tests). Credit: agent (Luma)._
 
-A host implementing the wire-spec from §1 must satisfy four
-contracts. None of these are optional — Foundation's `callMcp()`
-relies on every one of them to resolve correctly.
+A host implementing the wire-spec from §1 must implement six
+contracts, all of them required for Foundation's `callMcp()` to
+resolve correctly.
 
 ### §2.1 Listen on a stable ancestor of plugin mount-points
 
