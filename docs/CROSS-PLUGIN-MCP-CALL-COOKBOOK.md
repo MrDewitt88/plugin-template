@@ -111,12 +111,133 @@ for the full enforcement-contract.
 
 ## §2 — Host-Side Responsibilities
 
-> **Owner:** `agent` / Luma — content delivered via chatbus-paste with credit-attribution
-> after §1+§3 land. Includes namespace-validation, IPC-routing, `request_id`-correlation,
-> error-code propagation (Drift #103), and the canonical onMcpCall handler-shape from
-> mymind commit `e84b5d3`.
->
-> _Awaiting agent's delivery — placeholder for v1.1 docs-bump._
+> _Host-side implementation references in this section come from
+> Theseus-Agent commits `e84b5d3` (Layer 7 plugin:mcp-call bridge),
+> `0aff0c5` (DOM-bubble-direction fix), and `003d37f` (namespace-
+> validation with 7 unit tests). Credit: agent (Luma)._
+
+A host implementing the wire-spec from §1 must satisfy four
+contracts. None of these are optional — Foundation's `callMcp()`
+relies on every one of them to resolve correctly.
+
+### §2.1 Listen on a stable ancestor of plugin mount-points
+
+Plugin custom-elements dispatch `plugin:mcp-call` with
+`bubbles: true, composed: true`. The host attaches its handler to
+**any DOM-ancestor** of every active plugin mount-point — typically
+the wrapper `<div>` the plugin HTML is injected into.
+
+```ts
+// Reference: Theseus-Agent apps/mymind/src/renderer-main/ChatApp.svelte
+// in attachPluginEventListeners(mount: HTMLElement):
+mount.addEventListener('plugin:mcp-call', onMcpCall)
+```
+
+Mount-binding (not document-binding) keeps the handler scoped to
+the current plugin lifecycle. When the user switches plugins, the
+handler tears down with the mount.
+
+### §2.2 Validate namespace before dispatch
+
+The `qualified_name` field MUST be prefixed by the dispatching
+plugin's `pluginId` followed by `.`. This is the cross-plugin
+attack defence: plugin A cannot trick the host into calling
+plugin B's tools by spoofing the `qualified_name`.
+
+The validation is a **pure prefix check** with two invariants:
+- `startsWith('<pluginId>.')` accepts arbitrary dot-segment counts
+  (`wiz-mind.scene.current` and `wiz-mind.x` both pass for
+  `pluginId='wiz-mind'`)
+- Bare-prefix attacks fail (`wiz-mindfoo.tool` does NOT pass for
+  `pluginId='wiz-mind'` because the `.` separator is required)
+
+```ts
+// Reference: plugins-page-helpers.ts validateMcpCallNamespace
+export type McpCallValidation =
+  | 'ok' | 'no_active_plugin' | 'invalid_request' | 'forbidden_namespace'
+
+export function validateMcpCallNamespace(
+  activePluginId: string | null,
+  qualifiedName: unknown,
+): McpCallValidation {
+  if (activePluginId === null || activePluginId.length === 0) return 'no_active_plugin'
+  if (typeof qualifiedName !== 'string' || qualifiedName.length === 0) return 'invalid_request'
+  return qualifiedName.startsWith(activePluginId + '.') ? 'ok' : 'forbidden_namespace'
+}
+```
+
+Hosts SHOULD extract this into a pure, unit-tested function rather
+than inlining the check — the prefix-attack edge case is easy to
+miss in template code.
+
+### §2.3 Route via the host's existing IPC + bridge layer
+
+After validation passes, the host invokes its plugin-bridge
+infrastructure. Tokens, JWTs, scope-checks, audit-logging — all
+the security-sensitive plumbing — stay **main-process / server-side**.
+The plugin bundle never sees a token.
+
+```ts
+// Reference: Theseus-Agent IPC pluginsDispatchTool handler signature:
+const result = await api.pluginsDispatchTool({
+  qualifiedName,             // e.g. 'wiz-mind.character.list'
+  arguments: args,           // free-form JSON
+  ...(actorClass !== undefined ? { actorClass } : {}),
+})
+// result: { ok: true, result } | { ok: false, code, message }
+```
+
+This is where capability/scope-checks happen. The host's bridge
+verifies that the active plugin has the manifest-declared scope
+for the requested tool before forwarding to the plugin-bridge HTTP
+endpoint.
+
+### §2.4 Dispatch the response on the request's ORIGIN target
+
+The single most critical host-side invariant — the one that
+caused the joint-smoke's silent 30s timeout (§5.0 / §5.1 below):
+
+```ts
+// CORRECT — fires Foundation's listener in target phase:
+const responseTarget: EventTarget = event.target ?? mount
+responseTarget.dispatchEvent(new CustomEvent('plugin:mcp-response', {
+  detail: payload,
+  bubbles: true,
+  composed: true,
+}))
+```
+
+`event.target` is the plugin custom-element where Foundation
+registered its response-listener. Bubbling flows up (target →
+ancestors), so dispatching on the parent never visits the child.
+
+The `?? mount` fallback handles the (theoretical) case where
+`event.target` is null — never observed in practice with
+`CustomEvent` from a child, but defensive.
+
+### §2.5 Correlate by request_id, not by order
+
+Multiple `callMcp()` calls can be in-flight concurrently on the
+same plugin. Foundation filters incoming responses by
+`detail.request_id`. The host MUST echo the exact request_id it
+received — typo or transform breaks the correlation silently.
+
+### §2.6 Propagate canonical error codes
+
+When the bridge returns `{ok: false, code}`, pass the code
+through unchanged. Plugin-author code does
+`if (err.code === 'tool_not_found')` switches; rewriting the code
+breaks that pattern. Drift #103 (canonical error-code propagation)
+applies here.
+
+Host-emitted codes for handler-layer failures:
+- `no_active_plugin` — no plugin currently mounted (defensive)
+- `invalid_request` — missing/empty `qualified_name` or `request_id`
+- `forbidden_namespace` — namespace prefix didn't match active plugin
+- `dispatch_failed` — IPC layer threw before reaching the bridge
+
+The bridge layer's codes (`tool_not_found`, `insufficient_scope`,
+`network_error`, etc.) pass through unchanged.
 
 ---
 
@@ -420,6 +541,46 @@ A 2-hour debug session that surfaced a subtle interaction between host-side
 event dispatch + plugin-side listener-attachment that **silently times out**
 with no diagnostic. Documented here so others don't burn the same time._
 
+### §5.0 Host-Internal Diagnostic Trace (Companion to §5.1)
+
+_Contributed by `agent` (Luma) — host-internal perspective._
+
+The §5.1 anekdote below describes the discovery from the plugin-author
+perspective. From the host-internal side, the same bug had a different
+set of signals that hosts implementing this protocol should know to
+look for:
+
+**What the host log shows when the bug is active:**
+
+```
+[plugin:mcp-call] enter request_id=<uuid> qualified_name=<tool> plugin=<id>
+[plugin:mcp-call] resolved request_id=<uuid> dt=<ms> ok=true
+```
+
+The host correctly:
+1. Caught the request via the ancestor listener
+2. Validated the namespace
+3. Routed to the bridge
+4. Got `ok: true` back
+5. Logged "resolved"
+
+But the plugin's `callMcp()` Promise stayed pending until its 30s
+timeout. The disconnect between host-side "resolved" and plugin-side
+"timed out" is the diagnostic fingerprint: response IPC came back,
+host emitted the CustomEvent, but the bundle never saw it.
+
+**Structured log lines that surface this earlier:**
+
+If a host emits both the host-side "resolved" log AND the renderer-
+side "Foundation listener fired" log (latter requires Foundation
+debug-mode), the gap between them isolates the dispatch-target
+problem in <5 seconds rather than waiting for the 30s timeout.
+
+Hosts implementing this protocol SHOULD log entry + resolve with
+matching `request_id` (so debugging sessions can grep) AND consider
+emitting a separate log when their response-dispatch's `EventTarget`
+matches the original `event.target` (deviating = bug).
+
 ### §5.1 Symptom
 
 Foundation `callMcp` dispatches `plugin:mcp-call` correctly, mymind's
@@ -568,14 +729,6 @@ Foundation v0.6.1+ adds `timeoutMs: 0` opt-out for streams, but the
 underlying contract above is independent of timeout configuration. Any
 host implementation must honor the bubble-direction constraint.
 
-### §5.9 Pending: agent host-side diagnostic-trace addendum
-
-_Agent's host-side §5 contribution (per chatbus thread coordinator-roles) —
-pre-delivered markdown-block from msg #634 to be integrated when v1.1 docs-bump
-adds the host-perspective diagnosis-walkthrough. Wiz-mind's joint perspective
-above covers the bilateral debug-history; agent's contribution will add
-host-internal diagnostics (IPC trace + structured log-line patterns)._
-
 ---
 
 ## §6 — Security Model
@@ -614,14 +767,72 @@ host-internal diagnostics (IPC trace + structured log-line patterns)._
   A malicious bundle could replay an old `request_id` to confuse responses;
   this is in scope for host-side IPC-layer defense (next §6.2).
 
-### §6.2 Host responsibilities (agent)
+### §6.2 Host Responsibilities
 
-> **Owner:** `agent` / Luma — content delivered via chatbus-paste with credit-attribution
-> after §1+§3 land. Includes namespace-validation enforcement (`startsWith` + prefix-attack
-> guard with 7 unit-tests from mymind commit `003d37f`), IPC token-passthrough invariant
-> (tokens never enter DOM), audit-trail responsibility for failed-namespace + replay events.
->
-> _Awaiting agent's delivery — placeholder for v1.1 docs-bump._
+_Contributed by `agent` (Luma)._
+
+The host carries three security-critical responsibilities:
+
+#### §6.2.1 Namespace enforcement is host-side
+
+Foundation's `callMcp()` cannot enforce cross-plugin namespace
+isolation — it has no knowledge of which plugin owns the active
+DOM context. The host is the only component that knows the
+mapping `mount → pluginId`. Therefore:
+
+- The namespace-prefix check MUST happen host-side, before IPC
+  dispatch
+- A pure, unit-tested validator function isolates the rule from
+  template code (Theseus mymind ships 7 unit-tests for
+  `validateMcpCallNamespace`, including prefix-attack and
+  multi-dot-segment cases)
+- The check MUST reject the request with `forbidden_namespace`
+  before any token resolution happens — leaking even the
+  existence of a tool in another plugin's namespace is an
+  information leak
+
+```ts
+// Reference: Theseus-Agent plugins-page-helpers.test.ts shipped with
+// commit 003d37f — 7 namespace-validation tests including:
+//   - prefix-attack: 'wiz-mindfoo.tool' must reject for pluginId='wiz-mind'
+//   - cross-plugin: 'mind-canva.x' must reject for pluginId='wiz-mind'
+//   - multi-dot accept: 'wiz-mind.scene.current' must pass
+//   - null/empty rejection paths
+```
+
+#### §6.2.2 Tokens never enter the DOM
+
+Whatever auth mechanism the host uses to talk to the plugin-bridge
+(bearer token, Ed25519 signature, mTLS) — the secret material
+stays in the host's main process. The renderer/UI/bundle layer
+gets only:
+
+- IPC channel handles (not the underlying secret)
+- Plugin-bridge HTTP responses (already-authenticated)
+- `qualified_name` strings (public surface)
+
+If a bundle could reach a token via the DOM, the cross-plugin
+attack from §6.3 would have a second vector (steal-and-replay
+instead of namespace-spoofing). Keep tokens out of the renderer
+process entirely.
+
+#### §6.2.3 Audit-trail for failed validations
+
+Forbidden-namespace attempts SHOULD be logged with structured
+fields:
+- `request_id` (for correlation if the bundle was confused, not malicious)
+- `activePluginId` + `requestedNamespace` (the actual mismatch)
+- `timestamp` (for rate-limiting + pattern detection)
+
+A bundle making repeated `forbidden_namespace` attempts is either
+broken or hostile. The audit log is what lets the host (or its
+operator) tell the difference.
+
+A repeated `request_id` collision (same id used twice within a
+short window) is similarly logworthy — it suggests either a bundle
+bug or a replay attack. Foundation's `callMcp()` generates fresh
+UUIDs per call, so duplicate request_ids from a single bundle
+should be ~zero in practice.
 
 ### §6.3 Cross-plugin attack scenarios (informational)
 
