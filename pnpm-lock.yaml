@@ -21,6 +21,25 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.19.17)
 
+  packages/granite-test:
+    dependencies:
+      '@nexus-mindgarden/plugin-bridge-foundation':
+        specifier: ^0.6.1
+        version: 0.6.1
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.17
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.19.17)
+
   packages/plugin-bridge-foundation:
     dependencies:
       hono:
@@ -253,6 +272,9 @@ packages:
 
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
+
+  '@nexus-mindgarden/plugin-bridge-foundation@0.6.1':
+    resolution: {integrity: sha512-AIzkX08rLaMKee8H8V/SKEh55oQz45UL1Jkjr8bpAsKN1tp8b/MZRbRSZ6PRPFnX6awl4dYyQnBmqSHFxf/T9w==}
 
   '@rollup/rollup-android-arm-eabi@4.60.3':
     resolution: {integrity: sha512-x35CNW/ANXG3hE/EZpRU8MXX1JDN86hBb2wMGAtltkz7pc6cxgjpy1OMMfDosOQ+2hWqIkag/fGok1Yady9nGw==}
@@ -838,6 +860,13 @@ snapshots:
     optional: true
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
+
+  '@nexus-mindgarden/plugin-bridge-foundation@0.6.1':
+    dependencies:
+      hono: 4.12.16
+      jose: 5.10.0
+      yaml: 2.8.4
+      zod: 3.25.76
 
   '@rollup/rollup-android-arm-eabi@4.60.3':
     optional: true
