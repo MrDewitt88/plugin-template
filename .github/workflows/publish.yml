@@ -99,6 +99,11 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Publish @nexus-mindgarden/granite-test
+        run: pnpm --filter @nexus-mindgarden/granite-test publish --access public --no-git-checks --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Summary
         run: |
           echo "## Published @nexus-mindgarden/* packages" >> $GITHUB_STEP_SUMMARY
@@ -108,5 +113,6 @@ jobs:
           echo "- plugin-svelte-foundation" >> $GITHUB_STEP_SUMMARY
           echo "- plugin-bridge-foundation" >> $GITHUB_STEP_SUMMARY
           echo "- create-plugin" >> $GITHUB_STEP_SUMMARY
+          echo "- granite-test" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Tag: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
