@@ -525,4 +525,138 @@ describe('@nexus-mindgarden/granite-test — skeleton', () => {
       expect(parsed.fail_category).toBe('text-leak')
     })
   })
+
+  describe('v0.0.5 spec v1.2.2 additive fields (Oracle #1015 + #1289 + v1.2.2 FROZEN)', () => {
+    const baseV12Event = {
+      event_kind: 'granite-floor.event.v1' as const,
+      run_id: '00000000-0000-4000-8000-000000002001',
+      case_id: 'v1.2-test',
+      repo: 'plug-elec',
+      tool: 'switchgear.aggregate_befund',
+      persona: 'user' as const,
+      mode: 'ci' as const,
+      outcome: 'pass' as const,
+      fail_category: null,
+      fail_detail: null,
+      model: 'granite-4-h-tiny-4bit',
+      latency_ms: 5000,
+      timestamp: '2026-05-26T15:00:00.000Z',
+    }
+
+    it('accepts L3 outcome_raw + outcome_post_repair + applied_repairs (repair success)', () => {
+      const event = {
+        ...baseV12Event,
+        outcome_raw: 'fail' as const,
+        outcome_post_repair: 'pass' as const,
+        applied_repairs: [
+          {
+            rule_id: 'verbatim-digit-replace',
+            audit_reason: '"zwölf" → "12" per DE-number-word-dictionary',
+          },
+        ],
+      }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.outcome_raw).toBe('fail')
+      expect(parsed.outcome_post_repair).toBe('pass')
+      expect(parsed.applied_repairs).toHaveLength(1)
+    })
+
+    it('REJECTS outcome_raw=fail + outcome_post_repair=pass + empty applied_repairs (Anti-Cheating Test-2)', () => {
+      const cheating = {
+        ...baseV12Event,
+        outcome_raw: 'fail' as const,
+        outcome_post_repair: 'pass' as const,
+        applied_repairs: [],
+      }
+      expect(() => GraniteFloorEventSchema.parse(cheating)).toThrow(/Anti-cheating/)
+    })
+
+    it('REJECTS outcome_raw=fail + outcome_post_repair=pass + missing applied_repairs', () => {
+      const cheating = {
+        ...baseV12Event,
+        outcome_raw: 'fail' as const,
+        outcome_post_repair: 'pass' as const,
+      }
+      expect(() => GraniteFloorEventSchema.parse(cheating)).toThrow(/Anti-cheating/)
+    })
+
+    it('accepts outcome_post_repair=unrepairable (audit-only fail-mode)', () => {
+      const event = {
+        ...baseV12Event,
+        outcome: 'fail' as const,
+        fail_category: 'hallucination' as const,
+        fail_detail: 'Granite paraphrased content',
+        outcome_raw: 'fail' as const,
+        outcome_post_repair: 'unrepairable' as const,
+        // No applied_repairs needed when unrepairable
+      }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.outcome_post_repair).toBe('unrepairable')
+    })
+
+    it('accepts L4 pass_id + prompt_version_hash + strengthen_recipes_applied', () => {
+      const event = {
+        ...baseV12Event,
+        pass_id: '3b',
+        prompt_version_hash: 'sha256:abc123',
+        strengthen_recipes_applied: ['hard-error-framing', 'flexion-coverage'],
+      }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.pass_id).toBe('3b')
+      expect(parsed.strengthen_recipes_applied).toEqual(['hard-error-framing', 'flexion-coverage'])
+    })
+
+    it('accepts pass_id as number (Pass 1, 2, etc)', () => {
+      const event = { ...baseV12Event, pass_id: 2 }
+      expect(GraniteFloorEventSchema.parse(event).pass_id).toBe(2)
+    })
+
+    it('accepts pass_predecessor_event_id (L6b chain-walker support)', () => {
+      const event = {
+        ...baseV12Event,
+        pass_id: 3,
+        pass_predecessor_event_id: 'evt-pass2-baseline-001',
+      }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.pass_predecessor_event_id).toBe('evt-pass2-baseline-001')
+    })
+
+    it('accepts v1.2.1 plural fail_sub_categories (multi-violation case)', () => {
+      const event = {
+        ...baseV12Event,
+        outcome: 'fail' as const,
+        fail_category: 'schema-issue' as const,
+        fail_detail: 'multiple violations',
+        fail_sub_category: 'enum-translate-de-en',
+        fail_sub_categories: ['enum-translate-de-en', 'verbatim-digit-replace'],
+      }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.fail_sub_categories).toHaveLength(2)
+    })
+
+    it('REJECTS plural-singular inconsistency (Oracle #1289 spec)', () => {
+      const inconsistent = {
+        ...baseV12Event,
+        outcome: 'fail' as const,
+        fail_category: 'schema-issue' as const,
+        fail_detail: 'multiple violations',
+        fail_sub_category: 'enum-translate-de-en',
+        fail_sub_categories: ['verbatim-digit-replace', 'enum-translate-de-en'], // wrong order
+      }
+      expect(() => GraniteFloorEventSchema.parse(inconsistent)).toThrow(/plural-singular/)
+    })
+
+    it('accepts v1.2.2 domain_kind field', () => {
+      const event = { ...baseV12Event, domain_kind: 'structured-output' }
+      expect(GraniteFloorEventSchema.parse(event).domain_kind).toBe('structured-output')
+    })
+
+    it('v1.1.1 emitters without v1.2 fields still validate (backwards-compat)', () => {
+      // baseV12Event has NONE of the v1.2 fields set
+      const parsed = GraniteFloorEventSchema.parse(baseV12Event)
+      expect(parsed.outcome_raw).toBeUndefined()
+      expect(parsed.outcome_post_repair).toBeUndefined()
+      expect(parsed.pass_id).toBeUndefined()
+    })
+  })
 })

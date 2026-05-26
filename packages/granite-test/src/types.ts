@@ -213,6 +213,53 @@ export const GraniteFloorEventSchema = z.object({
   // Optional — defaults to undefined which dashboard treats as "unattested".
   // Future v2 may hard-reject wild-events with runner_scrubbed=false.
   runner_scrubbed: z.boolean().optional(),
+
+  // --- Spec v1.2 additive (Oracle msg #1015 FROZEN) — L3+L4 RFC fields ---
+  //
+  // Anti-Cheating Test-2 + Test-4 enforced spec-side:
+  //   outcome_raw === 'fail' AND outcome_post_repair === 'pass'
+  //     REQUIRES applied_repairs non-empty (server-rejects otherwise)
+  //
+  // Backwards-compat: when these fields are absent, aggregator falls back to
+  // legacy `outcome` semantics (= outcome_raw). v1.1.x emitters need no
+  // changes. v1.2+ emitters can use these for L3/L4 visibility.
+
+  /** v1.2: Pre-repair outcome. If absent, equals `outcome`. */
+  outcome_raw: z.enum(['pass', 'fail']).optional(),
+
+  /** v1.2: Post-repair outcome. If `outcome_raw === 'fail'` AND `outcome_post_repair === 'pass'`, `applied_repairs` MUST be non-empty (Anti-Cheating Test-2). */
+  outcome_post_repair: z.enum(['pass', 'fail', 'unrepairable']).optional(),
+
+  /** v1.2: List of repair-rules applied between outcome_raw and outcome_post_repair (L3). */
+  applied_repairs: z
+    .array(
+      z.object({
+        rule_id: z.string(),
+        audit_reason: z.string(),
+      }),
+    )
+    .optional(),
+
+  /** v1.2: Pass identifier in Multi-Pass framework (L4). E.g. `1`, `2`, `"3a"`, `"3b"`, etc. */
+  pass_id: z.union([z.number().int().positive(), z.string().min(1)]).optional(),
+
+  /** v1.2: Hash of effective system-prompt for this pass — enables prompt-version-tracking (L4). */
+  prompt_version_hash: z.string().optional(),
+
+  /** v1.2: Recipe-IDs of L1 strengthen-applied (e.g. `["hard-error-framing", "flexion-coverage"]`). */
+  strengthen_recipes_applied: z.array(z.string()).optional(),
+
+  /** v1.2: Link to previous-pass event for delta-tracking (L4 + L6b chain-walker queries). */
+  pass_predecessor_event_id: z.string().optional(),
+
+  /** v1.2: Fail sub-categorization (singular, free-form per Oracle #1015). Strict-mode prefers `fail_sub_categories[]` plural. */
+  fail_sub_category: z.string().nullable().optional(),
+
+  /** v1.2.1 plural (Oracle msg #1289): multi-violation cases. `fail_sub_categories[0] === fail_sub_category` when both set. */
+  fail_sub_categories: z.array(z.string()).optional(),
+
+  /** v1.2.2 (Oracle FROZEN): domain-kind classification for cross-domain analysis (narrative / structured-output / multilingual / etc). */
+  domain_kind: z.string().optional(),
 })
   .refine(
     (e) => (e.outcome === 'fail' ? e.fail_category !== null : e.fail_category === null),
@@ -232,6 +279,39 @@ export const GraniteFloorEventSchema = z.object({
     {
       message:
         'wild-mode replay_bundle MUST use ReplayBundleWild shape (user_prompt_hash, not verbatim user_prompt) — PII guard, spec v1.1',
+    },
+  )
+  .refine(
+    (e) => {
+      // v1.2 Anti-Cheating Test-2 (Visibility/Separation) + Test-4 (Surface-
+      // Honesty) per plug-elec msg #872 + Oracle msg #1015 spec-enforcement.
+      //
+      // If outcome_raw='fail' AND outcome_post_repair='pass', applied_repairs
+      // MUST be non-empty — otherwise we have a hidden cheating (claim
+      // post-repair-pass without auditable repair-evidence).
+      if (e.outcome_raw === 'fail' && e.outcome_post_repair === 'pass') {
+        return Array.isArray(e.applied_repairs) && e.applied_repairs.length > 0
+      }
+      return true
+    },
+    {
+      message:
+        'Anti-cheating: outcome_raw=fail → outcome_post_repair=pass requires non-empty applied_repairs (spec v1.2, Test-2 + Test-4)',
+    },
+  )
+  .refine(
+    (e) => {
+      // v1.2.1 plural-singular consistency (Oracle msg #1289):
+      // If both fail_sub_category + fail_sub_categories present, the singular
+      // form MUST be the first element of the plural form.
+      if (e.fail_sub_category && e.fail_sub_categories && e.fail_sub_categories.length > 0) {
+        return e.fail_sub_categories[0] === e.fail_sub_category
+      }
+      return true
+    },
+    {
+      message:
+        'fail_sub_categories[0] must equal fail_sub_category when both are set (spec v1.2.1 plural-singular consistency)',
     },
   )
 export type GraniteFloorEvent = z.infer<typeof GraniteFloorEventSchema>

@@ -1,7 +1,7 @@
 {
   "name": "@nexus-mindgarden/granite-test",
-  "version": "0.0.4",
-  "description": "Granite-Floor test-coverage framework — plugin-author-declared MCP-tool test-suites + chatbus-event reporter for Oracle's @floor aggregator. v0.0.4: CRITICAL FIX — reporter chatbus-wire-shape (to_role→to + add group:mindgarden). v0.0.3 silently 0-emitted; v0.0.4 fixes the adoption-wave bug.",
+  "version": "0.0.5",
+  "description": "Granite-Floor test-coverage framework — plugin-author-declared MCP-tool test-suites + chatbus-event reporter for Oracle's @floor aggregator. v0.0.5: aligns to spec v1.2.2 FROZEN (outcome_raw + outcome_post_repair + applied_repairs + pass_id + prompt_version_hash + strengthen_recipes_applied + pass_predecessor_event_id + fail_sub_category/-ies + domain_kind). L3/L4 RFC fields ready for repairRules + multiPass impl (post-RFC freeze).",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
