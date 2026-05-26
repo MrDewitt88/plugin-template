@@ -123,18 +123,54 @@ describe('@nexus-mindgarden/granite-test — skeleton', () => {
       expect(GraniteFloorEventSchema.parse(withMultiturn).multiturn?.step_count).toBe(3)
     })
 
-    it('accepts optional replay_bundle', () => {
+    it('accepts CI-mode replay_bundle with verbatim user_prompt (synthetic fixtures OK)', () => {
       const withReplay = {
         ...baseEvent,
+        mode: 'ci' as const,
         replay_bundle: {
-          user_prompt: 'Test prompt',
-          granite_output: '{"tool":"plug-elec.kabel.dimensionierung","args":{}}',
-          tool_state: { existing_records: 0 },
+          system_prompt_hash: 'sha256:abc',
+          user_prompt: 'Dimensioniere 16A 25m',
+          granite_response: '{"tool":"calendar.events.create","args":{}}',
+          tool_state_before: { existing_records: 0 },
+          tool_state_after: { existing_records: 1 },
         },
       }
-      expect(GraniteFloorEventSchema.parse(withReplay).replay_bundle?.user_prompt).toBe(
-        'Test prompt',
+      const parsed = GraniteFloorEventSchema.parse(withReplay)
+      expect((parsed.replay_bundle as { user_prompt: string }).user_prompt).toBe(
+        'Dimensioniere 16A 25m',
       )
+    })
+
+    it('accepts wild-mode replay_bundle with user_prompt_hash (PII-safe)', () => {
+      const withReplay = {
+        ...baseEvent,
+        mode: 'wild' as const,
+        replay_bundle: {
+          system_prompt_hash: 'sha256:def',
+          user_prompt_hash: 'sha256:abc123',
+          granite_response: '{"tool":"x","args":{}}',
+          local_log_ref: 'diary:2026-05-24:42',
+        },
+      }
+      expect(() => GraniteFloorEventSchema.parse(withReplay)).not.toThrow()
+    })
+
+    it('REJECTS wild-mode replay_bundle with verbatim user_prompt (PII guard, spec v1.1)', () => {
+      const broken = {
+        ...baseEvent,
+        mode: 'wild' as const,
+        replay_bundle: {
+          system_prompt_hash: 'sha256:def',
+          user_prompt: 'real user input — PII leak risk',
+          granite_response: '{}',
+        },
+      }
+      expect(() => GraniteFloorEventSchema.parse(broken)).toThrow(/PII guard/)
+    })
+
+    it('accepts optional runner_scrubbed attestation (v1.1 additive)', () => {
+      const withAttestation = { ...baseEvent, runner_scrubbed: true }
+      expect(GraniteFloorEventSchema.parse(withAttestation).runner_scrubbed).toBe(true)
     })
 
     it('enforces fail_detail max 500 chars', () => {
@@ -225,8 +261,9 @@ describe('@nexus-mindgarden/granite-test — skeleton', () => {
         fail_category: 'schema-issue',
         fail_detail: 'test fail',
         replay_bundle: {
+          system_prompt_hash: 'sha256:x',
           user_prompt: 'x'.repeat(70_000), // > 64 KB
-          granite_output: 'y',
+          granite_response: 'y',
         },
       }
       try {

@@ -35,6 +35,10 @@ export {
   // Event-payload composites
   MultiturnTelemetrySchema,
   type MultiturnTelemetry,
+  ReplayBundleCISchema,
+  type ReplayBundleCI,
+  ReplayBundleWildSchema,
+  type ReplayBundleWild,
   ReplayBundleSchema,
   type ReplayBundle,
   GraniteFloorEventSchema,
@@ -44,6 +48,7 @@ export {
   type GraniteToolTestCase,
   type GraniteToolTest,
   type GraniteTestConfig,
+  type GraniteTestConfigObject,
 
   // Reporter options
   type ReportToClusterOptions,

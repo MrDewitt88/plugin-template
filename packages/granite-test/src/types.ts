@@ -90,17 +90,49 @@ export const MultiturnTelemetrySchema = z.object({
 })
 export type MultiturnTelemetry = z.infer<typeof MultiturnTelemetrySchema>
 
-// --- Replay-bundle (recommended for fails, total event size capped 64 KB) ---
+// --- Replay-bundle (spec v1.1 discriminated union by mode) ---
+//
+// PII-trust-boundary: wild-mode events MUST hash user_prompt (PII-leak risk
+// from real user input). CI-mode events MAY carry verbatim user_prompt
+// (synthetic test-fixtures, no PII). Aggregator hard-rejects wild-mode
+// events with verbatim user_prompt — runner-side enforcement required.
+//
+// Source: Oracle spec v1.1 (msg #716), agent PII-blocker resolution.
 
-export const ReplayBundleSchema = z.object({
-  user_prompt: z.string(),
-  granite_output: z.string(),
-  // Tool-state-snapshot before the call (caller-provided opaque payload)
-  tool_state: z.record(z.unknown()).optional(),
+/**
+ * CI-mode replay-bundle. Verbatim user_prompt allowed because test-cases
+ * are author-curated synthetic fixtures (no real PII).
+ */
+export const ReplayBundleCISchema = z.object({
+  system_prompt_hash: z.string(),
+  user_prompt: z.string(), // verbatim — synthetic fixture, no PII
+  granite_response: z.string(),
+  tool_state_before: z.record(z.unknown()).optional(),
+  tool_state_after: z.record(z.unknown()).optional(),
 })
-export type ReplayBundle = z.infer<typeof ReplayBundleSchema>
+export type ReplayBundleCI = z.infer<typeof ReplayBundleCISchema>
 
-// --- The canonical Granite-Floor event (spec v1) ---
+/**
+ * Wild-mode replay-bundle. user_prompt MUST be sha256-hashed before emit
+ * to prevent PII leakage to the cluster aggregator. Optional `local_log_ref`
+ * is an opaque pointer (e.g. `"diary:2026-05-24:42"`) — aggregator treats
+ * as read-only display string, no resolve/fetch.
+ */
+export const ReplayBundleWildSchema = z.object({
+  system_prompt_hash: z.string(),
+  user_prompt_hash: z.string(), // sha256-hex of original user_prompt
+  granite_response: z.string(),
+  local_log_ref: z.string().optional(),
+})
+export type ReplayBundleWild = z.infer<typeof ReplayBundleWildSchema>
+
+// Union schema — actual discriminator is mode at event-level, not at
+// replay-bundle-level. Validation logic in GraniteFloorEventSchema's
+// refine() ensures shape matches mode.
+export const ReplayBundleSchema = z.union([ReplayBundleCISchema, ReplayBundleWildSchema])
+export type ReplayBundle = ReplayBundleCI | ReplayBundleWild
+
+// --- The canonical Granite-Floor event (spec v1.1) ---
 
 /**
  * Single test-result event. Emitted via chatbus `post_message`
@@ -126,10 +158,31 @@ export const GraniteFloorEventSchema = z.object({
   timestamp: z.string().datetime(),
   multiturn: MultiturnTelemetrySchema.optional(),
   replay_bundle: ReplayBundleSchema.optional(),
-}).refine(
-  (e) => (e.outcome === 'fail' ? e.fail_category !== null : e.fail_category === null),
-  { message: 'outcome=fail ⇒ fail_category non-null; outcome=pass ⇒ fail_category null' },
-)
+  // v1.1 additive (Oracle msg #732): runner-side PII-scrubbing attestation.
+  // Optional — defaults to undefined which dashboard treats as "unattested".
+  // Future v2 may hard-reject wild-events with runner_scrubbed=false.
+  runner_scrubbed: z.boolean().optional(),
+})
+  .refine(
+    (e) => (e.outcome === 'fail' ? e.fail_category !== null : e.fail_category === null),
+    { message: 'outcome=fail ⇒ fail_category non-null; outcome=pass ⇒ fail_category null' },
+  )
+  .refine(
+    (e) => {
+      // v1.1 PII-guard: wild-mode replay-bundle must be the Wild-shape
+      // (user_prompt_hash, not verbatim user_prompt). CI-mode bundle MAY be
+      // either shape, but CI-shape is recommended (verbatim user_prompt OK).
+      if (!e.replay_bundle) return true
+      if (e.mode === 'wild') {
+        return 'user_prompt_hash' in e.replay_bundle && !('user_prompt' in e.replay_bundle)
+      }
+      return true
+    },
+    {
+      message:
+        'wild-mode replay_bundle MUST use ReplayBundleWild shape (user_prompt_hash, not verbatim user_prompt) — PII guard, spec v1.1',
+    },
+  )
 export type GraniteFloorEvent = z.infer<typeof GraniteFloorEventSchema>
 
 // --- Plugin-author config-shape ---
@@ -173,7 +226,21 @@ export interface GraniteToolTestCase {
  * compose a plugin's full `granite-test.config.ts`.
  */
 export interface GraniteToolTest {
-  /** Fully-qualified tool-name (e.g. `plug-elec.kabel.dimensionierung`). */
+  /**
+   * MCP-tool-name (Option A canonical convention per v8-corp msg #735).
+   *
+   * MUST match the MCP `tools/list`-response value 1:1. Format:
+   * `<feature>.<entity>.<verb_lowercase>` (e.g. `calendar.events.create`,
+   * `projects.cards.move`, `heizlast.berechnen`).
+   *
+   * **No repo-prefix.** Cross-repo namespace-uniqueness is guaranteed by
+   * the `(repo, tool)` pair (Oracle spec v1.1 dedup-invariant), NOT by
+   * tool-name-prefix. Drift #200 (V8): "MCP-Tools ohne `<plugin>.`-Prefix".
+   *
+   * If `mcpEndpoint` is configured in the test-suite top-level, the runner
+   * validates each `tool` against the live `tools/list`-response at config-
+   * load-time. Typos caught at config-time instead of run-time.
+   */
   tool: string
 
   /**
@@ -189,27 +256,53 @@ export interface GraniteToolTest {
 /**
  * Top-level config-shape returned by `granite-test.config.ts`.
  *
- * Typical usage in a plugin-repo:
- * ```ts
- * import { defineGraniteToolTest } from '@nexus-mindgarden/granite-test'
+ * Two formats supported:
  *
+ * **Array-form** (simple) — just an array of tool-tests:
+ * ```ts
  * export default [
  *   defineGraniteToolTest({
- *     tool: 'plug-elec.kabel.dimensionierung',
+ *     tool: 'calendar.events.create',  // Option A: MCP /tools/list 1:1
  *     persona: 'user',
  *     cases: [
- *       { case_id: 'kabel.16A-25m', prompt: 'Dimensioniere 16A 25m', ... },
+ *       { case_id: 'calendar.basic', prompt: 'Schedule a meeting tomorrow at 2pm', ... },
  *     ],
  *   }),
  *   defineGraniteToolTest({
- *     tool: 'plug-elec.project.delete',
+ *     tool: 'projects.cards.delete',
  *     persona: 'admin',
  *     cases: [...],
  *   }),
  * ]
  * ```
+ *
+ * **Object-form** (with options) — config + tools:
+ * ```ts
+ * export default {
+ *   mcpEndpoint: 'http://localhost:3550/mcp',  // optional config-time validation
+ *   tools: [
+ *     defineGraniteToolTest({ tool: 'calendar.events.create', ... }),
+ *   ],
+ * }
+ * ```
+ *
+ * If `mcpEndpoint` is set, the runner queries `tools/list` at config-load
+ * to validate each `tool`-name 1:1 against the live MCP-server. Typos
+ * caught at config-time instead of run-time. Optional — air-gapped CI
+ * runs or bridge-not-bootstrapped scenarios omit it.
  */
-export type GraniteTestConfig = GraniteToolTest[]
+export interface GraniteTestConfigObject {
+  /**
+   * Optional MCP-endpoint for config-time tool-name validation. When set,
+   * runner queries `tools/list` and validates each `defineGraniteToolTest.tool`
+   * exists in the response. Catches typos at config-time. Omit for offline-
+   * mode or test-first development.
+   */
+  mcpEndpoint?: string
+  tools: GraniteToolTest[]
+}
+
+export type GraniteTestConfig = GraniteToolTest[] | GraniteTestConfigObject
 
 // --- Reporter API (transport contract) ---
 
