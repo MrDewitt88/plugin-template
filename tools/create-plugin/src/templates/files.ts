@@ -344,6 +344,108 @@ describe('{{pluginNameCamel}} bridge', () => {
 })
 `
 
+// --- Granite-Floor test-coverage templates (cluster-wide convention) ---
+//
+// Plugin-author edits granite-test.config.ts with their actual MCP-tools +
+// test-cases, then runs `pnpm granite-test` locally + in CI. Events emit
+// to Oracle's @floor aggregator (chatbus reserved-virtual-role). See
+// docs/granite-floor-spec.md (Oracle repo) for full event-shape spec v1.1.
+
+const GRANITE_TEST_CONFIG = `// Granite-Floor test-coverage config for {{pluginNamePascal}}.
+//
+// Author your test-cases here. Each MCP-tool in your manifest should have
+// a corresponding defineGraniteToolTest() entry with representative cases.
+// Run \`pnpm granite-test\` to execute against Granite-4-h-tiny-4bit (via
+// LM Studio :1234 by default — override with GRANITE_TEST_ENDPOINT env-var).
+//
+// Cluster-goal: 100% of MCP-tools Granite-callable by September-Messe.
+// Spec: docs/granite-floor-spec.md in Oracle repo. Conventions:
+//   - tool: canonical MCP /tools/list value 1:1 (no plugin-prefix per Drift #200)
+//   - persona: 'user' | 'admin' | 'any' (Kiara-Admin vs User-Agent drill-down)
+//   - case_id: stable identifier for CAS-dedup, format <tool>.<scenario>
+//
+// Until @nexus-mindgarden/granite-test ships its full impl, this file is
+// authored-but-not-yet-running. The package install + runner-wiring lands
+// when full-impl-week-1 completes.
+
+import { defineGraniteToolTest } from '@nexus-mindgarden/granite-test'
+
+export default [
+  // EXAMPLE — replace with your actual MCP-tools from manifest.yaml:
+  defineGraniteToolTest({
+    tool: 'example.tool.do_thing',     // ← MCP /tools/list value, no plugin-prefix
+    persona: 'user',                    // 'user' | 'admin' | 'any'
+    cases: [
+      {
+        case_id: 'example.tool.basic',  // <tool>.<scenario-slug>
+        prompt: 'Test prompt that should elicit the tool-call',
+        expected_tool_args: { foo: 'bar' },
+        max_latency_ms: 60_000,         // Pilot baseline (ET-Mind Modul-04): 31-49s p99
+      },
+    ],
+  }),
+
+  // Add more defineGraniteToolTest() entries per MCP-tool…
+]
+`
+
+const GRANITE_TEST_WORKFLOW = `# Granite-Floor test-coverage CI workflow.
+#
+# Runs on every push to main + on PRs. Executes granite-test against
+# Granite-4-h-tiny-4bit (via configured runtime) + emits results to Oracle's
+# @floor aggregator if CHATBUS_ENDPOINT secret is set.
+#
+# OPT-IN: comment out the 'on:' triggers if you don't want CI runs (e.g.
+# expensive Granite-runtime not available in CI, or you only run locally).
+# Local-only mode: \`pnpm granite-test\` from a developer machine.
+
+name: Granite-Floor Coverage
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'granite-test.config.ts'
+      - 'manifest.yaml'
+      - 'packages/**/src/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'granite-test.config.ts'
+      - 'manifest.yaml'
+
+jobs:
+  granite-floor:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run granite-test (DRY-RUN if no GRANITE_ENDPOINT)
+        run: pnpm granite-test
+        env:
+          # Granite runtime endpoint (LM Studio compatible-OpenAI API)
+          GRANITE_ENDPOINT: \${{ secrets.GRANITE_ENDPOINT || '' }}
+          # Chatbus aggregator endpoint — emit events to Oracle's @floor
+          CHATBUS_ENDPOINT: \${{ secrets.CHATBUS_ENDPOINT || '' }}
+          CHATBUS_TOKEN: \${{ secrets.CHATBUS_TOKEN || '' }}
+          # Set to '1' for offline mode (logs events instead of emitting)
+          GRANITE_TEST_DRY_RUN: \${{ secrets.CHATBUS_ENDPOINT && '0' || '1' }}
+`
+
 // Build the complete file-list. Order: root files, then per-feature packages.
 export const TEMPLATE_FILES: TemplateFile[] = [
   { path: 'package.json', content: PACKAGE_JSON_ROOT },
@@ -384,4 +486,11 @@ export const TEMPLATE_FILES: TemplateFile[] = [
     content: PKG_BRIDGE_TEST,
     feature: 'bridge',
   },
+
+  // Granite-Floor test-coverage (always included, opt-in per plugin-author).
+  // Cluster-wide convention per Oracle spec v1.1 + plug-tmpl `@nexus-mindgarden/
+  // granite-test`. Plugin-authors edit `granite-test.config.ts` with their
+  // actual tools + cases, then run `pnpm granite-test` locally + in CI.
+  { path: 'granite-test.config.ts', content: GRANITE_TEST_CONFIG },
+  { path: '.github/workflows/granite-test.yml', content: GRANITE_TEST_WORKFLOW },
 ]
