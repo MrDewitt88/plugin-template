@@ -27,6 +27,7 @@ export {
 export {
   // Spec v1 constants
   GRANITE_FLOOR_EVENT_KIND,
+  DEFAULT_MAX_LATENCY_MS,
 
   // Enums (schemas + inferred types)
   PersonaSchema,

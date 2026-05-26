@@ -18,6 +18,17 @@ import { z } from 'zod'
  */
 export const GRANITE_FLOOR_EVENT_KIND = 'granite-floor.event.v1' as const
 
+/**
+ * Default per-case max-latency budget (60s).
+ *
+ * Sized from plug-elec's ET-Mind Modul-04 Live-Granite-Pilot (commit `4e44298`,
+ * chatbus msg #757): 31-49s p99 against Granite-4-h-tiny for structured-output
+ * + long-prompt + Pattern-7-validation cases. 60s = generous-headroom for
+ * 99.9% of expected cases. Authors override per-case for known-slow (large
+ * payload) or known-fast (small structured-tool-call) operations.
+ */
+export const DEFAULT_MAX_LATENCY_MS = 60_000 as const
+
 // --- Persona enum (spec v1, agent msg #701 dual-mode design) ---
 
 /**
@@ -245,7 +256,11 @@ export interface GraniteToolTestCase {
 
   /**
    * Optional max-latency budget for this case. If exceeded → outcome=fail,
-   * fail_category=latency-spike. Defaults to `GraniteTestConfig.default_max_latency_ms`.
+   * fail_category=latency-spike. Defaults to **60_000ms** (60s) — based on
+   * plug-elec's ET-Mind Modul-04 Pilot (commit `4e44298`, msg #757) which
+   * measured 31-49s p99 against Granite-4-h-tiny. Sequential CI runs with
+   * 20 cases ≈ 10-15min, so override per-case for known-fast (cache-hit)
+   * or known-slow (large-prompt + structured-output) operations.
    */
   max_latency_ms?: number
 

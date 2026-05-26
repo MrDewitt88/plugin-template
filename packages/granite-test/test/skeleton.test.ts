@@ -4,6 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  DEFAULT_MAX_LATENCY_MS,
   defineGraniteToolTest,
   FailCategorySchema,
   flushPending,
@@ -24,6 +25,12 @@ describe('@nexus-mindgarden/granite-test — skeleton', () => {
   describe('GRANITE_FLOOR_EVENT_KIND', () => {
     it('is the canonical spec-v1 discriminator', () => {
       expect(GRANITE_FLOOR_EVENT_KIND).toBe('granite-floor.event.v1')
+    })
+  })
+
+  describe('DEFAULT_MAX_LATENCY_MS (plug-elec Pilot empirical baseline)', () => {
+    it('is 60_000ms (60s) — generous headroom over 31-49s p99', () => {
+      expect(DEFAULT_MAX_LATENCY_MS).toBe(60_000)
     })
   })
 
