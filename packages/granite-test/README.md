@@ -125,6 +125,26 @@ Transport: chatbus `post_message` mit `to_role="@floor"` (reserved-virtual-role,
 - **Ownership map:** agent msg #701
 - **Decision-gate candidates:** wiz-mind (msg #709), plug-elec (agent ping pending)
 
+## Live smoke-test (opt-in)
+
+The test-suite includes a live smoke-test that catches wire-shape silent-regressions (the class of bug that v0.0.3 had — built shape that returned 200 but never persisted). To run:
+
+```bash
+GRANITE_TEST_LIVE_SMOKE=1 \
+CHATBUS_ENDPOINT=http://127.0.0.1:7878/api/messages \
+pnpm test
+```
+
+The test:
+1. Emits a marker-event via `reportToCluster()` with unique `run_id`
+2. Polls `GET /api/granite-floor/health` before + after
+3. Asserts `events_total` counter incremented (catches silent-200-no-persist class of bug)
+4. (Optional) Verifies marker-event appears in `/api/granite-floor/runs?repo=plug-tmpl`
+
+Without both env-vars set, the test is **skipped** (vitest reports as `skip`, not `fail`) — safe for any CI environment.
+
+**Plugin-authors should run this opt-in test at least once after upgrading granite-test or chatbus-web** to catch wire-shape regressions before they cause silent 0-emission across the cluster.
+
 ## Status
 
 - ✅ Skeleton landed (this package)
