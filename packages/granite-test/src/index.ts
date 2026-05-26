@@ -23,6 +23,7 @@ export {
   resolveReporterConfig,
   type ResolvedReporterConfig,
 } from './reporter.js'
+export { buildEnumInjection, buildSystemPromptEnrichment } from './prompt-builder.js'
 
 export {
   // Spec v1 constants

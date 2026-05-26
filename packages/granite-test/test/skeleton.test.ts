@@ -68,9 +68,13 @@ describe('@nexus-mindgarden/granite-test — skeleton', () => {
       }
     })
 
-    it('rejects new categories (would require v2 spec-bump)', () => {
+    it('rejects categories not yet in enum (would require additive v1.x.y)', () => {
       expect(() => FailCategorySchema.parse('rate-limit')).toThrow()
       expect(() => FailCategorySchema.parse('network-error')).toThrow()
+    })
+
+    it('accepts text-leak (v1.1.1 additive, Oracle msg #831)', () => {
+      expect(FailCategorySchema.parse('text-leak')).toBe('text-leak')
     })
   })
 
@@ -415,6 +419,28 @@ describe('@nexus-mindgarden/granite-test — skeleton', () => {
       const parsed = GraniteFloorEventSchema.parse(event)
       expect(parsed.replay_bundle).toBeDefined()
       expect((parsed.replay_bundle as { kind?: string }).kind).toBe('tool-call')
+    })
+  })
+
+  describe('v0.0.3 text-leak fail-category (Oracle msg #831 v1.1.1)', () => {
+    it('text-leak event round-trips through GraniteFloorEventSchema', () => {
+      const event = {
+        event_kind: 'granite-floor.event.v1' as const,
+        run_id: '00000000-0000-4000-8000-000000001001',
+        case_id: 'text-leak-test',
+        repo: 'plug-tmpl',
+        tool: 'dice.roll',
+        persona: 'user' as const,
+        mode: 'ci' as const,
+        outcome: 'fail' as const,
+        fail_category: 'text-leak' as const,
+        fail_detail: 'prose + tool-call both present: "The d20 roll is **15**."',
+        model: 'granite-4-h-tiny-4bit',
+        latency_ms: 4500,
+        timestamp: '2026-05-26T13:00:00.000Z',
+      }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.fail_category).toBe('text-leak')
     })
   })
 })

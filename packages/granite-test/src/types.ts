@@ -71,9 +71,9 @@ export type Outcome = z.infer<typeof OutcomeSchema>
 // --- Fail-category enum (6 fix in spec v1, new cats = v2) ---
 
 /**
- * Why a tool-call failed. Closed enum in v1 — Oracle aggregator validates
- * against this exact set. New categories require spec v2 + aggregator-side
- * migration.
+ * Why a tool-call failed. Open-enum semantics (Oracle spec v1.1.1, msg #831):
+ * additive enum-extensions bump v1.x.y, not v2. Aggregator validates
+ * server-side; runners that never emit a value see no impact.
  *
  * - `schema-issue` — Granite output does not match the tool's Zod-input-schema
  * - `multiturn-state-loss` — state-context from step N missing in step N+1
@@ -81,6 +81,10 @@ export type Outcome = z.infer<typeof OutcomeSchema>
  * - `silent-fail` — no tool-call dispatched despite prompt explicitly asking
  * - `length-exceeded` — output exceeded max-token budget mid-call
  * - `latency-spike` — call took longer than max_latency_ms in case-config
+ * - `text-leak` (v1.1.1+) — prose-alongside-tool-call detected. Granite-4-H
+ *   systematic model-gate per wiz-mind msg #761 6/6 cases evidence.
+ *   Disambiguation: if BOTH prose AND tool-call present → `text-leak`;
+ *   if tool-call ABSENT → `silent-fail`. Wild-detectable.
  */
 export const FailCategorySchema = z.enum([
   'schema-issue',
@@ -89,6 +93,7 @@ export const FailCategorySchema = z.enum([
   'silent-fail',
   'length-exceeded',
   'latency-spike',
+  'text-leak', // v1.1.1 additive (Oracle msg #831)
 ])
 export type FailCategory = z.infer<typeof FailCategorySchema>
 
@@ -269,6 +274,33 @@ export interface GraniteToolTestCase {
    * v1 emits one event for the whole chain; per-step telemetry = v2.
    */
   expected_multiturn?: string[]
+
+  /**
+   * v0.0.3+ — argument-matching strictness (v8-corp Q2, msg #790).
+   *
+   * - `'partial'` (default): expected_tool_args is a SUBSET-match. Granite
+   *   may emit additional optional fields without failure. Use for nullable/
+   *   optional-rich tool-schemas where Granite-omitted fields are acceptable.
+   * - `'exact'`: expected_tool_args must match emitted args byte-for-byte
+   *   (no extra keys, no missing keys). Use for strict-shape tools where
+   *   any drift is a fail.
+   */
+  match_mode?: 'partial' | 'exact'
+
+  /**
+   * v0.0.3+ — per-case override für text-leak handling (wiz-mind msg #761,
+   * Oracle msg #831 v1.1.1 text-leak fail-category).
+   *
+   * - `false` (default, strict): if Granite emits prose alongside tool-call,
+   *   fail with `text-leak` fail-category. Reflects Granite-4-H model-gate
+   *   that 6/6 cases exhibited per wiz-mind cohort-2 evidence
+   * - `true` (permissive): plugin-author's backend filters text when
+   *   toolCalls.length > 0, so text-leak is mitigated downstream. Pass-rate
+   *   reflects "given backend-side-mitigation"
+   *
+   * Per V8-corp #790 matrix: `mcp.read.*` → permit, `mcp.write.*` → strict.
+   */
+  permitDualEmission?: boolean
 }
 
 /**
@@ -301,6 +333,38 @@ export interface GraniteToolTest {
 
   /** Test-cases for this tool. */
   cases: GraniteToolTestCase[]
+
+  /**
+   * v0.0.3+ — auto-prepend schema-example to system-prompt before each case
+   * (wiz-mind msg #761 Cohort-2 evidence: 0/3 → 3/3 schema-pass).
+   *
+   * When `true` (default), runner derives a "call with this shape" string
+   * from `parameters` Zod-schema or from `case.expected_tool_args`, and
+   * prepends it to the system-prompt. Plugin-authors opt-out per-tool
+   * when they want strict-baseline (no auto-help) measurement.
+   *
+   * Auto-derivation rules:
+   * - If `parameters` Zod-schema present: extract from schema (enum-values,
+   *   field-shape, required-fields) via `inferToolSchemaFromZod()` pattern
+   * - If only `case.expected_tool_args` present: serialize as shape-hint
+   * - If neither: no auto-injection (silent no-op)
+   */
+  embedSchemaExample?: boolean
+
+  /**
+   * v0.0.3+ — Zod-schema for tool input arguments (plug-elec msg #783 +
+   * plug-db msg #780 + mind-canva-interest, 3-adopter signal).
+   *
+   * When provided, runner uses this to:
+   * - Auto-inject available enum-values into system-prompt (cohort-2 pattern)
+   * - Generate OpenAI/Anthropic tool-definition from Zod via
+   *   wiz-mind's `buildOpenAIToolDef()` (granite-pilot-runner v0.1.2+)
+   * - Validate emitted `tool_args` against schema (richer than match_mode='exact')
+   *
+   * Use this OR `expected_tool_args` per case — `parameters` is run-wide,
+   * `expected_tool_args` is per-case-specific-values.
+   */
+  parameters?: z.ZodTypeAny
 }
 
 /**
@@ -349,6 +413,44 @@ export interface GraniteTestConfigObject {
    * mode or test-first development.
    */
   mcpEndpoint?: string
+
+  /**
+   * v0.0.3+ — Run-wide tenant context propagated into every emitted event
+   * (v8-corp Q1, msg #790). All cases in `tools[]` inherit these IDs via
+   * runner-side merge. Use this for multi-tenant SaaS plugins (V8-corp,
+   * V8-fam) where tool-calls are tenant-scoped. Omit for single-tenant or
+   * synthetic-tenant test-runs.
+   */
+  tenantContext?: {
+    tenant_id?: string
+    user_id?: string
+  }
+
+  /**
+   * v0.0.3+ — Authorization header for protected `mcpEndpoint` (v8-corp Q's
+   * follow-up, msg #790). Most V8-corp `/api/admin/mcp-tools` endpoints
+   * require cookie or bearer auth — this field is passed verbatim as the
+   * `Authorization` header when querying `mcpEndpoint`.
+   *
+   * For more complex auth (cookie, mTLS, custom headers), use `mcpFetchInit`
+   * instead — it's passed as `init`-options to the underlying `fetch()`.
+   */
+  mcpAuthHeader?: string
+
+  /**
+   * v0.0.3+ — Full `fetch()` RequestInit override für `mcpEndpoint` requests.
+   * Use this for cookie-based auth, custom headers, mTLS, etc. Mutually
+   * exclusive with `mcpAuthHeader` (runtime warns if both set; mcpFetchInit
+   * wins).
+   *
+   * @example
+   * mcpFetchInit: {
+   *   headers: { Cookie: 'session=abc123' },
+   *   credentials: 'include',
+   * }
+   */
+  mcpFetchInit?: RequestInit
+
   tools: GraniteToolTest[]
 }
 
