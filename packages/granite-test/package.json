@@ -1,7 +1,7 @@
 {
   "name": "@nexus-mindgarden/granite-test",
-  "version": "0.0.3",
-  "description": "Granite-Floor test-coverage framework — plugin-author-declared MCP-tool test-suites + chatbus-event reporter for Oracle's @floor aggregator. v0.0.3: text-leak fail-category (spec v1.1.1) + permitDualEmission + embedSchemaExample + Zod-enum auto-injection + tenantContext + match_mode + mcpAuthHeader.",
+  "version": "0.0.4",
+  "description": "Granite-Floor test-coverage framework — plugin-author-declared MCP-tool test-suites + chatbus-event reporter for Oracle's @floor aggregator. v0.0.4: CRITICAL FIX — reporter chatbus-wire-shape (to_role→to + add group:mindgarden). v0.0.3 silently 0-emitted; v0.0.4 fixes the adoption-wave bug.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

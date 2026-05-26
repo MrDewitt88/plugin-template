@@ -1,13 +1,19 @@
 // @nexus-mindgarden/granite-test — reportToCluster() transport implementation.
 //
-// Spec-aligned per Oracle msg #732 (v1.1 FROZEN). Transport contract:
-//   - chatbus `post_message` mit `to_role="@floor"` reserved-virtual-role
-//   - Thread: `granite-floor`
-//   - Content: JSON-stringified `GraniteFloorEvent`
+// Spec-aligned per Oracle msg #732/#831 (v1.1.1 FROZEN). Transport contract
+// per plug-elec #781 forward-relay of Oracle endpoint-clarification:
+//   - POST http://127.0.0.1:7878/api/messages
+//   - Body: {content: JSON.stringify(event), to: "@floor", thread: "granite-floor", group: "mindgarden"}
+//   - `to` (NOT `to_role`) is the canonical chatbus API field-name
+//   - `group: "mindgarden"` REQUIRED — server rejects without it
 //   - CAS-dedup: aggregator enforces `UNIQUE(run_id, case_id)`
 //   - Total event size cap: 64 KB (including replay_bundle)
 //   - PII-guard: wild-mode events MUST use ReplayBundleWild shape (enforced at
 //     schema-level via GraniteFloorEventSchema's .refine())
+//   - Auth: none (plain HTTP, localhost-only by convention)
+//
+// v0.0.3.1 bug-fix: v0.0.3 reporter sent `to_role` + missing `group` →
+// silent 0-emit. Fixed in this version per oracle/v8-fam #846 + #851.
 //
 // Environment configuration (no DI required for plugin-authors):
 //   - CHATBUS_ENDPOINT — full URL to chatbus's post_message endpoint
@@ -110,7 +116,7 @@ function validateEvents(events: GraniteFloorEvent[]): GraniteFloorEvent[] {
 }
 
 /**
- * Send a single event via chatbus `post_message` with `to_role="@floor"`.
+ * Send a single event via chatbus `/api/messages` with `to="@floor"`.
  * Returns aggregator response (event-id on accept, error-code on reject).
  *
  * Aggregator side enforces:
@@ -138,10 +144,16 @@ async function sendViaChatbus(
       'CHATBUS_ENDPOINT not set — runtime cannot reach chatbus. Set env-var or use { transport: "http", http_endpoint } in options. Or set GRANITE_TEST_DRY_RUN=1 for offline runs.',
     )
   }
+  // Chatbus `/api/messages` payload-shape (per plug-elec #781 forward-relay
+  // of Oracle's endpoint-clarification, msg #760). Critical field-names:
+  // - `to` (NOT `to_role`) — chatbus API uses this canonical name
+  // - `group: "mindgarden"` REQUIRED — without it, message is rejected
+  // - `content` is string-stringified JSON (server parses)
   const body = JSON.stringify({
-    to_role: '@floor',
-    thread: 'granite-floor',
     content: JSON.stringify(event),
+    to: '@floor',
+    thread: 'granite-floor',
+    group: 'mindgarden',
   })
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (config.token) headers['Authorization'] = `Bearer ${config.token}`

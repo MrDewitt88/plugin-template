@@ -422,6 +422,88 @@ describe('@nexus-mindgarden/granite-test — skeleton', () => {
     })
   })
 
+  describe('v0.0.4 reporter wire-shape fix (CRITICAL: was silent 0-emit in v0.0.3)', () => {
+    const validEvent: GraniteFloorEvent = {
+      event_kind: 'granite-floor.event.v1',
+      run_id: '00000000-0000-4000-8000-000000099999',
+      case_id: 'wire-shape-test',
+      repo: 'plug-tmpl',
+      tool: 'plug-tmpl.smoke',
+      persona: 'any',
+      mode: 'ci',
+      outcome: 'pass',
+      fail_category: null,
+      fail_detail: null,
+      model: 'granite-4-h-tiny-4bit',
+      latency_ms: 100,
+      timestamp: '2026-05-26T13:00:00.000Z',
+    }
+
+    it('sends body with `to` (not `to_role`) per chatbus API', async () => {
+      let capturedBody: string | null = null
+      const originalFetch = globalThis.fetch
+      globalThis.fetch = (async (_url: string, init: RequestInit) => {
+        capturedBody = init.body as string
+        return new Response('ok', { status: 200 })
+      }) as typeof fetch
+      try {
+        process.env['CHATBUS_ENDPOINT'] = 'http://127.0.0.1:7878/api/messages'
+        process.env['GRANITE_TEST_DRY_RUN'] = '0'
+        await reportToCluster([validEvent])
+        const parsed = JSON.parse(capturedBody!)
+        expect(parsed.to).toBe('@floor')
+        expect(parsed.to_role).toBeUndefined()
+      } finally {
+        globalThis.fetch = originalFetch
+        delete process.env['CHATBUS_ENDPOINT']
+        delete process.env['GRANITE_TEST_DRY_RUN']
+      }
+    })
+
+    it('sends body with `group: "mindgarden"` REQUIRED field', async () => {
+      let capturedBody: string | null = null
+      const originalFetch = globalThis.fetch
+      globalThis.fetch = (async (_url: string, init: RequestInit) => {
+        capturedBody = init.body as string
+        return new Response('ok', { status: 200 })
+      }) as typeof fetch
+      try {
+        process.env['CHATBUS_ENDPOINT'] = 'http://127.0.0.1:7878/api/messages'
+        process.env['GRANITE_TEST_DRY_RUN'] = '0'
+        await reportToCluster([validEvent])
+        const parsed = JSON.parse(capturedBody!)
+        expect(parsed.group).toBe('mindgarden')
+      } finally {
+        globalThis.fetch = originalFetch
+        delete process.env['CHATBUS_ENDPOINT']
+        delete process.env['GRANITE_TEST_DRY_RUN']
+      }
+    })
+
+    it('sends body with stringified content (server parses, NOT nested object)', async () => {
+      let capturedBody: string | null = null
+      const originalFetch = globalThis.fetch
+      globalThis.fetch = (async (_url: string, init: RequestInit) => {
+        capturedBody = init.body as string
+        return new Response('ok', { status: 200 })
+      }) as typeof fetch
+      try {
+        process.env['CHATBUS_ENDPOINT'] = 'http://127.0.0.1:7878/api/messages'
+        process.env['GRANITE_TEST_DRY_RUN'] = '0'
+        await reportToCluster([validEvent])
+        const parsed = JSON.parse(capturedBody!)
+        // content must be a string (not nested object) — server parses
+        expect(typeof parsed.content).toBe('string')
+        const innerEvent = JSON.parse(parsed.content)
+        expect(innerEvent.run_id).toBe(validEvent.run_id)
+      } finally {
+        globalThis.fetch = originalFetch
+        delete process.env['CHATBUS_ENDPOINT']
+        delete process.env['GRANITE_TEST_DRY_RUN']
+      }
+    })
+  })
+
   describe('v0.0.3 text-leak fail-category (Oracle msg #831 v1.1.1)', () => {
     it('text-leak event round-trips through GraniteFloorEventSchema', () => {
       const event = {
