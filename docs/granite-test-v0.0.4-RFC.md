@@ -1,16 +1,19 @@
 # Granite-Test v0.0.4 RFC — 7-Layer Architecture for "100% MCP-tools Granite-callable, no cheating"
 
-> **Status:** DRAFT v0.1 · 2026-05-26 · plug-tmpl-hosted · Layer-3-driven · co-author-windows open
+> **Status:** DRAFT v0.2 · 2026-05-26 · plug-tmpl-hosted · Spec v1.2.2 FROZEN-foundation · co-author-window closing
 >
-> **Co-authors (committed):**
-> - `plug-tmpl` — impl-owner, RFC-host (this doc)
-> - `plug-elec` — Layer-3 repair-rule-library, Anti-Cheating-4-Test framework, Pass-3 strategy-isolation evidence (chatbus #872)
-> - `mind-canva` — Layer-3 concept-source (chatbus #859), Multi-Pass-as-feature, Model-Cascade roadmap
-> - `v8-fam` — Pass-1+2 empirical-data source (chatbus #861, +20pp delta-validation)
-> - `v8-corp` — Layer-7 Tool-Description-Discipline proposer (chatbus #870), 72-tool domain-diversity
-> - `plug-db` — Layer-6a Zod-export pattern, Layer-6b RAG-driven prompt-memory (chatbus #862)
+> **Co-authors (signs collected — see §A Appendix):**
+> - `plug-tmpl` ✓ — impl-owner, RFC-host, L2 shipped v0.0.3-v0.0.5
+> - `plug-elec` ✓ accepted — L3 Repair-Rule-Library + Anti-Cheating-4-Test framework + Pass-3 evidence (ETA 2-3 Tage)
+> - `mind-canva` ✓ accepted — L4 Multi-Pass sub-RFC + L3 concept-source + Live-Pilot tomorrow
+> - `v8-fam` ✓ accepted — Pass-1/2/3 empirical-data source (150-event Pass-3 burst tomorrow 09:00)
+> - `v8-corp` ✓ accepted — L7 Tool-Description-Discipline + 72-tool domain-diversity (25/72 Phase-2)
+> - `plug-db` ✓ accepted — L6a Zod-export + L6b RAG-driven prompt-memory (live consumer-side)
+> - `oracle` ✓ Spec v1.2.2 FROZEN — aggregator/dashboard/CLI live, all RFC-required event-fields shipped
 >
-> **Pending co-author signals:** `wiz-mind` (Pattern-1-5 originator, Layer-1 recipe-source), `oracle` (aggregator + RAG-export endpoint integration)
+> **Sole-pending L1 signal:** `wiz-mind` — Pattern-1-7 canonical-recipe owner (DM-pinged msg #1887)
+>
+> **Spec foundation:** Spec v1.2.2 FROZEN (Oracle msgs #1015/#1289/#~1620) is the **canonical event-payload-spec** referenced throughout this RFC. All RFC-design-decisions about event-fields are SETTLED at spec-level.
 
 ---
 
@@ -30,12 +33,83 @@ Cluster-state at RFC-start (2026-05-26):
 
 ---
 
+## §0.1 — Spec v1.2.2 FROZEN-foundation (Oracle, 2026-05-26)
+
+Spec v1.2.2 = canonical event-payload-spec for RFC v0.0.4 implementation. All event-fields shipped + spec-level Anti-Cheating refines enforced. Adopters emit v1.2.2-shaped events TODAY against Oracle's live aggregator + RFC consumers reference these as ground-truth.
+
+### §0.1.1 — Spec-version timeline (single day, 3 microbumps)
+
+| Spec | Trigger | Fields added |
+|---|---|---|
+| v1.1 (Oracle #732) | Initial freeze | event_kind/run_id/case_id/repo/tool/persona/mode/outcome/fail_category/fail_detail/model/latency_ms/timestamp/multiturn/replay_bundle |
+| v1.1.1 (Oracle #831) | text-leak 7th fail-category | `text-leak` enum-value |
+| **v1.2** (Oracle #1015) | L3+L4 RFC fields, additive | `outcome_raw`, `outcome_post_repair`, `applied_repairs[]`, `pass_id`, `prompt_version_hash`, `strengthen_recipes_applied[]`, `pass_predecessor_event_id?`, `fail_sub_category` |
+| v1.2.1 (Oracle #1289) | Multi-violation plural | `fail_sub_categories[]` plural with consistency-rule |
+| v1.2.2 (Oracle ~#1620) | Cross-domain analysis | `domain_kind` cross-domain classification |
+
+### §0.1.2 — Spec-level Anti-Cheating refines (server-enforced)
+
+```typescript
+// Refine 1 (Anti-Cheating Test-2 Visibility + Test-4 Surface-Honesty):
+outcome_raw === 'fail' AND outcome_post_repair === 'pass'
+  REQUIRES applied_repairs[].length > 0
+  // Otherwise server rejects with audit-trail-missing reason
+
+// Refine 2 (Plural-Singular consistency, spec v1.2.1):
+fail_sub_categories[0] === fail_sub_category
+  WHEN both fields are set
+  // Otherwise server rejects with consistency-violation
+```
+
+Both refines live in Foundation's Zod-schema (`@nexus-mindgarden/granite-test@^0.0.5`) AND Oracle's aggregator (`chatbus/granite_floor.py:validate_event()`). **Spec-level enforcement, not test-only.**
+
+### §0.1.3 — Canonical event-payload example (full v1.2.2 envelope)
+
+```json
+{
+  "event_kind": "granite-floor.event.v1",
+  "run_id": "et-mind-modul04-pass3-2026-05-27-3b",
+  "case_id": "aggregate_befund.efh-minimal.narrative",
+  "repo": "ET-Mind",
+  "tool": "switchgear.aggregate_befund",
+  "persona": "user",
+  "mode": "ci",
+  "outcome": "pass",
+  "outcome_raw": "fail",
+  "outcome_post_repair": "pass",
+  "fail_category": null,
+  "fail_detail": null,
+  "model": "ibm/granite-4-h-tiny",
+  "latency_ms": 5234,
+  "timestamp": "2026-05-27T09:14:23.000Z",
+  "domain_kind": "structured-output-json-mode",
+
+  // L3 fields:
+  "applied_repairs": [
+    { "rule_id": "verbatim-digit-replace", "audit_reason": "'zwölf' → '12' per DE-number-word-dict" },
+    { "rule_id": "iso-tz-complete", "audit_reason": "'2026-06-15' → '2026-06-15T00:00:00+02:00' per ctx.tz" }
+  ],
+
+  // L4 fields:
+  "pass_id": "3b",
+  "prompt_version_hash": "sha256:abc123def456...",
+  "strengthen_recipes_applied": ["R-04", "R-05", "R-11"],
+  "pass_predecessor_event_id": "evt-pass2-baseline-001",
+
+  // v1.2.1 plural sub-categorization:
+  "fail_sub_category": "verbatim-discipline",
+  "fail_sub_categories": ["verbatim-discipline", "enum-translate-de-en"]
+}
+```
+
+---
+
 ## §1 — Layer Architecture (consolidated from msgs #859/#861/#862/#870/#872)
 
 | # | Layer | Owner | Status | Cluster-vote |
 |---|---|---|---|---|
 | **L1** | Prompt-Engineering Recipes (Pattern-1-7 from wiz-mind §3.5 + GRANITE-FLOOR-CROSS-REPO) | each adopter | ✅ canonical-recipes, empirically validated (v8-fam Pass-2 +20pp) | unanimous |
-| **L2** | Schema-Discipline via v0.0.3 (`parameters: z.ZodTypeAny` + `embedSchemaExample`) | plug-tmpl | ✅ shipped v0.0.3 + v0.0.4 fix | unanimous |
+| **L2** | Schema-Discipline (`parameters: z.ZodTypeAny` + `embedSchemaExample` + domain_kind-conditional-policy) | plug-tmpl | ✅ shipped v0.0.3 + v0.0.4 wire-fix + v0.0.5 spec-fields | unanimous |
 | **L3** | **Post-Validator-Repair** (declarative + audited) | plug-tmpl v0.0.4 | 📋 **THIS RFC** | unanimous co-author |
 | **L4** | Multi-Pass Framework (codifies plug-elec's manual-iteration) | plug-tmpl v0.0.4 | 📋 design needed | endorsed |
 | **L5** | Model-Cascade (escalate to bigger model on fail) | per-adopter, opt-in | ⏸️ NOT in 95%-target-budget — non-deterministic | opt-in roadmap only |
@@ -44,6 +118,42 @@ Cluster-state at RFC-start (2026-05-26):
 | **L7** | **Tool-Description-Discipline** in MCP `/tools/list` | each plugin | 🆕 V8-canonical proposal (msg #870) | endorsed, audit-pattern needed |
 
 **Cluster-target:** `pass_rate_raw ≥ 95%` via L1+L2+L7 + `pass_rate_post_repair = 100%` via L3+L6 + L4 (Multi-Pass). L5 explicitly excluded from 95%-target-budget per Test-3 (determinism, plug-elec #872).
+
+### §1.1 — L2 `embedSchemaExample` domain_kind-conditional policy (v8-corp request #1813)
+
+L2 behavior is **conditional on `domain_kind`**, not unconditional default-on. Two empirically-grounded settings:
+
+| `domain_kind` | `embedSchemaExample` default | Rationale | Validating evidence |
+|---|---|---|---|
+| `tool-call-with-tools-list` | **OFF** | MCP `tools/list` already canonicalises schema; in-prompt-schema would be DOUBLE-priming → can degrade granite | V8-corp 25/72 Phase-2 cases (#1813) all L2-OFF, R-13/14/15/16 reserved |
+| `structured-output-json-mode` | **ON (default)** | No tools/list context; in-prompt-schema IS source-of-truth | ET-Mind + Mind-Canva twin-domain (mind-canva #1813 confirmation), wiz-mind cohort-2 evidence 0/3→3/3 |
+| (other / unset) | ON (default) | Conservative default — wiz-mind cohort-2 evidence applies to most domains | wiz-mind msg #761 |
+
+**Plugin-author API (v0.0.5+ already-shipped types support this):**
+
+```typescript
+// granite-test.config.ts (v8-corp pattern, L2-OFF for tool-call-with-tools-list):
+defineGraniteToolTest({
+  tool: 'calendar.events.create',
+  persona: 'user',
+  embedSchemaExample: false,    // ← explicit OFF per domain_kind policy
+  parameters: CreateEventInputSchema,
+  cases: [/* L7 tools/list-canonicalised */]
+})
+
+// granite-test.config.ts (ET-Mind/Mind-Canva pattern, L2-ON):
+defineGraniteToolTest({
+  tool: 'switchgear.aggregate_befund',
+  persona: 'user',
+  embedSchemaExample: true,     // ← explicit ON (or omit, ON is default)
+  parameters: AggregateBefundInputSchema,
+  cases: [/* domain_kind=structured-output-json-mode */]
+})
+```
+
+**v0.0.6 runner-side enhancement (TBD):** runner could read top-level `tenantContext.domain_kind` from `granite-test.config.ts` object-form + auto-apply `embedSchemaExample` default per-domain-kind. Plugin-authors keep explicit-override capability per-tool.
+
+**RFC sign-off:** L2-conditional-policy ✓ adopted, baked in v0.0.5 (config-shape supports it; runner-side autoconfig is v0.0.6 candidate).
 
 ---
 
@@ -326,15 +436,60 @@ Oracle batch-exports Granite-Floor events to plug-db (per Oracle msg #831, batch
 
 | Layer | Owner | Sign-off |
 |---|---|---|
-| L1 (recipes) | wiz-mind | ⏳ pending |
-| L2 (schema-discipline) | plug-tmpl | ✓ plug-tmpl 2026-05-26 (already shipped in v0.0.3) |
-| L3 (Post-Validator-Repair) | plug-elec | ⏳ pending Pass-3 evidence + sub-RFC |
-| L4 (Multi-Pass) | mind-canva | ⏳ pending sub-RFC draft |
-| L5 (Model-Cascade) | per-adopter | ⏳ opt-in, no cluster sign-off needed |
-| L6a (Zod-export) | each plugin | ⏳ V8 ✓ ET-Mind ✓ others pending |
-| L6b (RAG prompt-memory) | plug-db + oracle | ⏳ pending oracle batch-export endpoint |
-| L7 (Tool-Description-Discipline) | v8-corp | ⏳ pending audit-pattern doc |
+| L1 (recipes) | wiz-mind | ⏳ pending (DM-pinged msg #1887, ETA EOD) |
+| L2 (schema-discipline + domain_kind-conditional-policy) | plug-tmpl | ✓ plug-tmpl 2026-05-26 — shipped v0.0.3 + v0.0.4 wire-fix + v0.0.5 spec-v1.2.2-alignment + §1.1 conditional-policy |
+| L3 (Post-Validator-Repair) | plug-elec | ✓ accepted 2026-05-26 — Pass-3 evidence in 2-3d + L3 API-shape sub-RFC EOW |
+| L4 (Multi-Pass framework) | mind-canva | ✓ accepted 2026-05-26 — sub-RFC scope-updated + Live-Pilot tomorrow |
+| L5 (Model-Cascade) | per-adopter | ✓ opt-in, no cluster-sign-off needed |
+| L6a (Zod-export) | each plugin | V8 ✓ ET-Mind ✓ Mind-Canva ✓ plug-db ✓ — pattern adoption-ready, plug-inst + wiz-mind pending |
+| L6b (RAG-driven prompt-memory) | plug-db + oracle | ✓ plug-db live consumer-side · ✓ oracle batch-export endpoint commitment shipping in v0.0.3-sync window |
+| L7 (Tool-Description-Discipline) | v8-corp | ✓ accepted 2026-05-26 — 15/72 schemas with `.describe()`, full-audit ETA end-of-June parallel zu Phase-2 expansion |
+| **Spec foundation** | oracle | ✓ v1.2.2 FROZEN 2026-05-26 — all RFC-required event-fields shipped, server-enforced Anti-Cheating refines |
 
-**RFC-final status:** ⏳ DRAFT v0.1 — open for co-author input. Comments + amendments via PR or `@all #granite-floor` chatbus messages.
+**RFC-final status:** ⏳ DRAFT v0.2 — sole-pending L1 wiz-mind input. 7-of-8 sign-offs collected (8/8 once L1 ack). When L1 acks → RFC moves to v0.3-Pass-3-evidence-integration window → v1.0-FROZEN when plug-elec Pass-3 data + mind-canva L4-sub-RFC + at least 1 plugin has end-to-end L1-L7 pilot running (≥3 days realistic).
 
-— `plug-tmpl` · 2026-05-26
+— `plug-tmpl` · 2026-05-26 (v0.2)
+
+---
+
+## Appendix B — Cluster-State at RFC v0.2 (2026-05-26 EOD)
+
+### Per-repo adoption-status
+
+| Repo | granite-test version | Phase-2 coverage | Phase-3 evidence | domain_kind |
+|---|---|---|---|---|
+| **plug-elec / ET-Mind** | v0.0.5 (pending case-port to v0.0.4-impl, GH-install live) | 4 tools / 5-7 cases each (Modul-04 + Modul-02) | ⏳ 2-3 Tage (4-sub-variant strategy-isolation) | structured-output-json-mode |
+| **v8-corp** | v0.0.5 (Rev 6, commit `d147c57`) | 25/72 tools (~35%) | n/a (V8 = framework) | tool-call-with-tools-list |
+| **v8-fam** | v0.0.5 (Rev 5+) | Pass-3 5-variant burst 150 events tomorrow 09:00 | ⏳ tomorrow morning | tool-call-with-tools-list (family-domain) |
+| **mind-canva** | v0.0.5 (PR #2 Phase-2 single-turn CI) | 1 tool (`headline-suggest`) + 3 polish | ⏳ Live-Pilot Pass-1 tomorrow | structured-output-json-mode |
+| **plug-db** | v0.0.5 (RAG-export consumer-cron live) | 13 tools pre-commit (post-RFC-impl) | n/a (RAG-consumer) | (TBD) |
+| **agent (mymind)** | v0.0.5 (wild-emitter standalone live, Phase-4 CI-mode pending) | wild-mode emissions | n/a (host-app) | wild |
+| **wiz-mind** | v0.1.x runner-package + post-v0.0.5-types | tools-pilot 6/6 + narrative | ⏳ Phase-7 RAG-live-wire pending | narrative (TBD canonical-string) |
+| **plug-inst** | downstream-consumer pre-commit | Phase-1 M1 Heizlast | gated auf full-impl | SHK-AT (TBD) |
+
+### Cluster-event-aggregator state
+
+- **Total events emitted to Oracle's `@floor`**: ~50+ (V8-corp 42 + ET-Mind 6 + V8-fam burst 10 + ad-hoc)
+- **Pass-rate baseline (raw)**: ~30%
+- **Pass-rate target (post-stack)**: ≥95% raw + 100% post-repair by September-Messe
+- **Failure-modes catalogued**: 7+ fail-categories (including v1.1.1 `text-leak`) + 9 L3-repair-rule canonical-baseline + dozens fail_sub_categories under cluster-discovery
+
+### Spec-frozen artifacts
+
+- ✅ Oracle Granite-Floor spec v1.2.2 — `docs/granite-floor-spec.md`
+- ✅ Foundation `@nexus-mindgarden/granite-test@0.0.5` — types-ahead-of-impl, spec-v1.2.2-aligned
+- ✅ Foundation `@nexus-mindgarden/plugin-bridge-foundation@0.6.1` — wire-spec for plugin<->host
+- ✅ Cluster-doc `docs/CROSS-PLUGIN-MCP-CALL-COOKBOOK.md` (cluster-doc-v1.0) — plugin<->host
+- ✅ Cluster-doc `docs/MIGRATION-COOKBOOK.md` — Pattern-1/2/3 adoption
+- ✅ Provider-Guide §11-13 (agent.complete, reversible workarounds, pre-coding)
+
+### What ships in v0.0.6 (post-RFC-v1.0-freeze)
+
+- L3 `repairRules: RepairRule[]` config-shape + canonical-rule library (plug-elec evidence-driven)
+- L3 `defineRepairRule({id, detect, repair, auditReason})` plugin-author surface
+- L4 `multiPass: { maxPasses, backoffMs, strategy }` framework (mind-canva sub-RFC-driven)
+- Runner-side `domain_kind`-aware `embedSchemaExample` autoconfig
+- Provider-Guide §16 "Anti-Cheating Framework" essay
+- Live-smoke-test (`GRANITE_TEST_LIVE_SMOKE=1` opt-in, catches v0.0.3-class wire-shape silent-regressions)
+
+**ETA v0.0.6:** ~6-8h impl post-RFC-v1.0-freeze (plug-elec Pass-3 + mind-canva L4-sub-RFC). Realistic 1-2 weeks from RFC v0.2 (now) to v0.0.6 ship.
