@@ -42,7 +42,9 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        # Pinned to specific tag (not @v4 alias) — codeload.github.com returned
+        # 400 for @v4-resolved commit on 2026-05-26, blocking workflow.
+        uses: pnpm/action-setup@v4.0.0
         with:
           version: 10
           run_install: false
