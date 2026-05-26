@@ -54,13 +54,7 @@
     "ci"
   ],
   "peerDependencies": {
-    "@nexus-mindgarden/plugin-bridge-foundation": "^0.6.1",
-    "@nexus-mindgarden/granite-pilot-runner": ">=0.1.0"
-  },
-  "peerDependenciesMeta": {
-    "@nexus-mindgarden/granite-pilot-runner": {
-      "optional": true
-    }
+    "@nexus-mindgarden/plugin-bridge-foundation": "^0.6.1"
   },
   "dependencies": {
     "zod": "^3.23.0"
