@@ -1,7 +1,7 @@
 {
   "name": "@nexus-mindgarden/granite-test",
-  "version": "0.0.1",
-  "description": "Granite-Floor test-coverage framework — plugin-author-declared MCP-tool test-suites + chatbus-event reporter for Oracle's @floor aggregator. Pre-release skeleton, full impl pending decision-gate (wiz-mind + plug-elec adoption signals).",
+  "version": "0.0.2",
+  "description": "Granite-Floor test-coverage framework — plugin-author-declared MCP-tool test-suites + chatbus-event reporter for Oracle's @floor aggregator. v0.0.2: chatbus HTTP transport-impl + tool-call sub-discriminator + batched buffering.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

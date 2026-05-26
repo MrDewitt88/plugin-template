@@ -16,7 +16,13 @@
 //   - `@nexus-mindgarden/granite-test/reporter` (transport API)
 
 export { defineGraniteToolTest } from './define-tool-test.js'
-export { reportToCluster, ReportToClusterError } from './reporter.js'
+export {
+  reportToCluster,
+  ReportToClusterError,
+  flushPending,
+  resolveReporterConfig,
+  type ResolvedReporterConfig,
+} from './reporter.js'
 
 export {
   // Spec v1 constants
@@ -39,6 +45,10 @@ export {
   type ReplayBundleCI,
   ReplayBundleWildSchema,
   type ReplayBundleWild,
+  ReplayBundleCIToolCallSchema,
+  type ReplayBundleCIToolCall,
+  ReplayBundleWildToolCallSchema,
+  type ReplayBundleWildToolCall,
   ReplayBundleSchema,
   type ReplayBundle,
   GraniteFloorEventSchema,

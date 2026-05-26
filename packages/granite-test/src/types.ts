@@ -126,11 +126,46 @@ export const ReplayBundleWildSchema = z.object({
 })
 export type ReplayBundleWild = z.infer<typeof ReplayBundleWildSchema>
 
+// --- v1.1-additive: tool-call sub-discriminator (wiz-mind msg #720 + oracle msg #732) ---
+//
+// When `kind: 'tool-call'` is set on a replay-bundle, additional tool-call-
+// specific fields are validated. Plugin-authors emitting tool-call test-results
+// should set kind='tool-call' for deterministic replay-rerun tooling.
+//
+// Bundles without `kind` field remain valid (backward-compat). When `kind` is
+// 'tool-call', the extra fields enable Oracle's replay-system to re-execute the
+// exact call deterministically.
+
+const ToolCallExtraSchema = z.object({
+  kind: z.literal('tool-call'),
+  expected_tool_name: z.string().optional(),
+  actual_tool_name: z.string().optional(),
+  actual_tool_args: z.record(z.unknown()).optional(),
+  expected_schema_failures: z.array(z.string()).optional(),
+  multiturn_step: z.number().int().nonnegative().optional(),
+})
+
+export const ReplayBundleCIToolCallSchema = ReplayBundleCISchema.merge(ToolCallExtraSchema)
+export type ReplayBundleCIToolCall = z.infer<typeof ReplayBundleCIToolCallSchema>
+
+export const ReplayBundleWildToolCallSchema = ReplayBundleWildSchema.merge(ToolCallExtraSchema)
+export type ReplayBundleWildToolCall = z.infer<typeof ReplayBundleWildToolCallSchema>
+
 // Union schema — actual discriminator is mode at event-level, not at
 // replay-bundle-level. Validation logic in GraniteFloorEventSchema's
-// refine() ensures shape matches mode.
-export const ReplayBundleSchema = z.union([ReplayBundleCISchema, ReplayBundleWildSchema])
-export type ReplayBundle = ReplayBundleCI | ReplayBundleWild
+// refine() ensures shape matches mode. Tool-call shapes are additive
+// to base shapes via `kind: 'tool-call'` (optional).
+export const ReplayBundleSchema = z.union([
+  ReplayBundleCIToolCallSchema,
+  ReplayBundleWildToolCallSchema,
+  ReplayBundleCISchema,
+  ReplayBundleWildSchema,
+])
+export type ReplayBundle =
+  | ReplayBundleCI
+  | ReplayBundleWild
+  | ReplayBundleCIToolCall
+  | ReplayBundleWildToolCall
 
 // --- The canonical Granite-Floor event (spec v1.1) ---
 

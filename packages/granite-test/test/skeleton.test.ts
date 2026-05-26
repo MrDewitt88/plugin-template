@@ -2,16 +2,20 @@
 // correctly + the API surfaces are importable. Full impl tests land
 // post-decision-gate.
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   defineGraniteToolTest,
   FailCategorySchema,
+  flushPending,
   GRANITE_FLOOR_EVENT_KIND,
   GraniteFloorEventSchema,
   ModeSchema,
   PersonaSchema,
+  ReplayBundleCIToolCallSchema,
+  ReplayBundleWildToolCallSchema,
   ReportToClusterError,
   reportToCluster,
+  resolveReporterConfig,
   type GraniteFloorEvent,
   type GraniteToolTest,
 } from '../src/index.js'
@@ -211,7 +215,7 @@ describe('@nexus-mindgarden/granite-test — skeleton', () => {
     })
   })
 
-  describe('reportToCluster (skeleton)', () => {
+  describe('reportToCluster (v0.0.2 chatbus-transport)', () => {
     const validEvent: GraniteFloorEvent = {
       event_kind: 'granite-floor.event.v1',
       run_id: '00000000-0000-4000-8000-000000000002',
@@ -228,29 +232,62 @@ describe('@nexus-mindgarden/granite-test — skeleton', () => {
       timestamp: '2026-05-24T12:00:00.000Z',
     }
 
-    it('validates + returns events (skeleton passthrough)', async () => {
+    // Use dry-run for tests — no actual network calls
+    beforeEach(() => {
+      process.env['GRANITE_TEST_DRY_RUN'] = '1'
+      // Reset any pending buffer between tests
+    })
+
+    afterEach(async () => {
+      // Force-flush any pending buffer to avoid cross-test leaks
+      await flushPending().catch(() => {})
+      delete process.env['GRANITE_TEST_DRY_RUN']
+      delete process.env['CHATBUS_ENDPOINT']
+      delete process.env['CHATBUS_TOKEN']
+    })
+
+    it('validates + buffers single event (dry-run mode)', async () => {
       const result = await reportToCluster(validEvent)
       expect(result).toHaveLength(1)
       expect(result[0]?.case_id).toBe('test.case')
+      await flushPending() // emit buffered event in dry-run log-mode
     })
 
-    it('accepts an array of events', async () => {
+    it('accepts an array of events (immediate-flush, no buffer)', async () => {
       const result = await reportToCluster([validEvent, { ...validEvent, case_id: 'test.case2' }])
       expect(result).toHaveLength(2)
     })
 
-    it('rejects invalid event-shape', async () => {
+    it('rejects invalid event-shape with event_validation_failed code', async () => {
       const bad = { ...validEvent, outcome: 'fail' as const, fail_category: null }
-      await expect(reportToCluster(bad)).rejects.toThrow()
-    })
-
-    it('throws ReportToClusterError on missing http_endpoint when transport=http', async () => {
       try {
-        await reportToCluster(validEvent, { transport: 'http' })
+        await reportToCluster(bad as unknown as GraniteFloorEvent)
         expect.fail('should have thrown')
       } catch (err) {
         expect(err).toBeInstanceOf(ReportToClusterError)
-        expect((err as ReportToClusterError).code).toBe('http_endpoint_missing')
+        expect((err as ReportToClusterError).code).toBe('event_validation_failed')
+      }
+    })
+
+    it('throws endpoint_missing when not in dry-run + CHATBUS_ENDPOINT unset', async () => {
+      delete process.env['GRANITE_TEST_DRY_RUN']
+      try {
+        await reportToCluster([validEvent]) // array = immediate-flush
+        expect.fail('should have thrown')
+      } catch (err) {
+        expect(err).toBeInstanceOf(ReportToClusterError)
+        expect((err as ReportToClusterError).code).toBe('endpoint_missing')
+      }
+    })
+
+    it('throws endpoint_missing when transport=http without http_endpoint', async () => {
+      delete process.env['GRANITE_TEST_DRY_RUN']
+      try {
+        await reportToCluster([validEvent], { transport: 'http' })
+        expect.fail('should have thrown')
+      } catch (err) {
+        expect(err).toBeInstanceOf(ReportToClusterError)
+        expect((err as ReportToClusterError).code).toBe('endpoint_missing')
       }
     })
 
@@ -273,6 +310,104 @@ describe('@nexus-mindgarden/granite-test — skeleton', () => {
         expect(err).toBeInstanceOf(ReportToClusterError)
         expect((err as ReportToClusterError).code).toBe('event_too_large')
       }
+    })
+  })
+
+  describe('resolveReporterConfig (env-resolution)', () => {
+    beforeEach(() => {
+      delete process.env['CHATBUS_ENDPOINT']
+      delete process.env['CHATBUS_TOKEN']
+      delete process.env['GRANITE_TEST_DRY_RUN']
+      delete process.env['GRANITE_TEST_BATCH_MS']
+      delete process.env['GRANITE_TEST_BATCH_N']
+    })
+
+    it('reads CHATBUS_ENDPOINT from env', () => {
+      process.env['CHATBUS_ENDPOINT'] = 'http://127.0.0.1:7878/api/post_message'
+      const config = resolveReporterConfig()
+      expect(config.endpoint).toBe('http://127.0.0.1:7878/api/post_message')
+    })
+
+    it('reads GRANITE_TEST_DRY_RUN=1 as truthy', () => {
+      process.env['GRANITE_TEST_DRY_RUN'] = '1'
+      expect(resolveReporterConfig().dryRun).toBe(true)
+    })
+
+    it('treats any other GRANITE_TEST_DRY_RUN value as falsy', () => {
+      process.env['GRANITE_TEST_DRY_RUN'] = 'true' // strict-1-only by design
+      expect(resolveReporterConfig().dryRun).toBe(false)
+    })
+
+    it('options.batch_flush_count overrides env', () => {
+      process.env['GRANITE_TEST_BATCH_N'] = '100'
+      const config = resolveReporterConfig({ batch_flush_count: 25 })
+      expect(config.batchFlushCount).toBe(25)
+    })
+
+    it('defaults: chatbus transport, 2000ms flush, 50 events', () => {
+      const config = resolveReporterConfig()
+      expect(config.transport).toBe('chatbus')
+      expect(config.batchFlushMs).toBe(2000)
+      expect(config.batchFlushCount).toBe(50)
+    })
+  })
+
+  describe('v0.0.2 tool-call sub-discriminator (oracle msg #732 + wiz-mind suggestion)', () => {
+    it('ReplayBundleCIToolCallSchema accepts kind=tool-call with extra fields', () => {
+      const bundle = {
+        system_prompt_hash: 'sha256:abc',
+        user_prompt: 'Schedule a meeting at 2pm',
+        granite_response: '{"tool":"calendar.events.create","args":{...}}',
+        kind: 'tool-call' as const,
+        expected_tool_name: 'calendar.events.create',
+        actual_tool_name: 'calendar.events.create',
+        actual_tool_args: { time: '14:00' },
+        expected_schema_failures: [],
+        multiturn_step: 0,
+      }
+      expect(ReplayBundleCIToolCallSchema.parse(bundle).kind).toBe('tool-call')
+    })
+
+    it('ReplayBundleWildToolCallSchema accepts hashed prompt + tool-call extras', () => {
+      const bundle = {
+        system_prompt_hash: 'sha256:def',
+        user_prompt_hash: 'sha256:user123',
+        granite_response: '{}',
+        local_log_ref: 'diary:2026-05-24:42',
+        kind: 'tool-call' as const,
+        actual_tool_name: 'projects.cards.move',
+      }
+      expect(ReplayBundleWildToolCallSchema.parse(bundle).kind).toBe('tool-call')
+    })
+
+    it('event with tool-call CI bundle round-trips through GraniteFloorEventSchema', () => {
+      const event: GraniteFloorEvent = {
+        event_kind: 'granite-floor.event.v1',
+        run_id: '00000000-0000-4000-8000-000000000099',
+        case_id: 'tool-call-test',
+        repo: 'plug-tmpl',
+        tool: 'calendar.events.create',
+        persona: 'user',
+        mode: 'ci',
+        outcome: 'fail',
+        fail_category: 'hallucination',
+        fail_detail: 'tool not found',
+        model: 'granite-4-h-tiny-4bit',
+        latency_ms: 100,
+        timestamp: '2026-05-24T12:00:00.000Z',
+        replay_bundle: {
+          system_prompt_hash: 'sha256:x',
+          user_prompt: 'schedule something',
+          granite_response: '{}',
+          kind: 'tool-call',
+          expected_tool_name: 'calendar.events.create',
+          actual_tool_name: 'calendar.create_event', // hallucinated name
+          expected_schema_failures: ['expected calendar.events.create, got calendar.create_event'],
+        },
+      }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.replay_bundle).toBeDefined()
+      expect((parsed.replay_bundle as { kind?: string }).kind).toBe('tool-call')
     })
   })
 })
