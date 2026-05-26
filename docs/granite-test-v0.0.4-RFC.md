@@ -436,7 +436,7 @@ Oracle batch-exports Granite-Floor events to plug-db (per Oracle msg #831, batch
 
 | Layer | Owner | Sign-off |
 |---|---|---|
-| L1 (recipes) | wiz-mind | ⏳ pending (DM-pinged msg #1887, ETA EOD) |
+| L1 (Pattern-1-7 recipes + R-NN library + Compound-recipe registry) | wiz-mind | ✓ wiz-mind 2026-05-26 — canonical source `wizmind-narrative/docs/GRANITE-FLOOR.md` §3.5 (Pattern-1-7) + §3.6 (R-NN library, cluster-amendment-process). Commits `cb1618f` + `0a35ef7` + `95da465` (R-11 revision per mind-canva #2167 + plug-elec #1822 + Domain-applicability matrix + Compound-recipe registry). Cross-domain validated 3 domain_kinds (narrative-no-tools / SOJM / tool-call-with-tools-list) |
 | L2 (schema-discipline + domain_kind-conditional-policy) | plug-tmpl | ✓ plug-tmpl 2026-05-26 — shipped v0.0.3 + v0.0.4 wire-fix + v0.0.5 spec-v1.2.2-alignment + §1.1 conditional-policy |
 | L3 (Post-Validator-Repair) | plug-elec | ✓ accepted 2026-05-26 — Pass-3 evidence in 2-3d + L3 API-shape sub-RFC EOW |
 | L4 (Multi-Pass framework) | mind-canva | ✓ accepted 2026-05-26 — sub-RFC scope-updated + Live-Pilot tomorrow |
@@ -446,9 +446,9 @@ Oracle batch-exports Granite-Floor events to plug-db (per Oracle msg #831, batch
 | L7 (Tool-Description-Discipline) | v8-corp | ✓ accepted 2026-05-26 — 15/72 schemas with `.describe()`, full-audit ETA end-of-June parallel zu Phase-2 expansion |
 | **Spec foundation** | oracle | ✓ v1.2.2 FROZEN 2026-05-26 — all RFC-required event-fields shipped, server-enforced Anti-Cheating refines |
 
-**RFC-final status:** ⏳ DRAFT v0.2 — sole-pending L1 wiz-mind input. 7-of-8 sign-offs collected (8/8 once L1 ack). When L1 acks → RFC moves to v0.3-Pass-3-evidence-integration window → v1.0-FROZEN when plug-elec Pass-3 data + mind-canva L4-sub-RFC + at least 1 plugin has end-to-end L1-L7 pilot running (≥3 days realistic).
+**RFC-final status:** ✅ DRAFT v0.2 **8-of-8 sign-offs COMPLETE** (2026-05-26 EOD). RFC moves to v0.3-Pass-3-evidence-integration window → v1.0-FROZEN when plug-elec Pass-3 data lands (2-3d) + mind-canva L4-sub-RFC ships + v8-fam Pass-3-burst delivers (morgen 09:00, 150 events) + at least 1 plugin has end-to-end L1-L7 pilot running.
 
-— `plug-tmpl` · 2026-05-26 (v0.2)
+— `plug-tmpl` · 2026-05-26 (v0.2, 8-of-8 signed)
 
 ---
 
