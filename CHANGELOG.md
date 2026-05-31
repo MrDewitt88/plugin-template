@@ -2,6 +2,62 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [granite-test/0.0.6] — 2026-05-31
+
+**Per-package patch: `@nexus-mindgarden/granite-test@0.0.6`** — aligns to Oracle's `granite-floor.event.v1.3` FROZEN spec (chatbus contracts thread 2026-05-31 ~05:01). Adds `target_kind` (FIRST closed-enum additive field) + `target_host` for host-shared callMcp tools (`image.generate`, `image.remove_background`, `agent.complete` per agent's `feat/host-tool-routing` triple-landing 2026-05-31). Other Foundation packages unchanged (independent per-package release cadence).
+
+### Added
+
+- **`GraniteFloorEventSchema.target_kind?: 'plugin-tool' | 'host-tool'`** (optional, defaults to plugin-tool semantics when omitted). First CLOSED-enum additive field in v1.x — precedent for future amends (vs `domain_kind` / `fail_sub_category` which are open-on-receive strings).
+- **`GraniteFloorEventSchema.target_host?: string`** (optional, required when `target_kind === 'host-tool'`). Canonical values: `'theseus'`, `'v8'`, `'v8-fam'`, `'markview'` (extensible).
+- **Collapsed-refine: `target_host present ⇔ target_kind === 'host-tool'`** — bidirectional invariant. host-tool event MUST specify target_host; plugin-tool (or omitted) MUST NOT carry target_host. Mirrors oracle's chatbus-side `granite_floor.py` validator-block exactly.
+- **`GraniteToolTest.target_kind?` + `target_host?`** plugin-author-facing fields — `defineGraniteToolTest()` threads them through. Plugin-authors declare host-shared-tool coverage via:
+  ```ts
+  defineGraniteToolTest({
+    tool: 'image.generate',
+    target_kind: 'host-tool',
+    target_host: 'theseus',
+    persona: 'user',
+    cases: [...],
+  })
+  ```
+
+### Validation refines
+
+10 refines now (was 9 in v1.2.2):
+- v1.0 outcome ⇔ fail_category
+- v1.1 wild-mode replay-bundle PII-guard
+- v1.2 anti-cheating Test-2/4 (applied_repairs required for repair-success)
+- v1.2.1 plural-singular consistency
+- **v1.3 target_host ⇔ target_kind=host-tool** (NEW)
+
+### Backward compatibility
+
+- v1.1.x + v1.2.x emitters that omit `target_kind` + `target_host` continue to validate unchanged (aggregator treats omitted-target_kind as plugin-tool semantics, consistent with oracle's chatbus-side validator).
+- Existing tests: 61/61 grün before changes → 73/73 grün after (+12 v1.3 tests).
+- defineGraniteToolTest API unchanged for plugin-tool declarations (no migration needed for existing configs).
+
+### Tests
+
+- `test/skeleton.test.ts` — 12 new v1.3 tests:
+  - Back-compat (omit target_kind, explicit plugin-tool without target_host)
+  - Happy-path (target_kind=host-tool + target_host=theseus)
+  - Rejections (host-tool missing target_host, host-tool empty target_host, plugin-tool + target_host, target_host without target_kind, invalid enum value)
+  - Orthogonal coexistence (target_kind + domain_kind, target_kind + L3-repair fields)
+  - `defineGraniteToolTest` threading (host-tool + plugin-tool defaults)
+- Total: 73/73 grün (was 61 in v0.0.5 → +12 v0.0.6 additions)
+
+### Spec-Source
+
+- **Oracle chatbus msg ~05:01 2026-05-31** — granite-floor.event.v1.3 spec FROZEN, shipped end-to-end this session: `docs/granite-floor-spec.md` updated, `chatbus/granite_floor.py` SPEC_VERSION='v1.3' + TARGET_KINDS exported + 10 v1.3 tests, 96 floor / 257 total grün.
+- **plug-tmpl chatbus msg #4390** — proposal for additive v1.3 shape (target_kind + target_host + 2 refines).
+- **agent chatbus msg ~05:05 2026-05-31** — §2.7 (a)+(b) triple-landing makes host-shared-tools real, motivating v1.3 discriminator.
+- **mind-canva chatbus msg #4351** — §2.5 image-sidecar-wire FROZEN, RFC-§7 2-Achsen-Grading-Rubrik (binary structural-pass + human-review-quality) directly informs target_kind='host-tool' aggregation.
+
+### Aggregator-side follow-on
+
+Per oracle: read-side dedup-by-`(target_host, tool)` is a follow-on `/api/granite-floor/host-tools` rollup endpoint — non-blocking for spec freeze, ships once first host-tool events arrive in the wild. Current `tools_summary` continues grouping by `(repo, tool, persona, mode)` — host-tool events naturally appear there with `repo=<emitter>` (correct attribution-by-emitter view, complementary to the by-host view).
+
 ## [0.6.1] — 2026-05-22
 
 **Per-package patch: `@nexus-mindgarden/plugin-bridge-foundation@0.6.1`** — adds `actorClass` + `timeoutMs` additive options to `callMcp()` (full feature-parity with agent's mymind-side spec in msg #607/#619). Plus Provider-Guide §11 cross-link to Mind-Canva's `CROSS-PLUGIN-INTEGRATION.md` cookbook (consumer-perspective companion-doc). Other Foundation packages remain at `0.6.0` (lockstep relaxed for per-package patches).

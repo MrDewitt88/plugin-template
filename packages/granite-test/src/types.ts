@@ -260,6 +260,26 @@ export const GraniteFloorEventSchema = z.object({
 
   /** v1.2.2 (Oracle FROZEN): domain-kind classification for cross-domain analysis (narrative / structured-output / multilingual / etc). */
   domain_kind: z.string().optional(),
+
+  // --- Spec v1.3 additive (Oracle FROZEN 2026-05-31, chatbus thread="contracts") ---
+  //
+  // Host-shared tool routing per agent's `feat/host-tool-routing` triple-landing
+  // 2026-05-31 (§2.6 image.remove_background, §2.7 agent.complete (a)+(b)):
+  // tests against host-shared tools (image.generate, image.remove_background,
+  // agent.complete) need to discriminate ownership-class (plugin-tool vs
+  // host-tool) and emitter-vs-host attribution. Open precedent: target_kind
+  // is the FIRST CLOSED-enum additive field (vs domain_kind open-on-receive)
+  // — future amends to closed-enum fields follow this pattern.
+  //
+  // Orthogonal to domain_kind: domain_kind classifies test-task-shape
+  // (text-to-image-generation, structured-output-json-mode); target_kind
+  // classifies tool ownership (plugin vs host). Both coexist per event.
+
+  /** v1.3: Tool ownership-class (FIRST closed-enum additive field). Defaults to 'plugin-tool' when omitted (back-compat). */
+  target_kind: z.enum(['plugin-tool', 'host-tool']).optional(),
+
+  /** v1.3: For target_kind='host-tool' — which host serves the tool (theseus, v8, v8-fam, markview). Required when target_kind='host-tool'; rejected when target_kind!='host-tool'. */
+  target_host: z.string().min(1).optional(),
 })
   .refine(
     (e) => (e.outcome === 'fail' ? e.fail_category !== null : e.fail_category === null),
@@ -312,6 +332,28 @@ export const GraniteFloorEventSchema = z.object({
     {
       message:
         'fail_sub_categories[0] must equal fail_sub_category when both are set (spec v1.2.1 plural-singular consistency)',
+    },
+  )
+  .refine(
+    (e) => {
+      // v1.3 collapsed-refine per Oracle's chatbus-side `granite_floor.py`
+      // validator-block: `target_host present ⇔ target_kind === 'host-tool'`.
+      //
+      // Both directions matter:
+      //   - host-tool event MUST specify target_host (else aggregator rejects)
+      //   - plugin-tool event (or omitted target_kind) MUST NOT carry target_host
+      //
+      // Spec source: chatbus contracts thread 2026-05-31 ~05:01 oracle (10 new
+      // v1.3 tests in oracle's aggregator: omit/explicit-plugin/host-happy-path/
+      // missing-host/empty-host/non-string-host/plugin-tool+host-rejection/
+      // host-without-kind-rejection/invalid-enum/payload-round-trip).
+      const isHostTool = e.target_kind === 'host-tool'
+      const hasTargetHost = e.target_host !== undefined && e.target_host !== null
+      return isHostTool === hasTargetHost
+    },
+    {
+      message:
+        'target_host present ⇔ target_kind=host-tool (v1.3: host-tool requires target_host; plugin-tool/omitted rejects target_host)',
     },
   )
 export type GraniteFloorEvent = z.infer<typeof GraniteFloorEventSchema>
@@ -445,6 +487,41 @@ export interface GraniteToolTest {
    * `expected_tool_args` is per-case-specific-values.
    */
   parameters?: z.ZodTypeAny
+
+  /**
+   * v0.0.6+ — Tool ownership-class per Oracle spec v1.3 (FROZEN 2026-05-31).
+   *
+   * - `'plugin-tool'` (default if omitted) — tool lives in this plugin's
+   *   own capability-store (plugin-author owns + serves it). Events emit
+   *   without `target_host`.
+   * - `'host-tool'` — tool is host-shared (lives in `HOST_SHARED_TOOLS`
+   *   allowlist: `image.generate`, `image.remove_background`, `agent.complete`).
+   *   This plugin consumes the tool via `callMcp()` (un-prefixed name) or
+   *   direct HTTP (per-plugin handshake-token, agent-socket-direct transport).
+   *   Requires `target_host` to be set.
+   *
+   * Use for host-shared-tool granite-coverage in consuming plugins: e.g.
+   * `apex2d` testing `image.generate` against Granite for content-gen quality;
+   * `mind-canva` testing `agent.complete` for AI-assist quality.
+   *
+   * @since v0.0.6
+   * @see target_host
+   */
+  target_kind?: 'plugin-tool' | 'host-tool'
+
+  /**
+   * v0.0.6+ — When `target_kind === 'host-tool'`: which host serves the tool.
+   * Canonical values: `'theseus'`, `'v8'`, `'v8-fam'`, `'markview'` (extensible
+   * per future host-additions). Aggregator validates: present ⇔ host-tool.
+   *
+   * Plugin-author convention: when testing a host-tool from a plugin that
+   * runs inside Theseus' agent, set `target_host: 'theseus'`. When testing
+   * the same tool from a V8/v8-fam-hosted plugin, set the respective host.
+   *
+   * @since v0.0.6
+   * @see target_kind
+   */
+  target_host?: string
 }
 
 /**
