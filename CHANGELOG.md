@@ -2,6 +2,59 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] — 2026-05-31
+
+**Per-package minor: `@nexus-mindgarden/plugin-bridge-foundation@0.7.0`** — adds `transport` mode + `tokenResolver` to `createAgentComplete()` to support the cluster-canonical Path-B (standalone agent-socket-direct + per-plugin handshake-token) per agent's `feat/host-tool-routing` triple-landing on 2026-05-31 (§2.6 `image.remove_background`, §2.7 `agent.complete` (a) embedded + (b) standalone HTTP). Full back-compat with v0.6.x — existing call-sites continue producing identical wire-output. Other Foundation packages remain at `0.6.x` (lockstep relaxed for per-package minors).
+
+### Added
+
+- **`CreateAgentCompleteOptions.transport?: 'v8-bridge' | 'agent-socket-direct'`** (v0.7.0+) — backward-compatible additive parameter, defaults to `'v8-bridge'` preserving v0.6.x behaviour.
+  - **`'v8-bridge'`** (default): legacy V8/v8-fam reverse-call envelope — POSTs `{tool: 'agent.complete', arguments: req}` to `${bridgeEndpoint}/call-tool`. Used for Path-A (V8/TeamMind static-token integration via `/mcp/v1/call-tool`).
+  - **`'agent-socket-direct'`** (NEW v0.7.0): direct Theseus agent-socket call — POSTs raw `AgentCompleteRequest` body to `${bridgeEndpoint}` (no envelope, no URL-mutation beyond trailing-slash-strip). Used for Path-B (standalone bridge-plugin → `127.0.0.1:3400/agent/complete` with per-plugin handshake-token). Wire-spec per agent's chatbus contract msg 2026-05-31, FROZEN `@theseus/agent-complete-schema` v0.15.0 (response shape unchanged across both transports).
+- **`CreateAgentCompleteOptions.tokenResolver?: () => string | Promise<string>`** (v0.7.0+) — alternative to static `sessionToken`. Resolver is called **fresh per-request**, not cached at create-time — enables per-plugin handshake-tokens with TTL/refresh semantics (e.g. M17 accept-response tokens, register-tenants activation JWTs). Both sync (`() => string`) and async (`() => Promise<string>`) shapes supported.
+- **`AgentCompleteTransport` type-export** — string-literal-union `'v8-bridge' | 'agent-socket-direct'` for consumer-side type-annotations.
+
+### Auth-options invariant (v0.7.0+)
+
+`CreateAgentCompleteOptions` now requires **exactly one** of `sessionToken` (static) or `tokenResolver` (per-request) to be set. Both unset OR both set → throws `AgentCompleteError('invalid_request')` **at create-time** (loud-fail vs runtime-fail). Previous v0.6.x callers that passed `sessionToken: 'x'` continue to work unchanged.
+
+### Backward compatibility
+
+- The 2-option form `{ bridgeEndpoint, sessionToken }` continues to produce **identical wire-output** to v0.6.x — same URL, same envelope, same Bearer-header.
+- All 20 existing `agent-complete.test.ts` tests pass without modification (verified: 200/200 grün before changes, 215/215 grün after additions).
+- `transport: 'v8-bridge'` is the default; omitting it preserves v0.6.x behaviour byte-for-byte.
+
+### Tests
+
+- `test/agent-complete.test.ts` — 15 new tests covering:
+  - Auth-options invariant (neither/both set throws at create-time, Drift #103 `invalid_request` code)
+  - `tokenResolver` sync + async returns, fresh-per-request invocation (not cached), empty-string rejection, non-string rejection, sync-throw + promise-reject → `transport_failure`
+  - `transport='v8-bridge'` default-behavior preserved
+  - `transport='agent-socket-direct'` URL handling (no `/call-tool` append), raw body (no envelope), token-resolver-integration (canonical Path-B), trailing-slash-strip, header forwarding (X-Request-Id, x-caller-id)
+- Total: 215/215 grün (was 200 in v0.6.1 → +15 v0.7.0 additions)
+
+### Cross-Repo Provenance
+
+- **chatbus msg ~05:05 2026-05-31** — agent's §2.6 + §2.7 (a)+(b) triple-landing broadcast: image.remove_background LIVE, agent.complete embedded LIVE (callMcp), agent.complete standalone HTTP LIVE (per-plugin JWT + V8-static back-compat)
+- **chatbus msg #4385** — agent's initial (a)/(b)/(c) RFC for canonical-`agent.complete`-paths
+- **chatbus msg #4386 mind-canva** — Path-B canonical requirement (bridge-context, per-plugin token)
+- **chatbus msg #4387 apex2d** — Path-(c) requirement (both embedded callMcp + bridge HTTP)
+- **chatbus msg #4389 plug-tmpl** — Foundation-side commitment to `tokenResolver` API
+- **chatbus msg ~05:01 oracle** — granite-floor.event.v1.3 FROZEN (parallel spec-side land)
+- **chatbus msg #4393 plug-tmpl** — workplan-commitment Track-1 to Track-4
+
+### Wire-Spec — agreement with agent's host-side
+
+- Token = the **existing per-plugin JWT bridge-token** from register-tenants/activation-handshake (no new token-type). `tokenResolver` is the Foundation-side wrapper that hands the current value to each request.
+- `/agent/complete` host-side accepts **either** per-plugin Bearer **or** legacy V8/TeamMind static-token (additive, back-compat — V8 paths unchanged).
+- Wire-spec `@theseus/agent-complete-schema` v0.15.0 **unchanged** — only transport-layer dispatch evolves.
+
+### Documentation
+
+- **TODO**: `docs/PLUGIN-PROVIDER-GUIDE.md` §11 update (`(a) embedded` vs `(b) standalone` decision-tree, three-auth-mode-table). Tracked as Task #22, blocked on this v0.7.0 publish.
+- **TODO**: `docs/MIGRATION-COOKBOOK.md` §3.4 update (replace static `process.env.AGENT_SOCKET_TOKEN` with per-plugin `tokenResolver` example). Tracked as Task #22, blocked on this v0.7.0 publish.
+- **TODO**: `docs/CROSS-PLUGIN-MCP-CALL-COOKBOOK.md` §6 NEW "Host-Shared Tools" section (3 tools: `image.generate`, `image.remove_background`, `agent.complete`). Tracked as Task #17, lands together with v0.7.0.
+
 ## [0.6.1] — 2026-05-22
 
 **Per-package patch: `@nexus-mindgarden/plugin-bridge-foundation@0.6.1`** — adds `actorClass` + `timeoutMs` additive options to `callMcp()` (full feature-parity with agent's mymind-side spec in msg #607/#619). Plus Provider-Guide §11 cross-link to Mind-Canva's `CROSS-PLUGIN-INTEGRATION.md` cookbook (consumer-perspective companion-doc). Other Foundation packages remain at `0.6.0` (lockstep relaxed for per-package patches).
