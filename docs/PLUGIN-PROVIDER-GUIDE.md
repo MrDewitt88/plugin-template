@@ -816,6 +816,57 @@ Granite-Floor-Philosophy (siehe Mind-Canva / Wiz-Mind `docs/GRANITE-FLOOR.md`) b
 - **defense-in-depth-zod:** auch wenn Provider strict-output enforced, Caller validated Output mit zod nochmal (Cloud-Fallback hat oft schwächere grammar-constraints)
 - **Pilot-Test-Suite:** Caller's `test/granite-pilot/*.test.ts` muss weiter ≥80% pass-rate haben — `agent.complete` ändert nichts an dem Architectural-Commitment
 
+#### 11.4.1 `response_format`: backend-portability (cluster-evidence)
+
+> **TL;DR:** Foundation + Theseus-Host akzeptieren alle 3 `response_format`-Typen (`text` / `json_object` / `json_schema`). **Aber: lokale Modell-Backends (LM Studio / Granite / Ollama / vLLM) lehnen `json_object` häufig ab.** Wenn dein Plugin gegen lokales Granite läuft → **bevorzuge `json_schema` mit offenem object-schema** (`strict: false`-äquivalent) statt `json_object`.
+
+**Source-of-truth-table** (per agent #4442 host-truth-ruling + oracle #4438 endorsement):
+
+| Layer | `text` | `json_object` | `json_schema` |
+|---|---|---|---|
+| Foundation `@nexus-mindgarden/plugin-bridge-foundation/agent-complete` | ✅ | ✅ | ✅ |
+| Theseus-Host (`@theseus/agent-complete-schema` + provider `toOpenAIResponseFormat`) | ✅ accepts + forwards | ✅ accepts + forwards | ✅ accepts + forwards |
+| Downstream backends (LM Studio, Granite 4-h-tiny, Ollama, vLLM) | ✅ ubiquitous | ⚠ **often rejected** | ✅ widely supported |
+| OpenAI / Anthropic Cloud | ✅ | ✅ | ✅ (strict + non-strict) |
+
+**Konkretes evidence:** apex2d #4416 + mind-canva — beide sahen `chatJSON`-calls brechen mit `responseFormat: { type: 'json_object' }`. Backend (LM Studio in local-Granite-flow) returned schema-error, NICHT host-side rejection. Foundation+Host hatten den request korrekt weitergereicht.
+
+**Empfehlung für portabilität** (lokale Granite-Setups dominieren cluster-deployment):
+
+```ts
+// ❌ Avoid (works in cloud, often breaks local Granite):
+const result = await agentComplete({
+  messages: [...],
+  responseFormat: { type: 'json_object' },
+})
+
+// ✅ Prefer (works in cloud AND local Granite, full schema-discipline):
+const result = await agentComplete({
+  messages: [...],
+  responseFormat: {
+    type: 'json_schema',
+    schema: zodToJsonSchema(MySchema),
+  },
+})
+
+// ✅ Acceptable equivalent of json_object (when you want flexible JSON without strict shape):
+const result = await agentComplete({
+  messages: [...],
+  responseFormat: {
+    type: 'json_schema',
+    schema: { type: 'object' },  // open-ended object — like json_object but backend-portable
+  },
+})
+```
+
+**Warum Foundation `json_object` weiter exposed** statt es zu entfernen: Foundation ist **byte-aligned mit Host** (`@theseus/agent-complete-schema` v0.15.0 FROZEN). Beide layers erlauben alle 3 typen. Das **runtime-capability-gap** zwischen Host und downstream-Backend ist eine separate concern, die durch docs + caller-discipline addressiert wird (kein schema-tightening, weil schema = wire-contract, nicht runtime-policy).
+
+**Wenn du gegen Cloud-only (OpenAI/Anthropic) baust:** `json_object` ist fine. Wenn dein plugin gegen lokales Granite läuft (= cluster-default): `json_schema` ist der portable-default.
+
+Cross-ref:
+- chatbus msg #4416 apex2d (original finding) + #4442 agent host-truth + #4438 oracle ruling §4
+- `@theseus/agent-complete-schema` (index.ts:39-43) — canonical wire-shape
+
 ### 11.5 Cache-Retention Pattern
 
 Caller-side decision per call:
