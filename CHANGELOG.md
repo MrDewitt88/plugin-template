@@ -2,6 +2,92 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] — 2026-05-31
+
+**Per-package patch: `@nexus-mindgarden/plugin-bridge-foundation@0.7.1`** — adds `createHandshakeTokenStore()` + `createReverseCallClient()` to the `/auth` subpath, closing the loop on agent's host-UX-contract (chatbus #~05:47, 2026-05-31): "Aktivieren = fertig. Kein Plugin baut je ein Token-Eingabefeld." Plugin-authors now wire outbound clients (`createAgentComplete` agent-socket-direct, image-tool reverse-calls) **without manual env-var-wiring** — Foundation auto-captures the per-plugin activation JWT at handshake-middleware time and resolves it for outbound requests. Other Foundation packages unchanged.
+
+### Added — `/auth` subpath
+
+- **`createHandshakeTokenStore(opts?)`** — captures the inbound `Authorization: Bearer …` at the `/plugin-bridge/v1/handshake` middleware and exposes:
+  - `current(): Promise<string>` — fresh per-call (transparent token-rotation). Throws `Error('no_handshake_yet')` before first capture.
+  - `lastUpdated(): Date | null` — diagnostics + staleness-detection.
+  - Test-fixtures: `opts.initialToken` + `opts.initialTime` (seeds the store for vitest).
+- **`createReverseCallClient({ hostEndpoint, tokenStore, sourcePlugin?, requestId?, fetch?, enforcePrefixGuard? })`** — typed wrapper for `POST /host-bridge/v1/execute-tool` reverse-calls. Kapselt the two wire-fußangeln that bit early adopters:
+  - **Body-key discipline:** sends `{ tool, args }` — NOT `{ tool, arguments }` (the OpenAI-shaped name agent flagged in #4399).
+  - **Metadata-vs-value extraction:** `executeImageTool()` typed wrapper reads `metadata.image_base64` (the actual PNG bytes), NOT `value` (which is a base64-FREE human-readable description).
+  - Client-side prefix-guard: fails fast with `forbidden_prefix` if `toolName` doesn't match `REVERSE_CALL_TOOL_PREFIXES`. Bypass with `enforcePrefixGuard: false`.
+- **`REVERSE_CALL_TOOL_PREFIXES`** const — canonical allowlist per agent #~05:47 (Q3):
+  ```ts
+  ['projects.', 'contacts.', 'calendar.', 'notes.', 'attachments.', 'image.']
+  ```
+  (`agent.complete` is NOT here — it routes via dedicated `/agent/complete` endpoint, see `createAgentComplete` with `transport: 'agent-socket-direct'`.)
+- **`ReverseCallError`** typed class with `.code` discriminator. Foundation-emitted codes: `no_handshake_yet`, `transport_failure`, `invalid_response`, `http_error`, `forbidden_prefix`. Host-emitted codes per agent #~05:47 (Q1): `permission_denied`, `not_found`, `validation_failed`, `execution_error`, `timeout` — surfaced verbatim, no `retryable`/`retryHint` field (host shape is just `{code, message}`).
+- **Type exports:** `HandshakeTokenStore`, `HandshakeTokenStoreImpl`, `CreateHandshakeTokenStoreOptions`, `ReverseCallClient`, `CreateReverseCallClientOptions`, `ExecuteToolResponse`, `ExecuteToolErrorBody`, `ImageToolResult`, `ReverseCallToolPrefix`.
+
+### Added — `BridgeAppOptions.handshakeTokenStore?` (server.ts)
+
+New opt-in field on `createBridgeApp()` config. When provided, Foundation hooks a capture middleware **before** the existing `authMiddleware` on `/plugin-bridge/v1/handshake` — extracts the Bearer and writes to the store. Capture runs even when JWT-validation later fails (diagnostics value via `lastUpdated()`). Omitting the field preserves v0.7.0 behaviour byte-for-byte (zero impact, opt-in only).
+
+```ts
+import { createBridgeApp } from '@nexus-mindgarden/plugin-bridge-foundation'
+import {
+  createHandshakeTokenStore,
+  createReverseCallClient,
+} from '@nexus-mindgarden/plugin-bridge-foundation/auth'
+import { createAgentComplete } from '@nexus-mindgarden/plugin-bridge-foundation/agent-complete'
+
+const tokenStore = createHandshakeTokenStore()
+
+const app = createBridgeApp({
+  manifest, registry, toolHandlers,
+  handshakeTokenStore: tokenStore,    // NEW v0.7.1 — capture Bearer at /handshake
+})
+
+// Then wire outbound clients against the SAME store:
+const agentComplete = createAgentComplete({
+  bridgeEndpoint: 'http://127.0.0.1:3400/agent/complete',
+  transport: 'agent-socket-direct',
+  tokenResolver: () => tokenStore.current(),  // no env-var, no static token
+})
+
+const reverseCall = createReverseCallClient({
+  hostEndpoint: 'http://127.0.0.1:3400',
+  tokenStore,
+})
+
+// Image-tools — typed wrapper handles metadata.image_base64 extraction:
+const img = await reverseCall.executeImageTool('image.remove_background', {
+  image_base64: srcB64, mime: 'image/png',
+})
+// img.image_base64 = PNG bytes, img.mime, img.width, img.height, etc.
+```
+
+### Backward compatibility
+
+- All v0.7.0 call-sites continue working unchanged. New fields/exports are purely additive.
+- `BridgeAppOptions.handshakeTokenStore` is optional — omitting it preserves v0.7.0 behaviour byte-for-byte.
+- `createAgentComplete()` API surface is identical (static `sessionToken` continues to work; `tokenResolver` from v0.7.0 is unchanged).
+- All 215 v0.7.0 tests pass without modification (verified: 215/215 grün before changes, 258/258 grün after additions).
+
+### Tests
+
+- `test/handshake-token-store.test.ts` — 17 new tests covering standalone behaviour (initial-state, capture, rotation, non-string-guard, empty-guard, test-fixture-seeding) + 9 integration tests against `createBridgeApp` wiring (handshake-capture, lowercase-header, non-Bearer-rejection, multi-handshake-update, non-handshake-endpoints-ignored, missing-Authorization, capture-before-auth-validation, back-compat-omit).
+- `test/reverse-call-client.test.ts` — 26 new tests covering const-shape (6 prefixes, no agent.), basic wire (URL, args-key, Bearer, X-Source-Plugin, X-Request-Id), prefix-guard (forbidden_prefix throw, all 6 prefixes accept, enforcePrefixGuard:false bypass), token-store integration (no_handshake_yet, rotation transparency), envelope handling (ok:true passthrough, ok:false envelope-pass-through-no-throw, transport_failure, invalid_response on non-JSON, invalid_response on missing ok), executeImageTool typed wrapper (metadata.image_base64 extraction not value, seed+backend threading, missing-metadata.image_base64 throws invalid_response, host ok:false surfaces with original code, default mime=image/png), ReverseCallError class shape.
+- Total: 258/258 grün (was 215 in v0.7.0 → +43 v0.7.1 additions).
+
+### Cross-Repo Provenance
+
+- **chatbus msg #~05:19 2026-05-31 agent** — confirmed token = per-plugin activation JWT from register-tenants (no new mint), Foundation cache via tokenResolver formalizes
+- **chatbus msg #~05:47 2026-05-31 agent** — host-UX-contract: "Aktivieren = fertig. Kein Plugin baut je ein Token-Eingabefeld." Plus answers to plug-tmpl Q1-Q3 (error-shape `{code, message}` no retryable, X-Source-Plugin advisory-only, REVERSE_CALL_TOOL_PREFIXES exact 6 prefixes)
+- **chatbus msg #4399 agent** — wire correction: image-tools (b) route via reverse-call NOT /agent/complete; body.args NOT body.arguments; read metadata.image_base64 NOT value
+- **chatbus msg #~07:05 2026-05-31 mind-canva** — keystone-prio request: v0.7.1 = "MCs sovereign env-free Assistant + bg-removal block" → first consumer, will E2E-test against live myMind post-publish
+- **chatbus msg #4401 plug-tmpl** — design proposal for createHandshakeTokenStore + createReverseCallClient, asked Q1-Q3 (answered in #~05:47 above)
+
+### Documentation
+
+- `docs/CROSS-PLUGIN-MCP-CALL-COOKBOOK.md` §8.5.2 updated: capture-at-handshake interim pattern marked as **v0.6.x interim**; v0.7.1 helper-snippet promoted to canonical (Cookbook §8 update).
+- `docs/PLUGIN-PROVIDER-GUIDE.md` §11.2b.1 updated: image-tool reverse-call now uses `createReverseCallClient.executeImageTool()` instead of manual fetch.
+
 ## [0.7.0] — 2026-05-31
 
 **Per-package minor: `@nexus-mindgarden/plugin-bridge-foundation@0.7.0`** — adds `transport` mode + `tokenResolver` to `createAgentComplete()` to support the cluster-canonical Path-B (standalone agent-socket-direct + per-plugin handshake-token) per agent's `feat/host-tool-routing` triple-landing on 2026-05-31 (§2.6 `image.remove_background`, §2.7 `agent.complete` (a) embedded + (b) standalone HTTP). Full back-compat with v0.6.x — existing call-sites continue producing identical wire-output. Other Foundation packages remain at `0.6.x` (lockstep relaxed for per-package minors).

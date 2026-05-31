@@ -726,9 +726,35 @@ const pngB64 = result.metadata.image_base64
 
 → Image-tools im (b)-Pfad sind **handshake-only** — kein interim-static-token workaround möglich. Wenn du heute schon agent.complete(b) mit static-token willst, geht das; image-tools brauchen handshake-JWT-exposure (v0.7.1 + §8.5.2 interim).
 
-**Coming v0.7.1:** `createReverseCallClient({ hostEndpoint, tokenStore })` typed wrapper der die `args`-vs-`arguments`- und `metadata`-vs-`value`-Discipline einkapselt. Bis dahin: manuelles fetch wie oben.
+**Foundation v0.7.1+ canonical (recommended over manual fetch):**
 
-Cross-ref Cookbook §8.4 für vollständige reverse-call-wire-details inkl. workspace-anchor-allowlist (`projects.*` / `contacts.*` / `calendar.*` / `notes.*` / `attachments.*` + `image.*`).
+```ts
+import {
+  createHandshakeTokenStore,
+  createReverseCallClient,
+} from '@nexus-mindgarden/plugin-bridge-foundation/auth'
+
+const tokenStore = createHandshakeTokenStore()
+const app = createBridgeApp({
+  ...,
+  handshakeTokenStore: tokenStore,    // v0.7.1+ auto-captures Bearer at /handshake
+})
+
+const reverseCall = createReverseCallClient({
+  hostEndpoint: 'http://127.0.0.1:3400',
+  tokenStore,
+})
+
+// Typed wrapper für image-tools — extrahiert metadata.image_base64 automatisch:
+const img = await reverseCall.executeImageTool('image.remove_background', {
+  image_base64: srcPng,
+  mime: 'image/png',
+})
+// img.image_base64 = PNG bytes, img.mime, img.width, img.height — flat shape
+// Plus client-side prefix-guard (forbidden_prefix throw vor network call)
+```
+
+Cross-ref Cookbook §8.4 + §8.5.2 für vollständige reverse-call-wire-details inkl. workspace-anchor-allowlist (`projects.*` / `contacts.*` / `calendar.*` / `notes.*` / `attachments.*` + `image.*`).
 
 #### 11.2c — Legacy V8-bridge (v0.3.0–v0.6.x, weiterhin supported)
 
