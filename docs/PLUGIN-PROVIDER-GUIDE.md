@@ -680,9 +680,55 @@ if (result.error) {
 const headlines = HeadlineSchema.parse(JSON.parse(result.text))
 ```
 
-**Token-Source:** der `tokenResolver` gibt das per-plugin-activation-JWT zurück, das deine Bridge bereits aus `register-tenants` hält (gleicher Token den du für `/host-bridge/v1/execute-tool` reverse-calls nutzt). **Kein neuer Token, kein `MC_AGENT_TOKEN` env-var nötig.** Foundation cached aus der registration → resolver returns current value, transparent für refresh/rotation.
+**Token-Source:** der `tokenResolver` gibt das per-plugin-activation-JWT zurück, das deine Bridge bei jedem `/plugin-bridge/v1/handshake` als `Authorization: Bearer …` empfängt (gleicher Token den du für `/host-bridge/v1/execute-tool` reverse-calls nutzt). **Kein neuer Token, kein `MC_AGENT_TOKEN` env-var nötig** sobald v0.7.1's `createHandshakeTokenStore()` da ist. Interim siehe Cookbook §8.5.2 für die capture-at-handshake-Middleware-Pattern.
 
 **Warum direct-to-host statt V8?** myMind ist kanonischer Host (2026-05-31). Der alte V8 → `/mcp/v1/call-tool` → :3400 hop funktioniert **weiter** (additive back-compat), ist aber **nicht mehr nötig**: ein hop weniger, keine V8-tenant-Bindung, per-plugin token statt shared-static.
+
+#### 11.2b.1 — Image-Tools: andere Wire als agent.complete
+
+`image.generate` und `image.remove_background` (b)-Pfad nutzen **NICHT** `/agent/complete`-style direct-endpoints, sondern den **Reverse-Call** `POST :3400/host-bridge/v1/execute-tool`:
+
+```ts
+// Today (pre-v0.7.1, manual fetch):
+async function callImageTool(toolName: string, args: unknown) {
+  const token = await handshakeTokenStore.current()    // siehe §11.11
+  const res = await fetch('http://127.0.0.1:3400/host-bridge/v1/execute-tool', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      tool: toolName,
+      args,                          // ⚠ KEY IS "args" — NICHT "arguments"!
+    }),
+  })
+  const body = await res.json()
+  if (!body.ok) throw new Error(`${body.error.code}: ${body.error.message}`)
+  return body
+}
+
+const result = await callImageTool('image.remove_background', {
+  image_base64: srcPng,
+  mime: 'image/png',
+})
+// ⚠ Lese result.metadata.image_base64 — NICHT result.value
+// (result.value ist base64-FREIE display-text; die PNG-bytes leben in metadata)
+const pngB64 = result.metadata.image_base64
+```
+
+**Token-Asymmetrie (kritisch):**
+
+| Endpoint | Static `MC_AGENT_TOKEN` | Per-plugin handshake-JWT |
+|---|---|---|
+| `/agent/complete` | ✅ (additive back-compat) | ✅ |
+| `/host-bridge/v1/execute-tool` (image.*) | ❌ NICHT supported | ✅ ONLY |
+
+→ Image-tools im (b)-Pfad sind **handshake-only** — kein interim-static-token workaround möglich. Wenn du heute schon agent.complete(b) mit static-token willst, geht das; image-tools brauchen handshake-JWT-exposure (v0.7.1 + §8.5.2 interim).
+
+**Coming v0.7.1:** `createReverseCallClient({ hostEndpoint, tokenStore })` typed wrapper der die `args`-vs-`arguments`- und `metadata`-vs-`value`-Discipline einkapselt. Bis dahin: manuelles fetch wie oben.
+
+Cross-ref Cookbook §8.4 für vollständige reverse-call-wire-details inkl. workspace-anchor-allowlist (`projects.*` / `contacts.*` / `calendar.*` / `notes.*` / `attachments.*` + `image.*`).
 
 #### 11.2c — Legacy V8-bridge (v0.3.0–v0.6.x, weiterhin supported)
 

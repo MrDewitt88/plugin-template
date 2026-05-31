@@ -987,7 +987,16 @@ img.src = `data:${png.mime};base64,${png.image_base64}`
 
 ### §8.4 Path (b) — standalone HTTP (Node/Bridge-process)
 
-For plugins whose AI-calls live **server-side** (mind-canva's `:3670` external-service, apex2d's `:3690` reverse-call handlers, any bridge process serving the renderer through a Node hop):
+For plugins whose tool-calls live **server-side** (mind-canva's `:3670` external-service, apex2d's `:3690` reverse-call handlers, any bridge process serving the renderer through a Node hop), Path-B splits into **two distinct endpoints** depending on which host-shared tool you're calling:
+
+| Tool | (b) endpoint | Body envelope | Response shape |
+|---|---|---|---|
+| `agent.complete` | `POST :3400/agent/complete` | **bare** `AgentCompleteRequest` (no wrapper) | `AgentCompleteResponse` (`.text` direct) |
+| `image.generate` / `image.remove_background` | `POST :3400/host-bridge/v1/execute-tool` (reverse-call) | `{ "tool": "<name>", "args": {...} }` — key **`args`**, NOT `arguments` | `ExecuteToolResponse { ok, value, metadata, error? }` — read **`metadata.image_base64`**, NOT `value` |
+
+Both use the same per-plugin handshake-token as the Bearer. **Same impl funnel host-side** (`host-tool-executor.invoke()`), different transport-wires.
+
+#### §8.4.1 — `agent.complete` (b) via `/agent/complete` direct
 
 ```ts
 import { createAgentComplete } from '@nexus-mindgarden/plugin-bridge-foundation/agent-complete'
@@ -1010,6 +1019,60 @@ const result = await agentComplete({
 console.log(result.text)
 ```
 
+#### §8.4.2 — `image.*` (b) via reverse-call `/host-bridge/v1/execute-tool`
+
+Image-tools route through the **reverse-call endpoint** (the same endpoint plugins already use for cross-plugin workspace-anchor calls like `projects.*` / `contacts.*` / `calendar.*` / `notes.*` / `attachments.*`). As of agent commit `3afd16a` (2026-05-31), `image.*` is in the `REVERSE_CALL_TOOL_PREFIXES` allowlist.
+
+```ts
+// Today (pre-v0.7.1 — manual fetch, exact wire-shape):
+async function callReverseTool(toolName: string, args: unknown): Promise<unknown> {
+  const token = await bridgeTokenStore.current()    // per-plugin handshake-JWT
+  const res = await fetch('http://127.0.0.1:3400/host-bridge/v1/execute-tool', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      // 'X-Source-Plugin': 'mind-canva',   // optional advisory; validated token wins
+    },
+    body: JSON.stringify({
+      tool: toolName,
+      args,                                // ← KEY IS "args" — NOT "arguments"
+    }),
+  })
+  const body = await res.json() as ExecuteToolResponse
+  if (!body.ok) {
+    throw new Error(`reverse-call ${toolName} failed: ${body.error.code} — ${body.error.message}`)
+  }
+  return body
+}
+
+const result = await callReverseTool('image.remove_background', {
+  image_base64: srcB64,
+  mime: 'image/png',
+  model: 'small',
+})
+// CRITICAL: result.metadata.image_base64 — NOT result.value
+// (result.value is a base64-FREE human-readable description like "Removed the
+// background → 512×512 PNG"; the actual PNG bytes are in metadata.)
+const pngB64 = (result as { metadata: { image_base64: string } }).metadata.image_base64
+```
+
+**Coming v0.7.1** (planned, additive to v0.7.0):
+```ts
+import { createReverseCallClient } from '@nexus-mindgarden/plugin-bridge-foundation/auth'
+
+const reverseCall = createReverseCallClient({
+  hostEndpoint: 'http://127.0.0.1:3400',
+  tokenStore: handshakeTokenStore,        // see §8.5
+})
+
+const { metadata } = await reverseCall.executeTool('image.remove_background', {
+  image_base64: srcB64, mime: 'image/png',
+})
+// metadata is typed against the canonical wire-shape per tool —
+// no more "is it .value or .metadata?" guessing
+```
+
 **Why direct-to-host instead of V8?** myMind is the canonical host as of 2026-05-31. The old V8 → `/mcp/v1/call-tool` → Theseus :3400 hop **still works** (additive back-compat, V8 paths unchanged), but is no longer **necessary** for plugins running outside V8's tenant. Direct-to-host is **preferred** in v0.7.0+ for:
 - One less network hop
 - No V8-tenant binding (works in standalone-bridge contexts)
@@ -1017,9 +1080,60 @@ console.log(result.text)
 
 ### §8.5 Token-source: where the handshake-token comes from
 
-For **path (b)**, the token your `tokenResolver` returns is the **per-plugin activation JWT** issued by myMind during `register-tenants`. It is **the same token** your bridge already holds for reverse-call authentication on `/host-bridge/v1/execute-tool`. Foundation caches it from the registration — `tokenResolver` simply returns the current value. There is **no new token** to mint and **no separate env-var** (e.g. `MC_AGENT_TOKEN`) to wire up.
+For **path (b)**, the token your `tokenResolver` returns is the **per-plugin activation JWT** issued by myMind during the `/plugin-bridge/v1/handshake` handshake. It is **the same JWT** that arrives in the `Authorization: Bearer …` header of every incoming handshake call. The host (Theseus) looks it up against active plugin-activations stored in `PluginStore` (`activations.db`), resolving it to `(pluginId, expiry)`. Token rotation is handled transparently by `tokenResolver` being called fresh per-request — when the underlying token-store updates, the next request sees the new value without re-wiring `createAgentComplete()`.
 
-The host (Theseus' `agent-socket-server.handleComplete` → `executeToolHandler.validateBearer`) looks up the bearer against active plugin-activations stored in Theseus' `PluginStore` (`activations.db`), resolving it to `(pluginId, expiry)`. Token rotation is handled transparently by `tokenResolver` being called fresh per-request — when the underlying token-store updates, the next request sees the new value without re-wiring `createAgentComplete()`.
+#### §8.5.1 — Token acceptance per endpoint (asymmetry)
+
+| Endpoint | Static V8/TeamMind token (`MC_AGENT_TOKEN`) | Per-plugin handshake-JWT |
+|---|---|---|
+| `/agent/complete` (b)-pfad | ✅ accepted (additive back-compat, V8 paths unchanged) | ✅ accepted |
+| `/host-bridge/v1/execute-tool` (image.* reverse-call) | ❌ **NOT** accepted | ✅ **ONLY** option |
+
+→ Interim wire-up (before §8.5.2 helper lands): `agent.complete` (b) **can** use a static `MC_AGENT_TOKEN`-style env-var, but image-tool reverse-calls **must** use the handshake-JWT. There's no shortcut for image.*; you need handshake-JWT exposure first.
+
+#### §8.5.2 — How to expose the handshake-JWT in v0.6.x bridges (interim, pre-v0.7.1)
+
+Today's Foundation (v0.6.1) accepts inbound handshakes via `/plugin-bridge/v1/handshake` but **does not cache** the inbound Bearer for outbound use. Until v0.7.1's `createHandshakeTokenStore()` helper lands, plugin-authors can capture it themselves at handshake-time:
+
+```ts
+// At app-creation:
+let lastHandshakeJWT: string | null = null
+
+const app = createBridgeApp({ manifest, registry, toolHandlers, ... })
+
+// Add a middleware BEFORE /plugin-bridge/v1/handshake to capture the Bearer:
+app.use('/plugin-bridge/v1/handshake', async (c, next) => {
+  const auth = c.req.header('Authorization') ?? c.req.header('authorization')
+  if (auth?.startsWith('Bearer ')) {
+    lastHandshakeJWT = auth.slice(7)
+  }
+  await next()  // Foundation's handshakeHandler runs after
+})
+
+// Then wire it into your AgentComplete / reverse-call clients:
+const agentComplete = createAgentComplete({
+  bridgeEndpoint: 'http://127.0.0.1:3400/agent/complete',
+  transport: 'agent-socket-direct',
+  tokenResolver: async () => {
+    if (!lastHandshakeJWT) throw new Error('no_handshake_yet — wait for /handshake')
+    return lastHandshakeJWT
+  },
+})
+```
+
+**v0.7.1 will replace this with a clean helper:**
+```ts
+import { createHandshakeTokenStore } from '@nexus-mindgarden/plugin-bridge-foundation/auth'
+
+const tokenStore = createHandshakeTokenStore()
+const app = createBridgeApp({
+  manifest, registry, toolHandlers,
+  handshakeTokenStore: tokenStore,    // NEW v0.7.1 opt-in: captures Bearer at /handshake
+})
+// Then: createAgentComplete({ tokenResolver: () => tokenStore.current(), ... })
+```
+
+The store will throw `'no_handshake_yet'` on `current()` calls before the first handshake — making the not-yet-activated state explicit instead of silently returning empty-string.
 
 ### §8.6 `actorClass` policy (v1)
 
