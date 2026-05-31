@@ -16,6 +16,7 @@ import type { GraniteToolTest } from './types.js'
  * import { defineGraniteToolTest } from '@nexus-mindgarden/granite-test'
  *
  * export default [
+ *   // Plugin-tool (this plugin owns it):
  *   defineGraniteToolTest({
  *     tool: 'plug-elec.kabel.dimensionierung',
  *     persona: 'user',
@@ -28,12 +29,29 @@ import type { GraniteToolTest } from './types.js'
  *       },
  *     ],
  *   }),
+ *
+ *   // Host-tool (v1.3+, host-shared, this plugin only consumes):
+ *   defineGraniteToolTest({
+ *     tool: 'image.generate',           // un-prefixed host-shared name
+ *     persona: 'user',
+ *     target_kind: 'host-tool',          // v0.0.6+ (spec v1.3)
+ *     target_host: 'theseus',            // canonical theseus | v8 | v8-fam | markview
+ *     cases: [
+ *       {
+ *         case_id: 'image.generate.pixel-tile-256',
+ *         prompt: 'pixel-art forest tile, 16-bit, 256x256',
+ *         expected_tool_args: { prompt: /pixel-art forest tile/i, width: 256, height: 256 },
+ *         max_latency_ms: 30000,
+ *       },
+ *     ],
+ *   }),
  * ]
  * ```
  *
  * The runner (`@nexus-mindgarden/granite-pilot-runner`, peerDep) consumes
  * this config, executes each case against Granite-4-tiny-4bit, and emits
- * `granite-floor.event.v1` events via `reportToCluster()`.
+ * `granite-floor.event.v1` events via `reportToCluster()` with the per-tool
+ * `target_kind` + `target_host` (v1.3+) threaded into each event.
  */
 export function defineGraniteToolTest(test: GraniteToolTest): GraniteToolTest {
   // v1.0: pure pass-through. Future versions may:

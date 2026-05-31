@@ -34,6 +34,7 @@ This package wraps `@nexus-mindgarden/granite-pilot-runner` (runner-mechanics ow
 import { defineGraniteToolTest } from '@nexus-mindgarden/granite-test'
 
 export default [
+  // Plugin-tool (this plugin owns + serves it):
   defineGraniteToolTest({
     tool: 'plug-elec.kabel.dimensionierung',
     persona: 'user',
@@ -46,6 +47,23 @@ export default [
       },
     ],
   }),
+
+  // Host-tool (v0.0.6+, spec v1.3) — this plugin only consumes:
+  defineGraniteToolTest({
+    tool: 'image.generate',              // un-prefixed host-shared name
+    persona: 'user',
+    target_kind: 'host-tool',             // NEW v0.0.6 (spec v1.3)
+    target_host: 'theseus',               // canonical theseus | v8 | v8-fam | markview
+    cases: [
+      {
+        case_id: 'image.generate.pixel-tile-256',
+        prompt: 'pixel-art forest tile 256x256',
+        expected_tool_args: { width: 256, height: 256 },
+        max_latency_ms: 30000,
+      },
+    ],
+  }),
+
   defineGraniteToolTest({
     tool: 'plug-elec.project.delete',
     persona: 'admin',
@@ -55,6 +73,18 @@ export default [
   }),
 ]
 ```
+
+### Host-shared tools (v0.0.6+, spec v1.3 FROZEN 2026-05-31)
+
+Three host-shared callMcp tools land via agent's `feat/host-tool-routing` triple-landing 2026-05-31:
+
+| Tool | Hosts | actorClass v1 | Wire-spec source |
+|---|---|---|---|
+| `image.generate` | theseus :3401 (Bonsai sidecar §2.5) | `'user'` only | `@theseus/tools-image-schema` |
+| `image.remove_background` | theseus (ISNet via `@imgly/background-removal-node` §2.6) | `'user'` only | `@theseus/tools-image-schema` (same package, 2 tools) |
+| `agent.complete` | theseus :3400 (agent-socket §2.7 (a)+(b)) | `'user'` + `'system'` | `@theseus/agent-complete-schema` v0.15.0 FROZEN |
+
+Plugin-authors emit `target_kind: 'host-tool'` + `target_host: 'theseus'` for granite-coverage of these tools. Aggregator dedupes by `(target_host, tool)` (read-side `/api/granite-floor/host-tools` rollup follow-on; today's `tools_summary` continues grouping by `(repo, tool, persona, mode)` for attribution-by-emitter).
 
 Run locally:
 ```bash

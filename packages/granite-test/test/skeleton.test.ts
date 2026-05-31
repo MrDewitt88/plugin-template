@@ -659,4 +659,142 @@ describe('@nexus-mindgarden/granite-test — skeleton', () => {
       expect(parsed.pass_id).toBeUndefined()
     })
   })
+
+  describe('v0.0.6 spec v1.3 target_kind / target_host (Oracle FROZEN 2026-05-31)', () => {
+    // Spec source: chatbus contracts thread 2026-05-31 ~05:01 oracle.
+    // Mirrors oracle's 10 v1.3 tests in chatbus aggregator + adds plugin-side
+    // defineGraniteToolTest threading.
+    const baseV13Event = {
+      event_kind: 'granite-floor.event.v1' as const,
+      run_id: '00000000-0000-4000-8000-000000003001',
+      case_id: 'v1.3-test',
+      repo: 'apex2d',
+      tool: 'image.generate',
+      persona: 'user' as const,
+      mode: 'ci' as const,
+      outcome: 'pass' as const,
+      fail_category: null,
+      fail_detail: null,
+      model: 'granite-4-h-tiny-4bit',
+      latency_ms: 12_000,
+      timestamp: '2026-05-31T05:00:00.000Z',
+    }
+
+    it('accepts event without target_kind (v1.2 back-compat, defaults to plugin-tool semantics)', () => {
+      const parsed = GraniteFloorEventSchema.parse(baseV13Event)
+      expect(parsed.target_kind).toBeUndefined()
+      expect(parsed.target_host).toBeUndefined()
+    })
+
+    it('accepts explicit target_kind=plugin-tool without target_host', () => {
+      const event = { ...baseV13Event, target_kind: 'plugin-tool' as const }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.target_kind).toBe('plugin-tool')
+      expect(parsed.target_host).toBeUndefined()
+    })
+
+    it('accepts host-tool happy-path: target_kind=host-tool + target_host=theseus', () => {
+      const event = {
+        ...baseV13Event,
+        target_kind: 'host-tool' as const,
+        target_host: 'theseus',
+      }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.target_kind).toBe('host-tool')
+      expect(parsed.target_host).toBe('theseus')
+    })
+
+    it('rejects target_kind=host-tool when target_host is missing (collapsed-refine)', () => {
+      const event = { ...baseV13Event, target_kind: 'host-tool' as const }
+      expect(() => GraniteFloorEventSchema.parse(event)).toThrow(/target_host/)
+    })
+
+    it('rejects target_kind=host-tool when target_host is empty string', () => {
+      const event = {
+        ...baseV13Event,
+        target_kind: 'host-tool' as const,
+        target_host: '',
+      }
+      expect(() => GraniteFloorEventSchema.parse(event)).toThrow()
+    })
+
+    it('rejects target_kind=plugin-tool when target_host is also set (collapsed-refine)', () => {
+      const event = {
+        ...baseV13Event,
+        target_kind: 'plugin-tool' as const,
+        target_host: 'theseus',
+      }
+      expect(() => GraniteFloorEventSchema.parse(event)).toThrow(/target_host/)
+    })
+
+    it('rejects target_host without target_kind (collapsed-refine)', () => {
+      const event = { ...baseV13Event, target_host: 'theseus' }
+      expect(() => GraniteFloorEventSchema.parse(event)).toThrow(/target_host/)
+    })
+
+    it('rejects target_kind=invalid-enum-value', () => {
+      const event = { ...baseV13Event, target_kind: 'system-tool' as never }
+      expect(() => GraniteFloorEventSchema.parse(event)).toThrow()
+    })
+
+    it('host-tool event coexists with domain_kind (orthogonal axes)', () => {
+      const event = {
+        ...baseV13Event,
+        target_kind: 'host-tool' as const,
+        target_host: 'theseus',
+        domain_kind: 'text-to-image-generation',
+      }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.target_kind).toBe('host-tool')
+      expect(parsed.target_host).toBe('theseus')
+      expect(parsed.domain_kind).toBe('text-to-image-generation')
+    })
+
+    it('host-tool event coexists with v1.2 L3-repair fields', () => {
+      const event = {
+        ...baseV13Event,
+        target_kind: 'host-tool' as const,
+        target_host: 'theseus',
+        outcome: 'pass' as const,
+        outcome_raw: 'fail' as const,
+        outcome_post_repair: 'pass' as const,
+        applied_repairs: [
+          { rule_id: 'dim-snap-16', audit_reason: 'width 250 → 256 (×16 snap)' },
+        ],
+      }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.target_kind).toBe('host-tool')
+      expect(parsed.applied_repairs).toHaveLength(1)
+    })
+
+    it('defineGraniteToolTest threads target_kind + target_host (host-tool decl)', async () => {
+      const { defineGraniteToolTest } = await import('../src/define-tool-test.js')
+      const test = defineGraniteToolTest({
+        tool: 'image.generate',
+        persona: 'user',
+        target_kind: 'host-tool',
+        target_host: 'theseus',
+        cases: [
+          {
+            case_id: 'img.gen.pixel-tile',
+            prompt: 'pixel-art forest tile 256x256',
+          },
+        ],
+      })
+      expect(test.target_kind).toBe('host-tool')
+      expect(test.target_host).toBe('theseus')
+      expect(test.tool).toBe('image.generate')
+    })
+
+    it('defineGraniteToolTest plugin-tool decl (no target_kind = default plugin-tool semantics)', async () => {
+      const { defineGraniteToolTest } = await import('../src/define-tool-test.js')
+      const test = defineGraniteToolTest({
+        tool: 'apex.generate_map',
+        persona: 'user',
+        cases: [{ case_id: 'apex.map.basic', prompt: 'create a forest map 20x20' }],
+      })
+      expect(test.target_kind).toBeUndefined()
+      expect(test.target_host).toBeUndefined()
+    })
+  })
 })
