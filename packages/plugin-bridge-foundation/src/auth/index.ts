@@ -24,3 +24,20 @@ export {
   type SqliteHostKeyRepoOptions,
   type SqliteHostKeyRepoStatement,
 } from './host-keys-sqlite.js'
+export {
+  createHandshakeTokenStore,
+  type CreateHandshakeTokenStoreOptions,
+  type HandshakeTokenStore,
+  type HandshakeTokenStoreImpl,
+} from './handshake-token-store.js'
+export {
+  createReverseCallClient,
+  REVERSE_CALL_TOOL_PREFIXES,
+  ReverseCallError,
+  type CreateReverseCallClientOptions,
+  type ExecuteToolErrorBody,
+  type ExecuteToolResponse,
+  type ImageToolResult,
+  type ReverseCallClient,
+  type ReverseCallToolPrefix,
+} from './reverse-call-client.js'

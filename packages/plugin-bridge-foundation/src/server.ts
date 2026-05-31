@@ -30,6 +30,7 @@ import {
   buildHostRecordStatus,
   HostKeyRegistry,
   verifyAuthorizationHeader,
+  type HandshakeTokenStoreImpl,
 } from './auth/index.js'
 import { extractPublicKeyPem, RegisterHostRequestSchema } from './types.js'
 import { handshakeHandler } from './endpoints/handshake.js'
@@ -99,6 +100,35 @@ export interface BridgeAppOptions {
    * content-type-detection, immutable cache-control, path-traversal-safety.
    */
   staticUi?: StaticUiHandlerOptions
+  /**
+   * v0.7.1 — Handshake-token capture for outbound clients.
+   *
+   * When provided, Foundation hooks the `/plugin-bridge/v1/handshake` middleware
+   * to capture the incoming Authorization Bearer (the per-plugin activation JWT
+   * issued by the host during register-tenants) and write it into the store.
+   * The plugin-author can then pass the same store to outbound clients:
+   *
+   *   const tokenStore = createHandshakeTokenStore()
+   *   const app = createBridgeApp({ ..., handshakeTokenStore: tokenStore })
+   *
+   *   const agentComplete = createAgentComplete({
+   *     bridgeEndpoint: 'http://127.0.0.1:3400/agent/complete',
+   *     transport: 'agent-socket-direct',
+   *     tokenResolver: () => tokenStore.current(),
+   *   })
+   *
+   *   const reverseCall = createReverseCallClient({
+   *     hostEndpoint: 'http://127.0.0.1:3400',
+   *     tokenStore,
+   *   })
+   *
+   * Capture is BEFORE Foundation's JWT-validation middleware — so even if
+   * verification fails, the token is captured for diagnostics. Plugin-authors
+   * who don't need outbound calls can omit this field (zero impact).
+   *
+   * @see createHandshakeTokenStore in '/auth' subpath
+   */
+  handshakeTokenStore?: HandshakeTokenStoreImpl
 }
 
 export interface BridgeObservabilityOptions {
@@ -275,6 +305,30 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
       }),
     })
   })
+
+  // --- v0.7.1 — Handshake-Token Capture Middleware (BEFORE authMiddleware) ---
+  // When BridgeAppOptions.handshakeTokenStore is provided, we capture the
+  // incoming Authorization Bearer before JWT-validation. This lets outbound
+  // clients (createAgentComplete, createReverseCallClient) reuse the per-plugin
+  // activation JWT without manual env-var wiring.
+  //
+  // Capture runs BEFORE authMiddleware so we still capture for diagnostics
+  // even if validation fails (e.g. expired JWT — the store has the most-recent
+  // value, useful for staleness-debug via lastUpdated()).
+  if (opts.handshakeTokenStore) {
+    const tokenStore = opts.handshakeTokenStore
+    app.use('/plugin-bridge/v1/handshake', async (c, next) => {
+      const authHeader =
+        c.req.header('Authorization') ?? c.req.header('authorization')
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.slice('Bearer '.length).trim()
+        if (token.length > 0) {
+          tokenStore._capture(token)
+        }
+      }
+      await next()
+    })
+  }
 
   // --- Auth-Middleware für alle anderen Endpoints ---
   app.use('/plugin-bridge/v1/handshake', authMiddleware(opts.registry))

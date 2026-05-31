@@ -1057,20 +1057,34 @@ const result = await callReverseTool('image.remove_background', {
 const pngB64 = (result as { metadata: { image_base64: string } }).metadata.image_base64
 ```
 
-**Coming v0.7.1** (planned, additive to v0.7.0):
+**Foundation v0.7.1+ canonical (recommended):**
 ```ts
-import { createReverseCallClient } from '@nexus-mindgarden/plugin-bridge-foundation/auth'
+import {
+  createHandshakeTokenStore,
+  createReverseCallClient,
+} from '@nexus-mindgarden/plugin-bridge-foundation/auth'
+
+const tokenStore = createHandshakeTokenStore()
+// (wire into createBridgeApp's handshakeTokenStore — see §8.5.2)
 
 const reverseCall = createReverseCallClient({
   hostEndpoint: 'http://127.0.0.1:3400',
-  tokenStore: handshakeTokenStore,        // see §8.5
+  tokenStore,
 })
 
-const { metadata } = await reverseCall.executeTool('image.remove_background', {
+// Generic (for arbitrary allowlisted tools):
+const res = await reverseCall.executeTool('image.remove_background', {
   image_base64: srcB64, mime: 'image/png',
 })
-// metadata is typed against the canonical wire-shape per tool —
-// no more "is it .value or .metadata?" guessing
+// res.metadata.image_base64 (typed access, no metadata-vs-value guessing)
+
+// Typed convenience for image-tools (extracts metadata.image_base64 + mime + dims):
+const img = await reverseCall.executeImageTool('image.remove_background', {
+  image_base64: srcB64, mime: 'image/png',
+})
+// img.image_base64, img.mime, img.width, img.height — flat ImageToolResult shape
+// Plus client-side prefix-guard (forbidden_prefix throw before network) so typos
+// like 'image.remove-bg' fail fast.
 ```
 
 **Why direct-to-host instead of V8?** myMind is the canonical host as of 2026-05-31. The old V8 → `/mcp/v1/call-tool` → Theseus :3400 hop **still works** (additive back-compat, V8 paths unchanged), but is no longer **necessary** for plugins running outside V8's tenant. Direct-to-host is **preferred** in v0.7.0+ for:
@@ -1091,9 +1105,43 @@ For **path (b)**, the token your `tokenResolver` returns is the **per-plugin act
 
 → Interim wire-up (before §8.5.2 helper lands): `agent.complete` (b) **can** use a static `MC_AGENT_TOKEN`-style env-var, but image-tool reverse-calls **must** use the handshake-JWT. There's no shortcut for image.*; you need handshake-JWT exposure first.
 
-#### §8.5.2 — How to expose the handshake-JWT in v0.6.x bridges (interim, pre-v0.7.1)
+#### §8.5.2 — How to expose the handshake-JWT (v0.7.1+ canonical)
 
-Today's Foundation (v0.6.1) accepts inbound handshakes via `/plugin-bridge/v1/handshake` but **does not cache** the inbound Bearer for outbound use. Until v0.7.1's `createHandshakeTokenStore()` helper lands, plugin-authors can capture it themselves at handshake-time:
+**Foundation v0.7.1 ships `createHandshakeTokenStore()`** — captures the inbound Bearer at the `/plugin-bridge/v1/handshake` middleware automatically. This is the canonical pattern:
+
+```ts
+import { createBridgeApp } from '@nexus-mindgarden/plugin-bridge-foundation'
+import {
+  createHandshakeTokenStore,
+  createReverseCallClient,
+} from '@nexus-mindgarden/plugin-bridge-foundation/auth'
+import { createAgentComplete } from '@nexus-mindgarden/plugin-bridge-foundation/agent-complete'
+
+const tokenStore = createHandshakeTokenStore()
+
+const app = createBridgeApp({
+  manifest, registry, toolHandlers,
+  handshakeTokenStore: tokenStore,    // v0.7.1+ opt-in: Foundation auto-captures Bearer
+})
+
+// Same store for both outbound paths:
+const agentComplete = createAgentComplete({
+  bridgeEndpoint: 'http://127.0.0.1:3400/agent/complete',
+  transport: 'agent-socket-direct',
+  tokenResolver: () => tokenStore.current(),
+})
+
+const reverseCall = createReverseCallClient({
+  hostEndpoint: 'http://127.0.0.1:3400',
+  tokenStore,
+})
+```
+
+`tokenStore.current()` throws `Error('no_handshake_yet')` if called before the first handshake arrived — explicit not-yet-activated state instead of silently returning empty-string. `tokenStore.lastUpdated()` returns the Date of the last capture (diagnostics + staleness-detection).
+
+**v0.6.x interim — manual capture pattern (deprecated, kept for reference):**
+
+If stuck on v0.6.x:
 
 ```ts
 // At app-creation:
