@@ -1,6 +1,6 @@
 {
   "name": "@nexus-mindgarden/granite-test",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Granite-Floor test-coverage framework — plugin-author-declared MCP-tool test-suites + chatbus-event reporter for Oracle's @floor aggregator. v0.0.6: aligns to spec v1.3 FROZEN (Oracle 2026-05-31) adding target_kind ('plugin-tool' | 'host-tool', FIRST closed-enum additive field) + target_host for host-shared callMcp tools (image.generate, image.remove_background, agent.complete). defineGraniteToolTest threads target_kind/target_host through. Plus all v1.2.2 fields (outcome_raw + outcome_post_repair + applied_repairs + pass_id + prompt_version_hash + strengthen_recipes_applied + pass_predecessor_event_id + fail_sub_category/-ies + domain_kind).",
   "license": "MIT",
   "type": "module",

@@ -2,6 +2,88 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [granite-test/0.0.7] — 2026-05-31
+
+**Per-package patch: `@nexus-mindgarden/granite-test@0.0.7`** — aligns to Oracle's `granite-floor.event.v1.4` FROZEN spec (chatbus #~21:09, 2026-05-31). Adds three additive observability fields (`tools_in_context`, `chunk_id`, `chunk_size`) + plugin-author API surface for canonical Tool-Count-Cap RFC (`toolCountPolicy` shape + `defineGraniteTestSuite()` helper). Foundation packages unchanged.
+
+### Spec source
+
+- **Canonical RFC** (TeamMindV8 repo @ `c9dce32`): https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/granite-floor-RFC-tool-count-cap.md
+- **Multi-source triangulation** (4 mechanisms, same cap ~10–15 tools for granite-4-h-tiny):
+  - v8-corp K-knob sweep (130×K trials, K=10 = 72.3% vs ceiling 88.5%)
+  - v8-fam Phase-1 vs Phase-2 (10→25 tools = 80%→56% regression)
+  - agent per-tool single-turn + multi-turn CI (silent-fail at large tool-sets)
+  - plug-elec ET-Mind Pass-3 SOJM-domain (3c reduced-block −75% missing) — cross-domain 4th triangulation per RFC §2.4
+
+### Added — GraniteFloorEventSchema v1.4 additive fields
+
+All three optional, additive, fully back-compat (omitting them preserves v1.3 emission shape):
+
+- **`tools_in_context?: number` (int≥0)** — Number of tool-definitions in Granite's context for this case-run.
+  - Single-tool baseline (no retrieval): `1`
+  - Retrieval-K=N runs: `N`
+  - **SOJM / narrative-domain** (no tool-selection): `0` (separable 0-bucket per oracle §2.3)
+  - Aggregator builds pass-rate-vs-tool-count curves via `GROUP BY tools_in_context`
+- **`chunk_id?: string` (min 1)** — Per-domain chunk identifier when `toolCountPolicy` chunking applied.
+  - Convention: first dot-segment of tool-name (v8-fam + plug-tmpl independent convergence per RFC §3 + §4.2).
+  - Sub-chunking format: `<prefix>:<index>` (e.g. `projects:0`, `projects:1`) when one chunk still exceeds cap.
+  - Absence = single-batch run (no chunking applied), consistent with v0.0.6 back-compat.
+- **`chunk_size?: number` (int≥0)** — Tools-in-this-chunk count. Complements `chunk_id` for per-chunk pass-rate dashboards.
+
+### Added — Plugin-author API surface
+
+- **`defineGraniteTestSuite(config: GraniteTestConfigObject): GraniteTestConfigObject`** — new canonical wrapper (additive to existing `defineGraniteToolTest`). Recommended over array-form when ≥10 tools or when `toolCountPolicy` cap-enforcement wanted. Pure pass-through (future versions may validate chunk-distribution warnings).
+- **`GraniteTestConfigObject.toolCountPolicy?: ToolCountPolicy`** — opt-in cap-policy with 4 fields:
+  - `maxToolsPerRun?: number` (default 10 per RFC §2.7 cluster-canonical cap for granite-4-h-tiny)
+  - `chunkBy?: 'tool-prefix' | 'flat-batch'` (default `'tool-prefix'` = first dot-segment per RFC §3)
+  - `chunkLatencyBudgetMs?: number` (per-chunk latency override)
+  - `allowSubChunking?: boolean` (default true — graceful auto-resolution when chunk still > cap)
+- **`ToolCountPolicy` type-export** — for consumer-side type-annotations and tests.
+
+### Spec-MISST-ENFORCED-NICHT posture (per oracle §2.1)
+
+The schema does NOT hard-cap tool-count. Per-model cap is context-dependent (future Granite-4-h-medium/large + Phi/Llama may shift the curve). v0.0.7 ships **observability fields + plugin-author config-shape** — runtime chunking-logic lives in `granite-pilot-runner` (wiz-mind owns).
+
+### Backward compatibility
+
+- v1.3-only emitters (granite-test v0.0.6) continue to validate unchanged (3 v1.4 fields optional).
+- Plug-elec ET-Mind Pass-3 (12 events, `tools_in_context: 0`) verified against v1.4 validator: 0 rejects (oracle confirmation #~21:09).
+- defineGraniteToolTest API unchanged. Array-form configs work unchanged.
+- All 73 v0.0.6 tests pass without modification (verified: 73/73 grün before changes, 98/98 grün after additions).
+
+### Tests
+
+- `test/skeleton.test.ts` — 25 new v1.4 tests:
+  - 17 tests for `GraniteFloorEventSchema` v1.4 fields: back-compat (3 v1.3-only patterns), tools_in_context accept (0/1/10/72 + reject -1/1.5), chunk_id accept (canonical + sub-chunk + reject empty), chunk_size accept (5/0 + reject -1), full v1.4 triple, orthogonal coexistence with v1.3 target_kind + domain_kind, SOJM-domain 0-anchor pattern, event_kind stable
+  - 8 tests for `defineGraniteTestSuite` + `toolCountPolicy`: helper export, pass-through config, declarability of all 4 toolCountPolicy fields, default/back-compat omitting, worked-example 25-case multi-domain config with chunk-distribution check matching v8-fam scaffold (largest chunk `meals` = 4 tools, all chunks ≤ 4)
+- Total: 98/98 grün (was 73 in v0.0.6 → +25 v0.0.7 additions)
+
+### Free-form convention sub-categories (per oracle §3 #4438 — NO enum-additions)
+
+The following 4 sub-category-candidates surfaced in cluster-evidence but remain **free-form `fail_sub_category` values** (NOT FailCategorySchema enum-additions per oracle ruling):
+
+- `cross-tool-schema-bleed` (v8-fam #4432: `chores.verify outcome:"correct"` ← `vocab.review` enum)
+- `numeric_sign_inversion` (v8-fam #4432: `delta=1`→`-1` despite `z.number().positive()`)
+- `tool-name-fabrication` (v8-corp #4434: `notes_get` instead of `notes.get`)
+- `enum_translation_de_en` (cross-domain bidirectional: `"Mathe"`→`"Mathematics"` + `"fridge"`→`"Kühlschrank"`)
+
+Future v1.5 may promote based on accumulated cluster-evidence. Emitters MAY use these strings now via `fail_sub_category: <value>` without schema-change.
+
+### Cross-Repo Provenance
+
+- **Oracle chatbus msg #~21:09 2026-05-31** — v1.4 FROZEN ruling, plus §2 RFC content (7 subs)
+- **v8-corp chatbus msg #~21:12 2026-05-31** — RFC = CANONICAL announcement (commit `c9dce32`)
+- **v8-fam chatbus msg #4467** — §3 + §5 canonical-content (chunking convention + mega-config anti-pattern)
+- **plug-tmpl chatbus msg #4437 + #4468** — §4 + §6 design (toolCountPolicy + migration-path) + cross-section alignment
+- **agent chatbus msg #4446** — RFC co-sign + §1.4 per-tool-CI datapoint + scope-discipline (response_format weglassen)
+- **plug-elec chatbus msg #4464** — ET-Mind Pass-3 cross-domain 4th triangulation (R-12.c L3-graduation → §2.4)
+- **CANONICAL RFC TeamMindV8 commits** — `eba921f` (Frame + §1) → `8663880` (§3+§5+§4+§6) → `c9dce32` (§2 + CANONICAL)
+
+### Documentation
+
+- README updated with `defineGraniteTestSuite` + `toolCountPolicy` example + v1.4 emit-pattern.
+- Cross-ref to canonical Tool-Count-Cap RFC (TeamMindV8 repo).
+
 ## [0.7.1] — 2026-05-31
 
 **Per-package patch: `@nexus-mindgarden/plugin-bridge-foundation@0.7.1`** — adds `createHandshakeTokenStore()` + `createReverseCallClient()` to the `/auth` subpath, closing the loop on agent's host-UX-contract (chatbus #~05:47, 2026-05-31): "Aktivieren = fertig. Kein Plugin baut je ein Token-Eingabefeld." Plugin-authors now wire outbound clients (`createAgentComplete` agent-socket-direct, image-tool reverse-calls) **without manual env-var-wiring** — Foundation auto-captures the per-plugin activation JWT at handshake-middleware time and resolves it for outbound requests. Other Foundation packages unchanged.

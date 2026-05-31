@@ -74,6 +74,41 @@ export default [
 ]
 ```
 
+### Tool-Count-Cap & chunking (v0.0.7+, spec v1.4 FROZEN 2026-05-31)
+
+Granite-4-h-tiny tool-selection capacity saturates ~10–15 tools/context. Past cap, pass-rate regresses sharply (v8-fam: 10→25 tools = 80%→56%; v8-corp K=10 = 72.3% plateau vs single-tool ceiling 88.5%). v0.0.7+ provides plugin-authors with `defineGraniteTestSuite()` + `toolCountPolicy` for cap-enforcement:
+
+```ts
+import { defineGraniteTestSuite, defineGraniteToolTest } from '@nexus-mindgarden/granite-test'
+
+export default defineGraniteTestSuite({
+  // v0.0.7+ canonical cap-policy per Tool-Count-Cap RFC §4.2
+  toolCountPolicy: {
+    maxToolsPerRun: 10,            // cluster-canonical for granite-4-h-tiny
+    chunkBy: 'tool-prefix',         // group by first dot-segment of tool-name
+    chunkLatencyBudgetMs: 60_000,   // optional per-chunk override
+    allowSubChunking: true,         // graceful auto-resolution if chunk > cap
+  },
+  tenantContext: { tenant_id: 'dev' },
+  tools: [
+    // 25+ tools — runner auto-chunks by first dot-segment:
+    defineGraniteToolTest({ tool: 'calendar.events.create', ... }),  // → chunk 'calendar'
+    defineGraniteToolTest({ tool: 'calendar.events.list', ... }),    // → chunk 'calendar'
+    defineGraniteToolTest({ tool: 'notes.create', ... }),            // → chunk 'notes'
+    defineGraniteToolTest({ tool: 'meals.plans_create', ... }),       // → chunk 'meals'
+    // ...
+  ],
+})
+```
+
+Each chunk runs as a separate granite-batch with ≤`maxToolsPerRun` tools in Granite's context. Events emit `chunk_id` (first dot-segment) + `chunk_size` (per-chunk tool-count) + `tools_in_context` (actual context-window size) for per-chunk aggregator dashboards.
+
+**Runtime chunking-logic** lives in `granite-pilot-runner` (wiz-mind owns). This package ships the config-shape + event-fields only.
+
+**Canonical RFC:** https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/granite-floor-RFC-tool-count-cap.md
+
+**0-anchor for SOJM-domain:** narrative/structured-output-domain emitters (no tool-selection) emit `tools_in_context: 0` for separable bucket. Cluster-canonical cross-domain finding: "fewer-fields-in-context schlägt stronger-prompt" generalizes from tool-selection to verbatim-output (plug-elec ET-Mind Pass-3 3c reduced-block = −75% missing per RFC §2.4).
+
 ### Host-shared tools (v0.0.6+, spec v1.3 FROZEN 2026-05-31)
 
 Three host-shared callMcp tools land via agent's `feat/host-tool-routing` triple-landing 2026-05-31:

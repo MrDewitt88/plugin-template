@@ -797,4 +797,313 @@ describe('@nexus-mindgarden/granite-test — skeleton', () => {
       expect(test.target_host).toBeUndefined()
     })
   })
+
+  describe('v0.0.7 spec v1.4 tool-count-cap fields (Oracle FROZEN 2026-05-31 ~21:09)', () => {
+    // Spec source: canonical Tool-Count-Cap RFC `docs/granite-floor-RFC-tool-count-cap.md`
+    // in TeamMindV8 repo @ commit c9dce32. Three optional/additive observability
+    // fields per oracle ruling. Convention: chunk_id = first dot-segment of tool-name.
+    const baseV14Event = {
+      event_kind: 'granite-floor.event.v1' as const,
+      run_id: '00000000-0000-4000-8000-000000004001',
+      case_id: 'v1.4-test',
+      repo: 'v8-fam',
+      tool: 'calendar.events.create',
+      persona: 'user' as const,
+      mode: 'ci' as const,
+      outcome: 'pass' as const,
+      fail_category: null,
+      fail_detail: null,
+      model: 'granite-4-h-tiny-4bit',
+      latency_ms: 5000,
+      timestamp: '2026-05-31T21:00:00.000Z',
+    }
+
+    it('accepts event without v1.4 fields (back-compat with v1.3-only emitters)', () => {
+      const parsed = GraniteFloorEventSchema.parse(baseV14Event)
+      expect(parsed.tools_in_context).toBeUndefined()
+      expect(parsed.chunk_id).toBeUndefined()
+      expect(parsed.chunk_size).toBeUndefined()
+    })
+
+    it('accepts tools_in_context = 0 (SOJM/narrative-domain 0-anchor)', () => {
+      const event = { ...baseV14Event, tools_in_context: 0 }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.tools_in_context).toBe(0)
+    })
+
+    it('accepts tools_in_context = 1 (single-tool baseline)', () => {
+      const event = { ...baseV14Event, tools_in_context: 1 }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.tools_in_context).toBe(1)
+    })
+
+    it('accepts tools_in_context = 10 (cluster-canonical cap per RFC §2.7)', () => {
+      const event = { ...baseV14Event, tools_in_context: 10 }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.tools_in_context).toBe(10)
+    })
+
+    it('accepts tools_in_context = 72 (V8-corp K=72 full-corpus)', () => {
+      const event = { ...baseV14Event, tools_in_context: 72 }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.tools_in_context).toBe(72)
+    })
+
+    it('rejects tools_in_context = -1 (must be int≥0)', () => {
+      const event = { ...baseV14Event, tools_in_context: -1 }
+      expect(() => GraniteFloorEventSchema.parse(event)).toThrow()
+    })
+
+    it('rejects tools_in_context = 1.5 (must be integer)', () => {
+      const event = { ...baseV14Event, tools_in_context: 1.5 }
+      expect(() => GraniteFloorEventSchema.parse(event)).toThrow()
+    })
+
+    it('accepts chunk_id (first dot-segment convention)', () => {
+      const event = { ...baseV14Event, chunk_id: 'calendar' }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.chunk_id).toBe('calendar')
+    })
+
+    it('accepts sub-chunk chunk_id (<prefix>:<index> format per RFC §3.5)', () => {
+      const event = { ...baseV14Event, chunk_id: 'projects:0' }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.chunk_id).toBe('projects:0')
+    })
+
+    it('rejects empty chunk_id (string min 1)', () => {
+      const event = { ...baseV14Event, chunk_id: '' }
+      expect(() => GraniteFloorEventSchema.parse(event)).toThrow()
+    })
+
+    it('accepts chunk_size (per-chunk dashboard rollup)', () => {
+      const event = { ...baseV14Event, chunk_size: 5 }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.chunk_size).toBe(5)
+    })
+
+    it('accepts chunk_size = 0 (degenerate empty chunk, edge case)', () => {
+      const event = { ...baseV14Event, chunk_size: 0 }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.chunk_size).toBe(0)
+    })
+
+    it('rejects chunk_size = -1 (must be int≥0)', () => {
+      const event = { ...baseV14Event, chunk_size: -1 }
+      expect(() => GraniteFloorEventSchema.parse(event)).toThrow()
+    })
+
+    it('accepts full v1.4 triple: tools_in_context + chunk_id + chunk_size', () => {
+      const event = {
+        ...baseV14Event,
+        tools_in_context: 5,
+        chunk_id: 'calendar',
+        chunk_size: 5,
+      }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.tools_in_context).toBe(5)
+      expect(parsed.chunk_id).toBe('calendar')
+      expect(parsed.chunk_size).toBe(5)
+    })
+
+    it('v1.4 fields coexist with v1.3 target_kind + target_host (orthogonal)', () => {
+      const event = {
+        ...baseV14Event,
+        tool: 'image.generate',
+        target_kind: 'host-tool' as const,
+        target_host: 'theseus',
+        tools_in_context: 3,
+        chunk_id: 'image',
+        chunk_size: 2,
+        domain_kind: 'text-to-image-generation',
+      }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.target_kind).toBe('host-tool')
+      expect(parsed.target_host).toBe('theseus')
+      expect(parsed.chunk_id).toBe('image')
+      expect(parsed.tools_in_context).toBe(3)
+      expect(parsed.domain_kind).toBe('text-to-image-generation')
+    })
+
+    it('SOJM-domain event with tools_in_context=0 (cross-domain RFC §2.4)', () => {
+      // plug-elec ET-Mind Pass-3 pattern: verbatim-output domain, no tool-selection,
+      // 0-anchor separates SOJM bucket from tool-selection saturation curve.
+      const event = {
+        ...baseV14Event,
+        tool: 'etmind.befund.verbatim_emit',
+        domain_kind: 'verbatim-narrative',
+        tools_in_context: 0,
+      }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.tools_in_context).toBe(0)
+      expect(parsed.domain_kind).toBe('verbatim-narrative')
+      expect(parsed.chunk_id).toBeUndefined()
+    })
+
+    it('event_kind remains "granite-floor.event.v1" across v1.x versions', () => {
+      // Per oracle ruling: event_kind discriminator stays stable across v1.x.
+      // Version is implicit via field-presence (v1.4 emitters carry the 3 new fields).
+      const event = { ...baseV14Event, tools_in_context: 10 }
+      const parsed = GraniteFloorEventSchema.parse(event)
+      expect(parsed.event_kind).toBe('granite-floor.event.v1')
+    })
+  })
+
+  describe('v0.0.7 defineGraniteTestSuite + toolCountPolicy (Tool-Count-Cap RFC §4.2)', () => {
+    // RFC source: TeamMindV8 repo @ commit c9dce32 docs/granite-floor-RFC-tool-count-cap.md
+    // Convention: chunkBy='tool-prefix' = first dot-segment per v8-fam + plug-tmpl
+    // independent convergence.
+
+    it('exports defineGraniteTestSuite alongside defineGraniteToolTest', async () => {
+      const mod = await import('../src/define-tool-test.js')
+      expect(typeof mod.defineGraniteTestSuite).toBe('function')
+      expect(typeof mod.defineGraniteToolTest).toBe('function')
+    })
+
+    it('defineGraniteTestSuite passes config through unchanged', async () => {
+      const { defineGraniteTestSuite, defineGraniteToolTest } = await import(
+        '../src/define-tool-test.js'
+      )
+      const config = defineGraniteTestSuite({
+        tenantContext: { tenant_id: 'dev' },
+        tools: [
+          defineGraniteToolTest({
+            tool: 'calendar.events.create',
+            persona: 'user',
+            cases: [{ case_id: 'cal.create', prompt: 'create meeting' }],
+          }),
+        ],
+      })
+      expect(config.tenantContext?.tenant_id).toBe('dev')
+      expect(config.tools).toHaveLength(1)
+      expect(config.tools[0]!.tool).toBe('calendar.events.create')
+    })
+
+    it('toolCountPolicy with maxToolsPerRun + chunkBy declarable', async () => {
+      const { defineGraniteTestSuite } = await import('../src/define-tool-test.js')
+      const config = defineGraniteTestSuite({
+        toolCountPolicy: {
+          maxToolsPerRun: 10,
+          chunkBy: 'tool-prefix',
+        },
+        tools: [],
+      })
+      expect(config.toolCountPolicy?.maxToolsPerRun).toBe(10)
+      expect(config.toolCountPolicy?.chunkBy).toBe('tool-prefix')
+    })
+
+    it('toolCountPolicy chunkBy: flat-batch alternative declarable', async () => {
+      const { defineGraniteTestSuite } = await import('../src/define-tool-test.js')
+      const config = defineGraniteTestSuite({
+        toolCountPolicy: {
+          maxToolsPerRun: 10,
+          chunkBy: 'flat-batch',
+        },
+        tools: [],
+      })
+      expect(config.toolCountPolicy?.chunkBy).toBe('flat-batch')
+    })
+
+    it('toolCountPolicy chunkLatencyBudgetMs override declarable', async () => {
+      const { defineGraniteTestSuite } = await import('../src/define-tool-test.js')
+      const config = defineGraniteTestSuite({
+        toolCountPolicy: {
+          maxToolsPerRun: 10,
+          chunkLatencyBudgetMs: 120_000,
+        },
+        tools: [],
+      })
+      expect(config.toolCountPolicy?.chunkLatencyBudgetMs).toBe(120_000)
+    })
+
+    it('toolCountPolicy allowSubChunking flag declarable', async () => {
+      const { defineGraniteTestSuite } = await import('../src/define-tool-test.js')
+      const config = defineGraniteTestSuite({
+        toolCountPolicy: {
+          maxToolsPerRun: 10,
+          allowSubChunking: false,
+        },
+        tools: [],
+      })
+      expect(config.toolCountPolicy?.allowSubChunking).toBe(false)
+    })
+
+    it('toolCountPolicy omitted = v0.0.6 back-compat (no chunking)', async () => {
+      const { defineGraniteTestSuite, defineGraniteToolTest } = await import(
+        '../src/define-tool-test.js'
+      )
+      const config = defineGraniteTestSuite({
+        tools: [
+          defineGraniteToolTest({
+            tool: 'notes.create',
+            persona: 'user',
+            cases: [{ case_id: 'n', prompt: 'note' }],
+          }),
+        ],
+      })
+      expect(config.toolCountPolicy).toBeUndefined()
+    })
+
+    it('worked example: 25-case multi-domain config with chunking enabled', async () => {
+      // Mirrors v8-fam's 25-case Phase-2 scaffold (msg #4432) — 25 tools
+      // across calendar/notes/chat/memory/vocab/homework/points/etc. domains.
+      // With toolCountPolicy chunkBy:'tool-prefix' + maxToolsPerRun:10 the
+      // runner partitions into ≤10-tool chunks via first dot-segment.
+      const { defineGraniteTestSuite, defineGraniteToolTest } = await import(
+        '../src/define-tool-test.js'
+      )
+      const toolNames = [
+        'calendar.events.create',
+        'calendar.events.list',
+        'notes.create',
+        'notes.search',
+        'chat.messages.send',
+        'memory.propose',
+        'memory.search',
+        'vocab.review',
+        'homework.create',
+        'homework.list',
+        'points.award',
+        'points.balance',
+        'chores.verify',
+        'chores.create',
+        'inventory.add',
+        'inventory.consume',
+        'meals.recipes_create',
+        'meals.plans_create',
+        'meals.shopping_add',
+        'meals.shopping_toggle',
+        'contacts.create',
+        'contacts.search',
+        'parental_controls.upsert',
+        'redemption.request',
+        'inventory.alerts',
+      ]
+      const config = defineGraniteTestSuite({
+        toolCountPolicy: { maxToolsPerRun: 10, chunkBy: 'tool-prefix' },
+        tools: toolNames.map((tool) =>
+          defineGraniteToolTest({
+            tool,
+            persona: 'user',
+            cases: [{ case_id: `${tool}.basic`, prompt: 'do thing' }],
+          }),
+        ),
+      })
+      expect(config.tools).toHaveLength(25)
+      expect(config.toolCountPolicy?.maxToolsPerRun).toBe(10)
+      // Chunk-distribution check (runner-side responsibility, but config-shape
+      // is correctly populated for the runner to inspect):
+      const byPrefix = config.tools.reduce<Record<string, number>>((acc, t) => {
+        const prefix = t.tool.split('.')[0]!
+        acc[prefix] = (acc[prefix] ?? 0) + 1
+        return acc
+      }, {})
+      // Largest chunk: meals = 4 tools. All chunks ≤ 4 — well under cap=10.
+      expect(byPrefix['meals']).toBe(4)
+      expect(byPrefix['inventory']).toBe(3)
+      expect(byPrefix['calendar']).toBe(2)
+      const allChunksWithinCap = Object.values(byPrefix).every((n) => n <= 10)
+      expect(allChunksWithinCap).toBe(true)
+    })
+  })
 })
