@@ -280,6 +280,62 @@ export const GraniteFloorEventSchema = z.object({
 
   /** v1.3: For target_kind='host-tool' — which host serves the tool (theseus, v8, v8-fam, markview). Required when target_kind='host-tool'; rejected when target_kind!='host-tool'. */
   target_host: z.string().min(1).optional(),
+
+  // --- Spec v1.4 additive (Oracle FROZEN 2026-05-31 ~21:09 chatbus) ---
+  //
+  // Tool-Count-Cap RFC (`docs/granite-floor-RFC-tool-count-cap.md` in TeamMindV8
+  // repo @ commit c9dce32). Three optional, additive observability fields that
+  // let the aggregator measure the pass-rate-vs-tool-count saturation curve
+  // cluster-wide. Spec MISST, ENFORCED NICHT — no schema-hardcap (per-model
+  // cap is context-dependent; future Granite-4-h-medium/large + Phi/Llama may
+  // shift the curve).
+  //
+  // Field provenance:
+  // - v8-corp K-knob sweep (130×K trials, K=10 sweet spot 72.3% vs Ceiling 88.5%)
+  // - v8-fam Phase-1 vs Phase-2 (10→25 tools = 80%→56% regression)
+  // - agent per-tool single-turn + multi-turn CI (silent-fail at large tool-sets)
+  // - plug-elec ET-Mind Pass-3 SOJM-domain (3c reduced-block −75% missing) —
+  //   cross-domain 4th triangulation per oracle §2.4
+  //
+  // 0-anchor: SOJM/narrative-domain emitters set `tools_in_context: 0`
+  // (no tool-selection step). This makes the 0-bucket separable from the
+  // tool-selection saturation curve.
+
+  /**
+   * v1.4: Number of tool-definitions in Granite's context for this case-run.
+   *
+   * - Single-tool baseline (no retrieval): `1`
+   * - Retrieval-K=N runs: `N`
+   * - SOJM / narrative-domain (no tool-selection): `0` (separable bucket)
+   *
+   * Aggregator builds pass-rate-vs-tool-count curves via GROUP BY tools_in_context.
+   * Cap-guidance per cluster-canonical Tool-Count-Cap RFC: ≤10 for granite-4-h-tiny.
+   */
+  tools_in_context: z.number().int().nonnegative().optional(),
+
+  /**
+   * v1.4: Per-domain chunk identifier when toolCountPolicy chunking applied.
+   *
+   * Convention (RFC §3 + §4.2 — v8-fam + plug-tmpl independent convergence):
+   * `chunk_id` = first dot-segment of the tool-name.
+   *
+   * Examples:
+   * - `calendar.events.create` → `chunk_id: 'calendar'`
+   * - `image.generate` → `chunk_id: 'image'`
+   * - `notes_get` (dot-less, Drift #200 violation) → no chunking, NO emit
+   *
+   * Absence = single-batch run (no chunking applied), consistent with v0.0.6
+   * back-compat. For sub-chunking (when one chunk still > cap), emitters MAY
+   * use `<prefix>:<sub-index>` (e.g. `projects:0`, `projects:1`).
+   */
+  chunk_id: z.string().min(1).optional(),
+
+  /**
+   * v1.4: Number of tools in this chunk. Complements `chunk_id` for per-chunk
+   * pass-rate dashboards (GROUP BY chunk_id, chunk_size). Absence consistent
+   * with `chunk_id` absence.
+   */
+  chunk_size: z.number().int().nonnegative().optional(),
 })
   .refine(
     (e) => (e.outcome === 'fail' ? e.fail_category !== null : e.fail_category === null),
@@ -608,7 +664,88 @@ export interface GraniteTestConfigObject {
    */
   mcpFetchInit?: RequestInit
 
+  /**
+   * v0.0.7+ — Tool-count-cap policy per canonical Tool-Count-Cap RFC
+   * (`docs/granite-floor-RFC-tool-count-cap.md` in TeamMindV8 repo @ `c9dce32`).
+   *
+   * Cluster-canonical Granite-Selection-Capacity for granite-4-h-tiny saturates
+   * at ~10–15 tools per context. Past cap, pass-rate regresses (v8-fam 80%→56%
+   * at 10→25 tools; v8-corp K=10 plateau at 72.3% vs single-tool ceiling 88.5%).
+   *
+   * When set, runner partitions tools by `chunkBy` strategy and runs each chunk
+   * as a separate granite-batch. Events carry `chunk_id` + `chunk_size` for
+   * per-chunk aggregator visibility. Plus `tools_in_context` event-field
+   * (runner-emitted) for cluster-wide pass-rate-vs-tool-count curves.
+   *
+   * Omitting `toolCountPolicy` preserves v0.0.6 behaviour: no chunking, no
+   * chunk_id/chunk_size emission. Single-batch run as before.
+   *
+   * **Runtime implementation lives in `granite-pilot-runner` (wiz-mind owns).**
+   * This package ships the config-shape + event-fields only.
+   *
+   * @since v0.0.7
+   * @see https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/granite-floor-RFC-tool-count-cap.md
+   */
+  toolCountPolicy?: ToolCountPolicy
+
   tools: GraniteToolTest[]
+}
+
+/**
+ * v0.0.7+ — Tool-count-cap policy shape.
+ *
+ * Source: canonical Tool-Count-Cap RFC §4.2 (TeamMindV8 repo @ `c9dce32`).
+ * Independent convergence: v8-fam §3 + plug-tmpl §4 derived the same chunking-key
+ * (`first dot-segment of tool-name`) without prior coordination — strong
+ * evidence the convention captures real structure.
+ */
+export interface ToolCountPolicy {
+  /**
+   * Maximum tools passed in a single granite-run context.
+   *
+   * Default: `10` (cluster-canonical cap for granite-4-h-tiny per RFC §2.7).
+   * Set to `Infinity` to disable chunking (legacy v0.0.6 behaviour, plus
+   * explicit `intentional_over_cap` annotation for cap-research per RFC §5.6).
+   *
+   * Per-model TBD: future Granite-4-h-medium/large + Phi/Llama may shift the
+   * curve. Spec MISST, ENFORCED NICHT — this is non-normative guidance.
+   */
+  maxToolsPerRun?: number
+
+  /**
+   * Chunking strategy when `tools.length > maxToolsPerRun`.
+   *
+   * - `'tool-prefix'` (default): group by first dot-segment of `tool` field.
+   *   Example: `calendar.events.create` → chunk `calendar`; `image.generate`
+   *   → chunk `image`. Convention-aligned with Drift #200 sub-namespace.
+   * - `'flat-batch'`: simple sequential batching, no semantic grouping. Use
+   *   for tool-sets without natural dot-prefix clustering.
+   *
+   * Future v0.1.x: `'tool-prefix-2'` (second-dot-segment refinement per
+   * RFC §3.5 sub-namespace explosion edge case), `'manual'` (author-provided
+   * chunk-keys via per-tool annotation).
+   */
+  chunkBy?: 'tool-prefix' | 'flat-batch'
+
+  /**
+   * Per-chunk max-latency budget override (ms). When omitted, inherits the
+   * runner default + per-case `max_latency_ms`. Useful when individual chunks
+   * have widely-different expected latencies (small chunk = strict budget,
+   * large chunk = generous budget).
+   */
+  chunkLatencyBudgetMs?: number
+
+  /**
+   * When `chunkBy='tool-prefix'` and a chunk STILL exceeds `maxToolsPerRun`
+   * (e.g. `projects.*` has 15 tools), split lexicographically into N sub-chunks
+   * of ≤max. Emits sub-chunk `chunk_id` as `<prefix>:<sub-index>` (e.g.
+   * `projects:0`, `projects:1`).
+   *
+   * Default: `true` (graceful auto-resolution).
+   * Set `false` to loud-fail with `validation_error` instead (for authors who
+   * want explicit semantic sub-chunk-keys via second-dot-segment per RFC §3.5).
+   */
+  allowSubChunking?: boolean
 }
 
 export type GraniteTestConfig = GraniteToolTest[] | GraniteTestConfigObject

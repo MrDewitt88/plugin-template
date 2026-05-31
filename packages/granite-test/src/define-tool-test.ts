@@ -4,7 +4,7 @@
 // pass-through in v1.0; future versions may inject sensible defaults (e.g.
 // auto-derive `case_id` from prompt-hash if omitted).
 
-import type { GraniteToolTest } from './types.js'
+import type { GraniteTestConfigObject, GraniteToolTest } from './types.js'
 
 /**
  * Declare a Granite-Floor test-suite for a single MCP-tool.
@@ -59,4 +59,51 @@ export function defineGraniteToolTest(test: GraniteToolTest): GraniteToolTest {
   //  - Validate tool-name matches plugin's manifest (requires Foundation /manifest helper)
   //  - Auto-set max_latency_ms from cluster-baseline if absent
   return test
+}
+
+/**
+ * Declare a full Granite-Floor test-suite (v0.0.7+ canonical wrapper).
+ *
+ * Recommended over array-form when you have ≥10 tools (Tool-Count-Cap RFC §6.1
+ * decision-tree) or want `toolCountPolicy` cap-enforcement.
+ *
+ * ```ts
+ * import { defineGraniteTestSuite } from '@nexus-mindgarden/granite-test'
+ *
+ * export default defineGraniteTestSuite({
+ *   toolCountPolicy: {
+ *     maxToolsPerRun: 10,         // cluster-canonical cap per RFC §2.7
+ *     chunkBy: 'tool-prefix',     // RFC §3 convention (first dot-segment)
+ *   },
+ *   tenantContext: { tenant_id: 'dev' },
+ *   tools: [
+ *     defineGraniteToolTest({
+ *       tool: 'calendar.events.create',
+ *       persona: 'user',
+ *       cases: [...],
+ *     }),
+ *     defineGraniteToolTest({
+ *       tool: 'notes.create',
+ *       persona: 'user',
+ *       cases: [...],
+ *     }),
+ *     // ... 23 more tools, runner auto-chunks to ≤10 per granite-batch
+ *   ],
+ * })
+ * ```
+ *
+ * Backwards-compat: array-form (`export default [defineGraniteToolTest({...})]`)
+ * still works for plugin-authors with ≤10 tools and no chunking-needs.
+ *
+ * @since v0.0.7
+ * @see https://github.com/MrDewitt88/TeamMindV8/blob/main/docs/granite-floor-RFC-tool-count-cap.md
+ */
+export function defineGraniteTestSuite(
+  config: GraniteTestConfigObject,
+): GraniteTestConfigObject {
+  // v0.0.7: pure pass-through. Future versions may:
+  //  - Validate toolCountPolicy.chunkBy against tools dot-prefix discipline
+  //  - Auto-derive chunk-distribution warnings (e.g. "calendar chunk has 12 tools, exceeds cap")
+  //  - Validate target_kind='host-tool' tools all have target_host set
+  return config
 }

@@ -15,7 +15,7 @@
 //   - `@nexus-mindgarden/granite-test/types`  (type-only re-exports, zero runtime)
 //   - `@nexus-mindgarden/granite-test/reporter` (transport API)
 
-export { defineGraniteToolTest } from './define-tool-test.js'
+export { defineGraniteToolTest, defineGraniteTestSuite } from './define-tool-test.js'
 export {
   reportToCluster,
   ReportToClusterError,
@@ -61,6 +61,9 @@ export {
   type GraniteToolTest,
   type GraniteTestConfig,
   type GraniteTestConfigObject,
+
+  // v0.0.7+ Tool-Count-Cap RFC additive shapes
+  type ToolCountPolicy,
 
   // Reporter options
   type ReportToClusterOptions,
