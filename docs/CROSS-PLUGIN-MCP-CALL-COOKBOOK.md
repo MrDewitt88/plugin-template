@@ -287,6 +287,13 @@ produces **identical wire-output** to `callMcp(mount, name, args, {})`.
 v0.6.0 consumers do not need to migrate; v0.6.1 adoption is opt-in per
 call-site.
 
+> **⚠ Two name-spacing conventions co-exist (v0.6.1+ + v0.7.0+):**
+>
+> 1. **Cross-plugin** (this section's primary use-case): `qualifiedName` MUST start with `<pluginId>.` (own plugin) or `<otherPluginId>.` IF cross-plugin scope was granted. The renderer's `validateMcpCallNamespace` accepts `pluginA.toolName` from pluginA's mount, rejects from pluginB's mount with `forbidden_namespace` (Drift #200, host-enforced — see §1.5 + §6).
+> 2. **Host-shared** (NEW v0.7.0+): un-prefixed names from a **curated allowlist** route to host-injected `HostToolExecutor` instead of plugin-capability-store. Today's allowlist: `'agent.complete'`, `'image.generate'`, `'image.remove_background'`. These resolve **only when the host implements §8 `HostToolBindings`** (Theseus' `feat/host-tool-routing` branch lands May 2026; mymind today, V8/v8-fam follow). Plugin authors should fall back to alternative paths (`createAgentComplete()` HTTP) if the bridge does not yet route un-prefixed names.
+>
+> See **§8 Host-Shared Tools** for the full pattern + per-tool wire-spec.
+
 ### §3.3 `CallMcpError` typed-class
 
 ```ts
@@ -895,6 +902,307 @@ All 7 tools validated production-grade via real UI-interaction. Bridge port
 - **Of which:** ~2 hours on the DOM-bubble-direction bug diagnosis + fix
 - **3-side coord:** plug-tmpl (Foundation `callMcp()`) · agent (mymind handler + DOM-bubble fix) · wiz-mind (5 custom-element migrations)
 - **Net cluster gain:** first production-validated cross-plugin wire-protocol, deployable to mind-canva / ET-Mind / plug-inst / ea-plug / kanban-svelte going forward
+
+---
+
+## §8 — Host-Shared Tools (v0.7.0+)
+
+_Added 2026-05-31 following agent's `feat/host-tool-routing` triple-landing (§2.6 `image.remove_background`, §2.7 `agent.complete` (a) embedded + (b) standalone HTTP), oracle's `granite-floor.event.v1.3` FROZEN spec-bump, mind-canva's §2.5 sidecar-wire freeze. Foundation v0.7.0 ships `tokenResolver` + `transport: 'agent-socket-direct'`._
+
+### §8.1 What's a host-shared tool?
+
+`§§1–7` cover the **cross-plugin** model: plugin-A calls `pluginB.toolName` through a bridge that validates ownership (Drift #200: no plugin-prefix-impersonation). That model serves the **plugin↔plugin** axis.
+
+**Host-shared tools** serve the **plugin↔host** axis. They are tools the **host itself** provides (running in the host's own process, with host-side capability + resources) that **every plugin can consume** without owning. Today there are three:
+
+| Tool | Host-process owner | Purpose | Wire-spec |
+|---|---|---|---|
+| `image.generate` | Theseus :3401 (Bonsai sidecar) | Text-to-image (pixel-art, layouts, illustrations) | `@theseus/tools-image-schema` |
+| `image.remove_background` | Theseus (ISNet via `@imgly/background-removal-node`) | Alpha-channel matting | `@theseus/tools-image-schema` (same pkg, 2 tools) |
+| `agent.complete` | Theseus :3400 agent-socket | LLM completion (text + tool-call + JSON-mode) | `@theseus/agent-complete-schema` v0.15.0 FROZEN |
+
+Adding a tool to this set is **deliberate cluster-architecture** — each host-shared tool requires:
+1. Wire-spec freeze (chatbus `@all` contracts thread, RFC-owner ACK, oracle architecture-ruling)
+2. Host-side implementation in shared `plugin-system` (cross-host: Theseus, V8, v8-fam, markview each inject their own executor)
+3. Renderer-validator allowlist extension
+4. Foundation-side documentation (this §8) + migration-path
+
+### §8.2 The two transport modes
+
+`agent.complete` is reachable via **two transports** — depending on **where the calling code runs**. The other two host-shared tools today only ship transport-(a) (image-tools are renderer-only).
+
+| Mode | Where the calling code runs | Foundation API | Wire-shape |
+|---|---|---|---|
+| **(a) embedded callMcp** | Browser / Renderer (DOM-plugin custom-element) | `callMcp(mount, 'agent.complete', args, { actorClass: 'user' })` | In-process `plugin:mcp-call` CustomEvent → host's `runHeadlessComplete` |
+| **(b) standalone HTTP** | Node / Bridge-process (no DOM) | `createAgentComplete({ transport: 'agent-socket-direct', bridgeEndpoint: 'http://127.0.0.1:3400/agent/complete', tokenResolver })` | HTTP POST raw `@theseus/agent-complete-schema` body, `Authorization: Bearer <handshake-token>` |
+
+**Same handler, two transports.** Both routes invoke Theseus' `runHeadlessComplete` (same provider-pipeline, cloud-consent, model-routing, hooks). Choose the transport by **calling-context**, not by feature-need.
+
+### §8.3 Path (a) — embedded callMcp (renderer)
+
+```ts
+// In your Svelte 5 / lit / vanilla custom-element:
+import {
+  callMcp,
+  CallMcpError,
+} from '@nexus-mindgarden/plugin-bridge-foundation/runtime'
+
+async function generateMap(prompt: string) {
+  try {
+    const result = await callMcp<{ text: string; toolCalls: unknown[] }>(
+      mount,
+      'agent.complete',                  // un-prefixed host-shared name
+      {
+        messages: [
+          { role: 'system', content: 'You are a JSON-only map generator.' },
+          { role: 'user', content: prompt },
+        ],
+        responseFormat: { type: 'json_schema', schema: MapSchema },
+        maxTokens: 2000,
+      },
+      { actorClass: 'user' },             // user-initiated, not background
+    )
+    return JSON.parse(result.text)        // .text, NOT choices[0].message.content
+  } catch (err) {
+    if (err instanceof CallMcpError && err.code === 'forbidden_namespace') {
+      // Host has not yet adopted §8 — fall back to (b) HTTP or surface to user
+      throw new Error('Host does not yet route un-prefixed agent.complete')
+    }
+    throw err
+  }
+}
+```
+
+**Image-tool example** (apex2d sprite-generator):
+```ts
+const png = await callMcp<{ image_base64: string; mime: string }>(
+  mount,
+  'image.generate',
+  { prompt: 'pixel-art forest tile', width: 256, height: 256 },
+  { actorClass: 'user', timeoutMs: 60_000 },
+)
+const img = new Image()
+img.src = `data:${png.mime};base64,${png.image_base64}`
+```
+
+### §8.4 Path (b) — standalone HTTP (Node/Bridge-process)
+
+For plugins whose tool-calls live **server-side** (mind-canva's `:3670` external-service, apex2d's `:3690` reverse-call handlers, any bridge process serving the renderer through a Node hop), Path-B splits into **two distinct endpoints** depending on which host-shared tool you're calling:
+
+| Tool | (b) endpoint | Body envelope | Response shape |
+|---|---|---|---|
+| `agent.complete` | `POST :3400/agent/complete` | **bare** `AgentCompleteRequest` (no wrapper) | `AgentCompleteResponse` (`.text` direct) |
+| `image.generate` / `image.remove_background` | `POST :3400/host-bridge/v1/execute-tool` (reverse-call) | `{ "tool": "<name>", "args": {...} }` — key **`args`**, NOT `arguments` | `ExecuteToolResponse { ok, value, metadata, error? }` — read **`metadata.image_base64`**, NOT `value` |
+
+Both use the same per-plugin handshake-token as the Bearer. **Same impl funnel host-side** (`host-tool-executor.invoke()`), different transport-wires.
+
+#### §8.4.1 — `agent.complete` (b) via `/agent/complete` direct
+
+```ts
+import { createAgentComplete } from '@nexus-mindgarden/plugin-bridge-foundation/agent-complete'
+
+// Foundation v0.7.0+: tokenResolver hands the per-plugin handshake-token
+// (received from register-tenants activation) to every request. No new
+// token, no env-var to manage manually — the same JWT your bridge already
+// holds for /host-bridge/v1/execute-tool reverse-calls.
+const agentComplete = createAgentComplete({
+  bridgeEndpoint: 'http://127.0.0.1:3400/agent/complete',   // direct agent-socket
+  transport: 'agent-socket-direct',                          // bare body, no envelope
+  tokenResolver: () => bridgeTokenStore.current(),           // per-plugin handshake JWT
+})
+
+const result = await agentComplete({
+  messages: [{ role: 'user', content: 'Summarize this layout.' }],
+  responseFormat: { type: 'json_schema', schema: zodToJsonSchema(SummarySchema) },
+  maxTokens: 200,
+})
+console.log(result.text)
+```
+
+#### §8.4.2 — `image.*` (b) via reverse-call `/host-bridge/v1/execute-tool`
+
+Image-tools route through the **reverse-call endpoint** (the same endpoint plugins already use for cross-plugin workspace-anchor calls like `projects.*` / `contacts.*` / `calendar.*` / `notes.*` / `attachments.*`). As of agent commit `3afd16a` (2026-05-31), `image.*` is in the `REVERSE_CALL_TOOL_PREFIXES` allowlist.
+
+```ts
+// Today (pre-v0.7.1 — manual fetch, exact wire-shape):
+async function callReverseTool(toolName: string, args: unknown): Promise<unknown> {
+  const token = await bridgeTokenStore.current()    // per-plugin handshake-JWT
+  const res = await fetch('http://127.0.0.1:3400/host-bridge/v1/execute-tool', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      // 'X-Source-Plugin': 'mind-canva',   // optional advisory; validated token wins
+    },
+    body: JSON.stringify({
+      tool: toolName,
+      args,                                // ← KEY IS "args" — NOT "arguments"
+    }),
+  })
+  const body = await res.json() as ExecuteToolResponse
+  if (!body.ok) {
+    throw new Error(`reverse-call ${toolName} failed: ${body.error.code} — ${body.error.message}`)
+  }
+  return body
+}
+
+const result = await callReverseTool('image.remove_background', {
+  image_base64: srcB64,
+  mime: 'image/png',
+  model: 'small',
+})
+// CRITICAL: result.metadata.image_base64 — NOT result.value
+// (result.value is a base64-FREE human-readable description like "Removed the
+// background → 512×512 PNG"; the actual PNG bytes are in metadata.)
+const pngB64 = (result as { metadata: { image_base64: string } }).metadata.image_base64
+```
+
+**Coming v0.7.1** (planned, additive to v0.7.0):
+```ts
+import { createReverseCallClient } from '@nexus-mindgarden/plugin-bridge-foundation/auth'
+
+const reverseCall = createReverseCallClient({
+  hostEndpoint: 'http://127.0.0.1:3400',
+  tokenStore: handshakeTokenStore,        // see §8.5
+})
+
+const { metadata } = await reverseCall.executeTool('image.remove_background', {
+  image_base64: srcB64, mime: 'image/png',
+})
+// metadata is typed against the canonical wire-shape per tool —
+// no more "is it .value or .metadata?" guessing
+```
+
+**Why direct-to-host instead of V8?** myMind is the canonical host as of 2026-05-31. The old V8 → `/mcp/v1/call-tool` → Theseus :3400 hop **still works** (additive back-compat, V8 paths unchanged), but is no longer **necessary** for plugins running outside V8's tenant. Direct-to-host is **preferred** in v0.7.0+ for:
+- One less network hop
+- No V8-tenant binding (works in standalone-bridge contexts)
+- Per-plugin token (not shared-static)
+
+### §8.5 Token-source: where the handshake-token comes from
+
+For **path (b)**, the token your `tokenResolver` returns is the **per-plugin activation JWT** issued by myMind during the `/plugin-bridge/v1/handshake` handshake. It is **the same JWT** that arrives in the `Authorization: Bearer …` header of every incoming handshake call. The host (Theseus) looks it up against active plugin-activations stored in `PluginStore` (`activations.db`), resolving it to `(pluginId, expiry)`. Token rotation is handled transparently by `tokenResolver` being called fresh per-request — when the underlying token-store updates, the next request sees the new value without re-wiring `createAgentComplete()`.
+
+#### §8.5.1 — Token acceptance per endpoint (asymmetry)
+
+| Endpoint | Static V8/TeamMind token (`MC_AGENT_TOKEN`) | Per-plugin handshake-JWT |
+|---|---|---|
+| `/agent/complete` (b)-pfad | ✅ accepted (additive back-compat, V8 paths unchanged) | ✅ accepted |
+| `/host-bridge/v1/execute-tool` (image.* reverse-call) | ❌ **NOT** accepted | ✅ **ONLY** option |
+
+→ Interim wire-up (before §8.5.2 helper lands): `agent.complete` (b) **can** use a static `MC_AGENT_TOKEN`-style env-var, but image-tool reverse-calls **must** use the handshake-JWT. There's no shortcut for image.*; you need handshake-JWT exposure first.
+
+#### §8.5.2 — How to expose the handshake-JWT in v0.6.x bridges (interim, pre-v0.7.1)
+
+Today's Foundation (v0.6.1) accepts inbound handshakes via `/plugin-bridge/v1/handshake` but **does not cache** the inbound Bearer for outbound use. Until v0.7.1's `createHandshakeTokenStore()` helper lands, plugin-authors can capture it themselves at handshake-time:
+
+```ts
+// At app-creation:
+let lastHandshakeJWT: string | null = null
+
+const app = createBridgeApp({ manifest, registry, toolHandlers, ... })
+
+// Add a middleware BEFORE /plugin-bridge/v1/handshake to capture the Bearer:
+app.use('/plugin-bridge/v1/handshake', async (c, next) => {
+  const auth = c.req.header('Authorization') ?? c.req.header('authorization')
+  if (auth?.startsWith('Bearer ')) {
+    lastHandshakeJWT = auth.slice(7)
+  }
+  await next()  // Foundation's handshakeHandler runs after
+})
+
+// Then wire it into your AgentComplete / reverse-call clients:
+const agentComplete = createAgentComplete({
+  bridgeEndpoint: 'http://127.0.0.1:3400/agent/complete',
+  transport: 'agent-socket-direct',
+  tokenResolver: async () => {
+    if (!lastHandshakeJWT) throw new Error('no_handshake_yet — wait for /handshake')
+    return lastHandshakeJWT
+  },
+})
+```
+
+**v0.7.1 will replace this with a clean helper:**
+```ts
+import { createHandshakeTokenStore } from '@nexus-mindgarden/plugin-bridge-foundation/auth'
+
+const tokenStore = createHandshakeTokenStore()
+const app = createBridgeApp({
+  manifest, registry, toolHandlers,
+  handshakeTokenStore: tokenStore,    // NEW v0.7.1 opt-in: captures Bearer at /handshake
+})
+// Then: createAgentComplete({ tokenResolver: () => tokenStore.current(), ... })
+```
+
+The store will throw `'no_handshake_yet'` on `current()` calls before the first handshake — making the not-yet-activated state explicit instead of silently returning empty-string.
+
+### §8.6 `actorClass` policy (v1)
+
+| Tool | `actorClass` allowed in v1 | Rationale |
+|---|---|---|
+| `image.generate` | `'user'` only | User-initiated generation. Background/batch is v2 (explicit `'background'` actorClass). |
+| `image.remove_background` | `'user'` only | Same. |
+| `agent.complete` | `'user'` + `'system'` | `'user'` = explicit user-action mirroring; `'system'` = autonomous-agent-initiated (background hooks). Per-actorClass rate-limits enforced host-side. |
+
+Defaulting to `'user'` is the safe choice when in doubt — the host will reject `'system'` calls from contexts that don't have that policy.
+
+### §8.7 Granite-Floor coverage (granite-test v0.0.6+ + spec v1.3)
+
+Oracle's `granite-floor.event.v1.3` (FROZEN 2026-05-31) introduces `target_kind: 'plugin-tool' | 'host-tool'` + `target_host: string` — additive fields letting plugins declare granite-test coverage of host-shared tools:
+
+```ts
+// granite-test.config.ts in any plugin consuming a host-shared tool:
+import { defineGraniteToolTest } from '@nexus-mindgarden/granite-test'
+
+export default [
+  defineGraniteToolTest({
+    tool: 'image.generate',           // un-prefixed host-shared name
+    persona: 'user',
+    target_kind: 'host-tool',          // v0.0.6+ (spec v1.3)
+    target_host: 'theseus',
+    cases: [
+      { case_id: 'img.gen.pixel-tile-256', prompt: 'pixel-art forest tile 256x256', max_latency_ms: 30000 },
+    ],
+  }),
+]
+```
+
+The aggregator validates `target_host present ⇔ target_kind === 'host-tool'` via a collapsed-refine. Read-side dedup-by-`(target_host, tool)` is a follow-on `/api/granite-floor/host-tools` rollup endpoint — non-blocking. Today's `tools_summary` continues grouping by `(repo, tool, persona, mode)` for attribution-by-emitter (correct view: which plugin saw which pass-rate on this host-tool).
+
+### §8.8 Migration path from v0.6.x
+
+If you were using `createAgentComplete({ bridgeEndpoint, sessionToken })` (V8-bridge static token) in v0.6.x, **no migration needed** — that shape continues working in v0.7.0 (defaults to `transport: 'v8-bridge'`, accepts `sessionToken: string`). You only need to migrate if you want to:
+1. Switch to direct-to-host (drop V8 dependency)
+2. Use per-plugin handshake-token instead of shared static
+3. Get token-rotation transparency without re-wiring
+
+Three steps:
+```ts
+// Before (v0.6.x):
+const agentComplete = createAgentComplete({
+  bridgeEndpoint: 'http://127.0.0.1:3100/mcp/v1/call-tool',
+  sessionToken: process.env.AGENT_SOCKET_TOKEN!,
+})
+
+// After (v0.7.0+):
+const agentComplete = createAgentComplete({
+  bridgeEndpoint: 'http://127.0.0.1:3400/agent/complete',
+  transport: 'agent-socket-direct',
+  tokenResolver: () => bridgeTokenStore.current(),
+})
+```
+
+Migration is **opt-in per call-site** — old + new code can co-exist in the same plugin during transition.
+
+### §8.9 Architectural references
+
+- **Boundary ruling (oracle 2026-05-30):** Sidecar architecture = **shared WIRE, NOT shared INSTANCE**. Standalone plugins (apex2d, mind-canva) MUST function without depending on each other. Central `:3401` sidecar is opportunistic efficiency, not a hard requirement. Same interface → standalone ↔ central = pure config-swap.
+- **Cluster-engineering pattern:** Wire-frozen → host-implements → Foundation-wraps → docs-cross-ref. Each layer landed independently (`@theseus/agent-complete-schema` v0.15.0, agent's `feat/host-tool-routing` branch, Foundation v0.7.0, this §8) for cross-team parallelism.
+- **Host-injection boundary:** `HostToolBindings { allowedTools, executor, capabilityCheck? }` is host-injectable into shared `plugin-system` (different supersets per host: V8 ships `{agent.complete}` only; Theseus ships `{agent.complete, image.generate, image.remove_background}`).
+- **Wire-spec single-source:** `@theseus/agent-complete-schema` (one package) + `@theseus/tools-image-schema` (one package, covers BOTH image tools) are the canonical wire-types — Foundation re-exports, never re-defines.
+
+### §8.10 When NOT to use host-shared tools
+
+Use a host-shared tool ONLY when your plugin **consumes** functionality the host provides. Do NOT prefix your **own** plugin-tool with `image.` or `agent.` — those namespaces are reserved. If you build your own image-generator or LLM-wrapper, use the standard pattern `<yourPluginId>.<entity>.<verb>` and it routes through the existing cross-plugin model (§§1–7).
 
 ---
 

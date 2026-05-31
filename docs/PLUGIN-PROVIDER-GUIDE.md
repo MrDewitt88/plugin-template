@@ -621,16 +621,48 @@ Das LM-Studio-Inflight-Argument allein zerlegt direct-HTTP für jedes Multi-Plug
 
 ### 11.2 Foundation-Helper
 
+> **v0.7.0+ — drei Transport-modes verfügbar.** Wähle nach **wo dein Code läuft** (DOM-Renderer vs Node-Bridge) + **welcher Token-Source** verfügbar ist. Decision-tree am Ende von §11.2.
+
+#### 11.2a — Embedded callMcp (NEUE Standard für DOM-Plugins, v0.7.0+)
+
+Wenn dein LLM-call **im Renderer** läuft (Svelte 5 custom-element, lit-element, etc.):
+
+```ts
+import { callMcp } from '@nexus-mindgarden/plugin-bridge-foundation/runtime'
+
+const result = await callMcp<{ text: string; toolCalls: unknown[] }>(
+  mount,
+  'agent.complete',                  // un-prefixed host-shared tool (v0.7.0+ allowlist)
+  {
+    messages: [
+      { role: 'system', content: 'Du bist ein hilfsbereiter Layout-Assistent.' },
+      { role: 'user', content: 'Schlage 5 Headlines für Frühlingsfest-A4-Flyer vor.' },
+    ],
+    responseFormat: { type: 'json_schema', schema: zodToJsonSchema(HeadlineSchema) },
+    maxTokens: 200,
+  },
+  { actorClass: 'user' },             // 'user' = user-initiated, 'system' = autonomous
+)
+// result.text = AgentCompleteResponse.text  (NICHT choices[0].message.content)
+const headlines = HeadlineSchema.parse(JSON.parse(result.text))
+```
+
+**Kein HTTP, kein Token, kein bridge-endpoint.** Der Host (myMind) routet den `plugin:mcp-call` CustomEvent direkt zu Theseus' `runHeadlessComplete`. Cross-Ref: `CROSS-PLUGIN-MCP-CALL-COOKBOOK.md` §8 (Host-Shared Tools).
+
+#### 11.2b — Standalone HTTP direct-to-host (NEU v0.7.0+, preferred für Bridge-Plugins)
+
+Wenn dein LLM-call **im Node-Bridge-Prozess** läuft (kein DOM, z.B. mind-canva `:3670` external-service, apex2d `:3690` reverse-call-Handler):
+
 ```ts
 import { createAgentComplete } from '@nexus-mindgarden/plugin-bridge-foundation/agent-complete'
 
 const agentComplete = createAgentComplete({
-  bridgeEndpoint: ctx.bridgeEndpoint,  // aus M17 accept-response
-  sessionToken: ctx.sessionToken,      // ebenfalls aus M17
-  callerId: 'my-plugin@host-tenant-x', // optional forensic-tracing
+  bridgeEndpoint: 'http://127.0.0.1:3400/agent/complete',  // direct Theseus agent-socket
+  transport: 'agent-socket-direct',                         // bare body, kein V8-envelope
+  tokenResolver: () => bridgeTokenStore.current(),          // per-plugin handshake-JWT
+  callerId: 'my-plugin@bridge',                             // optional forensic-tracing
 })
 
-// In a tool-handler / engine call:
 const result = await agentComplete({
   messages: [
     { role: 'system', content: 'Du bist ein hilfsbereiter Layout-Assistent.' },
@@ -642,13 +674,96 @@ const result = await agentComplete({
 })
 
 if (result.error) {
-  // Drift #103 canonical-error envelope
   logger.warn('agent.complete error', { code: result.error.code, message: result.error.message })
   throw { code: result.error.code, message: result.error.message }
 }
-
-const headlines = HeadlineSchema.parse(JSON.parse(result.text))  // defense-in-depth
+const headlines = HeadlineSchema.parse(JSON.parse(result.text))
 ```
+
+**Token-Source:** der `tokenResolver` gibt das per-plugin-activation-JWT zurück, das deine Bridge bei jedem `/plugin-bridge/v1/handshake` als `Authorization: Bearer …` empfängt (gleicher Token den du für `/host-bridge/v1/execute-tool` reverse-calls nutzt). **Kein neuer Token, kein `MC_AGENT_TOKEN` env-var nötig** sobald v0.7.1's `createHandshakeTokenStore()` da ist. Interim siehe Cookbook §8.5.2 für die capture-at-handshake-Middleware-Pattern.
+
+**Warum direct-to-host statt V8?** myMind ist kanonischer Host (2026-05-31). Der alte V8 → `/mcp/v1/call-tool` → :3400 hop funktioniert **weiter** (additive back-compat), ist aber **nicht mehr nötig**: ein hop weniger, keine V8-tenant-Bindung, per-plugin token statt shared-static.
+
+#### 11.2b.1 — Image-Tools: andere Wire als agent.complete
+
+`image.generate` und `image.remove_background` (b)-Pfad nutzen **NICHT** `/agent/complete`-style direct-endpoints, sondern den **Reverse-Call** `POST :3400/host-bridge/v1/execute-tool`:
+
+```ts
+// Today (pre-v0.7.1, manual fetch):
+async function callImageTool(toolName: string, args: unknown) {
+  const token = await handshakeTokenStore.current()    // siehe §11.11
+  const res = await fetch('http://127.0.0.1:3400/host-bridge/v1/execute-tool', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      tool: toolName,
+      args,                          // ⚠ KEY IS "args" — NICHT "arguments"!
+    }),
+  })
+  const body = await res.json()
+  if (!body.ok) throw new Error(`${body.error.code}: ${body.error.message}`)
+  return body
+}
+
+const result = await callImageTool('image.remove_background', {
+  image_base64: srcPng,
+  mime: 'image/png',
+})
+// ⚠ Lese result.metadata.image_base64 — NICHT result.value
+// (result.value ist base64-FREIE display-text; die PNG-bytes leben in metadata)
+const pngB64 = result.metadata.image_base64
+```
+
+**Token-Asymmetrie (kritisch):**
+
+| Endpoint | Static `MC_AGENT_TOKEN` | Per-plugin handshake-JWT |
+|---|---|---|
+| `/agent/complete` | ✅ (additive back-compat) | ✅ |
+| `/host-bridge/v1/execute-tool` (image.*) | ❌ NICHT supported | ✅ ONLY |
+
+→ Image-tools im (b)-Pfad sind **handshake-only** — kein interim-static-token workaround möglich. Wenn du heute schon agent.complete(b) mit static-token willst, geht das; image-tools brauchen handshake-JWT-exposure (v0.7.1 + §8.5.2 interim).
+
+**Coming v0.7.1:** `createReverseCallClient({ hostEndpoint, tokenStore })` typed wrapper der die `args`-vs-`arguments`- und `metadata`-vs-`value`-Discipline einkapselt. Bis dahin: manuelles fetch wie oben.
+
+Cross-ref Cookbook §8.4 für vollständige reverse-call-wire-details inkl. workspace-anchor-allowlist (`projects.*` / `contacts.*` / `calendar.*` / `notes.*` / `attachments.*` + `image.*`).
+
+#### 11.2c — Legacy V8-bridge (v0.3.0–v0.6.x, weiterhin supported)
+
+Wenn dein Plugin **innerhalb einer V8/TeamMind-tenant** läuft und gegen den existing V8-bridge gebaut hat:
+
+```ts
+const agentComplete = createAgentComplete({
+  bridgeEndpoint: ctx.bridgeEndpoint,      // M17 accept-response (V8 :3100 / v8-fam :3050)
+  sessionToken: ctx.sessionToken,          // M17 accept-response static-token
+  // transport omitted → defaults to 'v8-bridge' (back-compat)
+})
+```
+
+Identisch zu v0.6.x wire-output. Migration ist **opt-in per call-site** — v0.6.x code läuft weiter, nur neue call-sites greifen den (b)-direct-mode.
+
+#### Decision-Tree
+
+```
+Wo läuft dein LLM-call?
+├── DOM-Renderer (Svelte/lit/custom-element)
+│   → §11.2a callMcp('agent.complete')  ★ neue Standard
+│
+└── Node-Process (Bridge / external-service / reverse-call-handler)
+    │
+    ├── Plugin läuft in V8/v8-fam tenant + hat M17 token
+    │   ├── Nur back-compat, kein refactor:
+    │   │   → §11.2c V8-bridge (default transport, sessionToken)
+    │   └── Migration zu direct-to-host (preferred neu):
+    │       → §11.2b agent-socket-direct + tokenResolver
+    │
+    └── Plugin läuft standalone (kein V8 im loop):
+        → §11.2b agent-socket-direct + tokenResolver  ★ einzige Option
+```
+
+**Alle drei Modes nutzen den gleichen Handler** (Theseus' `runHeadlessComplete`) und das gleiche frozen schema (`@theseus/agent-complete-schema` v0.15.0). Nur transport-layer + auth-source unterscheiden sich.
 
 ### 11.3 Capability-Request bei M17 guest-registration
 
@@ -750,9 +865,60 @@ V8 selbst ist passive — V8 macht keine LLM-calls direkt, dispatched nur.
 
 Bis dahin sind plug-tmpl-Schemas faithful zur Spec (msg #449).
 
+### 11.11 v0.7.0 Migration: tokenResolver + agent-socket-direct
+
+**Foundation v0.7.0 (2026-05-31)** brachte additive transport-mode + tokenResolver — alle v0.6.x callsites laufen unverändert weiter. Du migrierst nur wenn du:
+
+1. **Direct-to-host willst** (kein V8 hop mehr, eigene plugin-bridge-Plugins)
+2. **Per-plugin handshake-token** statt shared-static brauchst (token-rotation transparent)
+3. **Standalone laufen** willst (kein V8 im loop, eigene `:36xx`-bridge im Node-context)
+
+**3-Schritt-Migration:**
+
+```ts
+// Before (v0.6.x — V8-bridge static-token):
+const agentComplete = createAgentComplete({
+  bridgeEndpoint: 'http://127.0.0.1:3100/mcp/v1/call-tool',
+  sessionToken: process.env.AGENT_SOCKET_TOKEN!,
+})
+
+// After (v0.7.0+ — direct-to-host per-plugin-token):
+const agentComplete = createAgentComplete({
+  bridgeEndpoint: 'http://127.0.0.1:3400/agent/complete',   // change 1: direct theseus :3400
+  transport: 'agent-socket-direct',                          // change 2: new transport-mode
+  tokenResolver: () => bridgeTokenStore.current(),           // change 3: resolver statt statisch
+})
+```
+
+**Token-source:** der per-plugin handshake-JWT aus `register-tenants` (gleicher den deine bridge für `/host-bridge/v1/execute-tool` hält). Foundation cached automatisch — `tokenResolver` returns current. **Kein neuer Token, kein env-var.**
+
+**Old + new co-exist im gleichen plugin.** v0.6.x-callsites bleiben auf V8-bridge, neue callsites schalten auf direct-mode. Opt-in pro call-site.
+
+**Cross-Repo-Adoption (Wave-Reihenfolge 2026-05-31+):**
+
+| Plugin | Migration | Status |
+|---|---|---|
+| mind-canva | (b) standalone HTTP — bridge `:3670` | wartet auf Foundation v0.7.0 npm-publish |
+| apex2d | (c) beides — embedded (a) callMcp + (b) standalone HTTP | wartet auf Foundation v0.7.0 npm-publish |
+| plug-elec | optional migration zu (b) wenn standalone-bridge gewünscht | TBD, nicht blockend |
+
+### 11.12 Host-Shared Tools Beyond agent.complete
+
+`agent.complete` ist 1 von **3 host-shared callMcp-Tools** (v0.7.0+ allowlist, agent's `feat/host-tool-routing` triple-landing 2026-05-31):
+
+| Tool | actorClass v1 | Wire-spec | Use-case |
+|---|---|---|---|
+| `agent.complete` | `'user'` + `'system'` | `@theseus/agent-complete-schema` | LLM text + tool-call + JSON-mode |
+| `image.generate` | `'user'` only | `@theseus/tools-image-schema` | Text-to-image (Bonsai sidecar §2.5) |
+| `image.remove_background` | `'user'` only | `@theseus/tools-image-schema` | Alpha-matting (ISNet @imgly §2.6) |
+
+Adding a 4th host-shared tool requires: chatbus contracts-thread RFC + oracle architecture-ruling + host-side `HostToolBindings` allowlist-extension + Foundation re-export + docs update. Don't prefix your own plugin-tools with `image.` / `agent.` — those namespaces are reserved.
+
+Cross-ref `CROSS-PLUGIN-MCP-CALL-COOKBOOK.md` §8 für vollständige host-shared-tools-architecture-details.
+
 ---
 
-> **See also (plugin↔host wire-protocol):** [`CROSS-PLUGIN-MCP-CALL-COOKBOOK.md`](./CROSS-PLUGIN-MCP-CALL-COOKBOOK.md) — canonical wire-spec for plugin custom-element bundles dispatching MCP-calls back through the host's IPC layer via Foundation's `/runtime` `callMcp()` helper. 3-side ko-authored from the Wiz-Mind v0.1.0 joint-smoke. Complements §11's plugin-to-LLM `agent.complete`-pattern with plugin-to-host MCP-tool-call-pattern.
+> **See also (plugin↔host wire-protocol):** [`CROSS-PLUGIN-MCP-CALL-COOKBOOK.md`](./CROSS-PLUGIN-MCP-CALL-COOKBOOK.md) — canonical wire-spec for plugin custom-element bundles dispatching MCP-calls back through the host's IPC layer via Foundation's `/runtime` `callMcp()` helper. 3-side ko-authored from the Wiz-Mind v0.1.0 joint-smoke. Complements §11's plugin-to-LLM `agent.complete`-pattern with plugin-to-host MCP-tool-call-pattern. **§8 Host-Shared Tools** (v0.7.0+) documents the broader host-shared-callMcp-tool model (`image.generate` / `image.remove_background` / `agent.complete`).
 
 ---
 
