@@ -6,6 +6,7 @@ export {
   agentCompleteText,
   createAgentComplete,
   type AgentCompleteFn,
+  type AgentCompleteTransport,
   type CreateAgentCompleteOptions,
 } from './client.js'
 

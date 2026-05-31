@@ -253,3 +253,241 @@ describe('AgentCompleteError class', () => {
     expect(err.cause).toBe(cause)
   })
 })
+
+// ============================================================================
+// v0.7.0+ — tokenResolver + transport-mode tests
+// (cluster-contract chatbus thread="contracts" 2026-05-31 § agent.complete (a)+(b),
+// agent msg #~05:05 per-plugin-token-shape; oracle-FROZEN granite-floor.event.v1.3)
+// ============================================================================
+
+describe('createAgentComplete — v0.7.0 auth-options invariant', () => {
+  it('throws at create-time when neither sessionToken nor tokenResolver set', () => {
+    expect(() =>
+      createAgentComplete({
+        bridgeEndpoint: 'http://127.0.0.1:3100/mcp/v1',
+      } as never),
+    ).toThrow(AgentCompleteError)
+    expect(() =>
+      createAgentComplete({
+        bridgeEndpoint: 'http://127.0.0.1:3100/mcp/v1',
+      } as never),
+    ).toThrow(/neither set/)
+  })
+
+  it('throws at create-time when BOTH sessionToken and tokenResolver set', () => {
+    expect(() =>
+      createAgentComplete({
+        bridgeEndpoint: 'http://127.0.0.1:3100/mcp/v1',
+        sessionToken: 'static',
+        tokenResolver: () => 'dynamic',
+      }),
+    ).toThrow(AgentCompleteError)
+    expect(() =>
+      createAgentComplete({
+        bridgeEndpoint: 'http://127.0.0.1:3100/mcp/v1',
+        sessionToken: 'static',
+        tokenResolver: () => 'dynamic',
+      }),
+    ).toThrow(/both set/)
+  })
+
+  it('throws with code=invalid_request (Drift #103 shape)', () => {
+    try {
+      createAgentComplete({
+        bridgeEndpoint: 'http://127.0.0.1:3100/mcp/v1',
+      } as never)
+      expect.fail('should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(AgentCompleteError)
+      expect((err as AgentCompleteError).code).toBe('invalid_request')
+    }
+  })
+})
+
+describe('createAgentComplete — tokenResolver (v0.7.0)', () => {
+  it('uses tokenResolver sync return as Bearer-token', async () => {
+    const fetchMock = mockFetch((_url, init) => {
+      expect((init.headers as Record<string, string>).Authorization).toBe('Bearer resolved-sync')
+      return new Response(JSON.stringify(VALID_RESPONSE), { status: 200 })
+    })
+    const client = createAgentComplete({
+      bridgeEndpoint: 'http://127.0.0.1:3100/mcp/v1',
+      tokenResolver: () => 'resolved-sync',
+      fetch: fetchMock,
+    })
+    await client(VALID_REQUEST)
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('uses tokenResolver async return as Bearer-token', async () => {
+    const fetchMock = mockFetch((_url, init) => {
+      expect((init.headers as Record<string, string>).Authorization).toBe('Bearer resolved-async')
+      return new Response(JSON.stringify(VALID_RESPONSE), { status: 200 })
+    })
+    const client = createAgentComplete({
+      bridgeEndpoint: 'http://127.0.0.1:3100/mcp/v1',
+      tokenResolver: async () => 'resolved-async',
+      fetch: fetchMock,
+    })
+    await client(VALID_REQUEST)
+  })
+
+  it('invokes tokenResolver FRESH per-request (not cached at create-time)', async () => {
+    let callCount = 0
+    const resolver = vi.fn(() => `token-call-${++callCount}`)
+    const fetchMock = mockFetch((_url, init) => {
+      const auth = (init.headers as Record<string, string>).Authorization
+      // Each request should see a fresh token from resolver
+      expect(auth).toMatch(/^Bearer token-call-\d+$/)
+      return new Response(JSON.stringify(VALID_RESPONSE), { status: 200 })
+    })
+    const client = createAgentComplete({
+      bridgeEndpoint: 'http://127.0.0.1:3100/mcp/v1',
+      tokenResolver: resolver,
+      fetch: fetchMock,
+    })
+    await client(VALID_REQUEST)
+    await client(VALID_REQUEST)
+    await client(VALID_REQUEST)
+    expect(resolver).toHaveBeenCalledTimes(3)
+  })
+
+  it('throws invalid_request when tokenResolver returns empty string', async () => {
+    const client = createAgentComplete({
+      bridgeEndpoint: 'http://127.0.0.1:3100/mcp/v1',
+      tokenResolver: () => '',
+      fetch: mockFetch(() => new Response(JSON.stringify(VALID_RESPONSE), { status: 200 })),
+    })
+    await expect(client(VALID_REQUEST)).rejects.toMatchObject({
+      code: 'invalid_request',
+    })
+  })
+
+  it('throws invalid_request when tokenResolver returns non-string', async () => {
+    const client = createAgentComplete({
+      bridgeEndpoint: 'http://127.0.0.1:3100/mcp/v1',
+      tokenResolver: () => 12345 as unknown as string,
+      fetch: mockFetch(() => new Response(JSON.stringify(VALID_RESPONSE), { status: 200 })),
+    })
+    await expect(client(VALID_REQUEST)).rejects.toMatchObject({
+      code: 'invalid_request',
+    })
+  })
+
+  it('throws transport_failure when tokenResolver throws sync', async () => {
+    const client = createAgentComplete({
+      bridgeEndpoint: 'http://127.0.0.1:3100/mcp/v1',
+      tokenResolver: () => {
+        throw new Error('store unavailable')
+      },
+      fetch: mockFetch(() => new Response(JSON.stringify(VALID_RESPONSE), { status: 200 })),
+    })
+    await expect(client(VALID_REQUEST)).rejects.toMatchObject({
+      code: 'transport_failure',
+    })
+  })
+
+  it('throws transport_failure when tokenResolver promise rejects', async () => {
+    const client = createAgentComplete({
+      bridgeEndpoint: 'http://127.0.0.1:3100/mcp/v1',
+      tokenResolver: () => Promise.reject(new Error('async store offline')),
+      fetch: mockFetch(() => new Response(JSON.stringify(VALID_RESPONSE), { status: 200 })),
+    })
+    await expect(client(VALID_REQUEST)).rejects.toMatchObject({
+      code: 'transport_failure',
+    })
+  })
+})
+
+describe('createAgentComplete — transport modes (v0.7.0)', () => {
+  it('default transport is v8-bridge (back-compat with v0.6.x)', async () => {
+    const fetchMock = mockFetch((url, init) => {
+      expect(url).toBe('http://127.0.0.1:3100/mcp/v1/call-tool')
+      const body = JSON.parse(init.body as string)
+      expect(body.tool).toBe('agent.complete')
+      expect(body.arguments).toBeDefined()
+      return new Response(JSON.stringify(VALID_RESPONSE), { status: 200 })
+    })
+    const client = createAgentComplete({
+      bridgeEndpoint: 'http://127.0.0.1:3100/mcp/v1',
+      sessionToken: 't',
+      // transport omitted → defaults to 'v8-bridge'
+      fetch: fetchMock,
+    })
+    await client(VALID_REQUEST)
+  })
+
+  it('transport=agent-socket-direct posts raw body to bridgeEndpoint (no /call-tool append)', async () => {
+    const fetchMock = mockFetch((url, init) => {
+      expect(url).toBe('http://127.0.0.1:3400/agent/complete')
+      const body = JSON.parse(init.body as string)
+      // Direct mode: body IS the AgentCompleteRequest, no envelope
+      expect(body.tool).toBeUndefined()
+      expect(body.arguments).toBeUndefined()
+      expect(body.messages[0].content).toBe('Hello')
+      return new Response(JSON.stringify(VALID_RESPONSE), { status: 200 })
+    })
+    const client = createAgentComplete({
+      bridgeEndpoint: 'http://127.0.0.1:3400/agent/complete',
+      transport: 'agent-socket-direct',
+      sessionToken: 't',
+      fetch: fetchMock,
+    })
+    await client(VALID_REQUEST)
+  })
+
+  it('transport=agent-socket-direct + tokenResolver (canonical Path-B)', async () => {
+    // Simulates: bridge-plugin's per-plugin handshake-token-store → direct
+    // Theseus agent-socket :3400/agent/complete
+    let handshakeToken = 'jwt-initial'
+    const tokenStore = { current: () => handshakeToken }
+    const fetchMock = mockFetch((url, init) => {
+      expect(url).toBe('http://127.0.0.1:3400/agent/complete')
+      const auth = (init.headers as Record<string, string>).Authorization
+      expect(auth).toBe(`Bearer ${handshakeToken}`)
+      return new Response(JSON.stringify(VALID_RESPONSE), { status: 200 })
+    })
+    const client = createAgentComplete({
+      bridgeEndpoint: 'http://127.0.0.1:3400/agent/complete',
+      transport: 'agent-socket-direct',
+      tokenResolver: () => tokenStore.current(),
+      fetch: fetchMock,
+    })
+    await client(VALID_REQUEST)
+    // Simulate handshake-token rotation
+    handshakeToken = 'jwt-rotated'
+    await client(VALID_REQUEST)
+  })
+
+  it('transport=agent-socket-direct strips trailing slash from bridgeEndpoint', async () => {
+    const fetchMock = mockFetch((url) => {
+      expect(url).toBe('http://127.0.0.1:3400/agent/complete')
+      return new Response(JSON.stringify(VALID_RESPONSE), { status: 200 })
+    })
+    const client = createAgentComplete({
+      bridgeEndpoint: 'http://127.0.0.1:3400/agent/complete/',
+      transport: 'agent-socket-direct',
+      sessionToken: 't',
+      fetch: fetchMock,
+    })
+    await client(VALID_REQUEST)
+  })
+
+  it('forwards X-Request-Id + x-caller-id headers in agent-socket-direct mode too', async () => {
+    const fetchMock = mockFetch((_url, init) => {
+      const h = init.headers as Record<string, string>
+      expect(h['X-Request-Id']).toBe('trace-direct')
+      expect(h['x-caller-id']).toBe('mind-canva-bridge@theseus')
+      return new Response(JSON.stringify(VALID_RESPONSE), { status: 200 })
+    })
+    const client = createAgentComplete({
+      bridgeEndpoint: 'http://127.0.0.1:3400/agent/complete',
+      transport: 'agent-socket-direct',
+      sessionToken: 't',
+      requestId: 'trace-direct',
+      callerId: 'mind-canva-bridge@theseus',
+      fetch: fetchMock,
+    })
+    await client(VALID_REQUEST)
+  })
+})
