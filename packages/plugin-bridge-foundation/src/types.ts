@@ -126,8 +126,9 @@ export interface HostKeyRecord {
 export const PLUGIN_REGISTRATION_SCHEMA_VERSION = 1 as const
 
 /**
- * Optional fields die ein Host bei register-host mitschicken KANN. Wenn fehlend
- * → in missing_optional_fields[] und reregister_recommended=true.
+ * Optional fields die ein Host bei register-host mitschicken KANN. Wenn ein
+ * Plugin sie ERZWINGT (via BridgeAppOptions.optionalRegisterFields) und sie
+ * fehlen → in missing_optional_fields[] und reregister_recommended=true.
  *
  * v0.2.0 baseline:
  *  - host_version: host's app-version (für Capability-gating)
@@ -136,7 +137,13 @@ export const PLUGIN_REGISTRATION_SCHEMA_VERSION = 1 as const
  *    cross-repo-etabliert genug für baseline-Aufnahme (msg #237 markview,
  *    msg #242 plug-elec).
  *
- * Erweiterungen pro Plugin-Provider via BridgeAppOptions.optionalRegisterFields.
+ * ⚠️ v0.7.2 (Drift #105 / cluster-ruling oracle #4520 + agent #4515):
+ * Dies ist KEIN Default mehr. Der Foundation-Default ist jetzt `[]` (opt-in) —
+ * ein „optional" benanntes Feld darf durch seine Abwesenheit NICHT dauerhaft
+ * `reregister_recommended=true` triggern (Selbstwiderspruch → reregister-Loop).
+ * Diese Konstante bleibt als bequemes Opt-in für Plugins, die `host_version` +
+ * `relay_url` wirklich erzwingen wollen:
+ *   new HostKeyRegistry(repo, { optionalRegisterFields: BASELINE_OPTIONAL_REGISTER_FIELDS })
  */
 export const BASELINE_OPTIONAL_REGISTER_FIELDS = ['host_version', 'relay_url'] as const
 

@@ -105,9 +105,14 @@ describe('createBridgeApp — staticUi integration', () => {
   })
 })
 
-describe('register-host with relay_url (v0.2.0 baseline)', () => {
+describe('register-host with relay_url (v0.2.0 baseline, v0.7.2 opt-in enforcement)', () => {
+  const ENFORCE = ['host_version', 'relay_url']
+
   it('accepts relay_url + records it as provided optional field', async () => {
-    const { registry } = await buildTestRegistry({ hostId: 'teammind' })
+    const { registry } = await buildTestRegistry({
+      hostId: 'teammind',
+      optionalRegisterFields: ENFORCE,
+    })
     const app = createBridgeApp({ manifest: MANIFEST, registry, toolHandlers: {} })
 
     const NEW_KEY = `-----BEGIN PUBLIC KEY-----
@@ -131,8 +136,11 @@ MCowBQYDK2VwAyEAnewkeynewkeynewkeynewkeynewkeynewkeynewkey0
     expect(body.host_record_status.reregister_recommended).toBe(false)
   })
 
-  it('returns missing_optional_fields with relay_url + host_version when omitted', async () => {
-    const { registry } = await buildTestRegistry({ hostId: 'teammind' })
+  it('with opt-in enforcement: returns missing_optional_fields when omitted', async () => {
+    const { registry } = await buildTestRegistry({
+      hostId: 'teammind',
+      optionalRegisterFields: ENFORCE,
+    })
     const app = createBridgeApp({ manifest: MANIFEST, registry, toolHandlers: {} })
     const NEW_KEY = `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAanotherkeyanotherkeyanotherkeyanotherkeyANO
@@ -145,7 +153,89 @@ MCowBQYDK2VwAyEAanotherkeyanotherkeyanotherkeyanotherkeyANO
     const body = (await res.json()) as {
       host_record_status: { missing_optional_fields: string[]; reregister_recommended: boolean }
     }
-    expect(body.host_record_status.missing_optional_fields.sort()).toEqual(['host_version', 'relay_url'])
+    expect(body.host_record_status.missing_optional_fields.sort()).toEqual([
+      'host_version',
+      'relay_url',
+    ])
     expect(body.host_record_status.reregister_recommended).toBe(true)
+  })
+
+  it('v0.7.2 DEFAULT (no opt-in): omitted optional fields do NOT trigger reregister (Drift #105 loop-fix)', async () => {
+    // The Theseus 119k-loop root-cause: foundation default forced relay_url, so
+    // a host that never sent it got reregister_recommended=true on every call.
+    // New default = [] → absence of an optional field is no longer a trigger.
+    const { registry } = await buildTestRegistry({ hostId: 'teammind' })
+    const app = createBridgeApp({ manifest: MANIFEST, registry, toolHandlers: {} })
+    const NEW_KEY = `-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAdefaultkeydefaultkeydefaultkeydefaultkeyDEF
+-----END PUBLIC KEY-----`
+    const res = await app.request('/plugin-bridge/v1/register-host', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host_id: 'minimal', public_key_pem: NEW_KEY }),
+    })
+    const body = (await res.json()) as {
+      host_record_status: { missing_optional_fields: string[]; reregister_recommended: boolean }
+    }
+    expect(body.host_record_status.missing_optional_fields).toEqual([])
+    expect(body.host_record_status.reregister_recommended).toBe(false)
+  })
+})
+
+describe('handshake host_record_status — v0.7.2 reads actual provided fields, not a hardcode', () => {
+  const TENANT = '00000000-0000-0000-0000-000000000001'
+  const USER = '00000000-0000-0000-0000-000000000002'
+
+  it('Drift #105: relay_url provided at register → handshake no longer false-flags it missing', async () => {
+    // Under opt-in enforcement, the OLD hardcode (`providedOptionalFields=['host_version']`)
+    // reported relay_url missing on EVERY handshake regardless of what the host
+    // actually registered → endless reregister. The fix tracks per-host fields.
+    const handle = await buildTestRegistry({
+      hostId: 'teammind',
+      optionalRegisterFields: ['host_version', 'relay_url'],
+    })
+    const app = createBridgeApp({ manifest: MANIFEST, registry: handle.registry, toolHandlers: {} })
+    const token = await handle.mintToken({
+      pluginId: 'test-plugin',
+      tenantId: TENANT,
+      userId: USER,
+      scopes: [],
+    })
+    const doHandshake = async () => {
+      const res = await app.request('http://localhost/plugin-bridge/v1/handshake', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plugin_id: 'test-plugin',
+          host_id: 'teammind',
+          host_version: '1.0.0',
+          tenant_id: TENANT,
+          user_id: USER,
+        }),
+      })
+      expect(res.status).toBe(200)
+      return (await res.json()) as {
+        host_record_status: { missing_optional_fields: string[]; reregister_recommended: boolean }
+      }
+    }
+
+    // Bootstrap host registered WITHOUT relay_url → handshake correctly flags it.
+    let body = await doHandshake()
+    expect(body.host_record_status.missing_optional_fields).toEqual(['relay_url'])
+    expect(body.host_record_status.reregister_recommended).toBe(true)
+
+    // Host now supplies relay_url (same key = idempotent, token stays valid).
+    await handle.registry.register({
+      host_id: 'teammind',
+      public_key_pem: handle.publicKeyPem,
+      host_version: '1.0.0',
+      relay_url: 'ws://127.0.0.1:3300/relay',
+    })
+
+    // Handshake now reflects the ACTUAL provided fields → loop ends.
+    // (Old hardcode would still report relay_url missing here → infinite loop.)
+    body = await doHandshake()
+    expect(body.host_record_status.missing_optional_fields).toEqual([])
+    expect(body.host_record_status.reregister_recommended).toBe(false)
   })
 })

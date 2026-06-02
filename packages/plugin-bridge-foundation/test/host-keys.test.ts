@@ -142,16 +142,45 @@ describe('buildHostRecordStatus — Drift #206', () => {
 })
 
 describe('HostKeyRegistry.optionalFields — configurable via RegistryOptions', () => {
-  it('defaults to BASELINE_OPTIONAL_REGISTER_FIELDS (host_version + relay_url since v0.2.0)', () => {
+  it('defaults to [] (v0.7.2 Drift #105 — opt-in, no forced fields)', () => {
     const reg = new HostKeyRegistry(new InMemoryHostKeyRepo())
-    expect(reg.optionalFields).toEqual(['host_version', 'relay_url'])
+    expect(reg.optionalFields).toEqual([])
   })
 
-  it('overrides via optionalRegisterFields', () => {
+  it('overrides via optionalRegisterFields (opt-in to enforce)', () => {
     const reg = new HostKeyRegistry(new InMemoryHostKeyRepo(), {
       optionalRegisterFields: ['host_version', 'relay_url', 'host_metadata'],
     })
     expect(reg.optionalFields).toEqual(['host_version', 'relay_url', 'host_metadata'])
+  })
+})
+
+describe('HostKeyRegistry.getProvidedOptionalFields — v0.7.2 per-host tracking', () => {
+  const PEM = `-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAfakekeyAfakekeyAfakekeyAfakekeyAfakekeyA
+-----END PUBLIC KEY-----`
+
+  it('returns [] for an unknown host', () => {
+    const reg = new HostKeyRegistry(new InMemoryHostKeyRepo())
+    expect(reg.getProvidedOptionalFields('nobody')).toEqual([])
+  })
+
+  it('records the optional fields a host supplied at register', async () => {
+    const reg = new HostKeyRegistry(new InMemoryHostKeyRepo(), { autoAccept: true })
+    await reg.register({
+      host_id: 'teammind',
+      public_key_pem: PEM,
+      host_version: '1.0.0',
+      relay_url: 'ws://r',
+    })
+    expect(reg.getProvidedOptionalFields('teammind').sort()).toEqual(['host_version', 'relay_url'])
+  })
+
+  it('unions provided fields across repeated registrations (stays credited)', async () => {
+    const reg = new HostKeyRegistry(new InMemoryHostKeyRepo(), { autoAccept: true })
+    await reg.register({ host_id: 'teammind', public_key_pem: PEM, host_version: '1.0.0' })
+    await reg.register({ host_id: 'teammind', public_key_pem: PEM, relay_url: 'ws://r' })
+    expect(reg.getProvidedOptionalFields('teammind').sort()).toEqual(['host_version', 'relay_url'])
   })
 })
 

@@ -22,9 +22,7 @@ export function handshakeHandler(manifest: PluginManifest, registry: HostKeyRegi
         {
           error: {
             code: 'invalid_request',
-            message: parsed.error.issues
-              .map((i) => `${i.path.join('.')}: ${i.message}`)
-              .join('; '),
+            message: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
           },
         },
         400,
@@ -49,12 +47,17 @@ export function handshakeHandler(manifest: PluginManifest, registry: HostKeyRegi
     // Drift #206: handshake-time-status — host hat schon registriert (sonst
     // hätte auth-Middleware vorher 401 geworfen), wir signalisieren ob
     // re-registration empfohlen ist basierend auf optional-fields-coverage.
-    // Bei handshake selbst übermittelt der Host host_version im JWT-Body —
-    // wir können es als 'provided' werten (subset der register-fields).
-    const providedOptionalFields = ['host_version']
-    const missingFields = registry.optionalFields.filter(
-      (f) => !providedOptionalFields.includes(f),
+    //
+    // v0.7.2 (Drift #105 / cluster-ruling oracle #4520 + agent #4515): KEIN
+    // Hardcode `['host_version']` mehr. Der alte Hardcode hat relay_url
+    // strukturell immer als 'missing' gemeldet → reregister_recommended=true bei
+    // JEDEM handshake → 119k-call-Loop auf Theseus. Wir tracken stattdessen die
+    // tatsächlich bei register gelieferten Felder pro Host, vereinigt mit dem
+    // host_version das der Host im handshake-request mitschickt (Pflichtfeld).
+    const providedOptionalFields = Array.from(
+      new Set([...registry.getProvidedOptionalFields(req.host_id), 'host_version']),
     )
+    const missingFields = registry.optionalFields.filter((f) => !providedOptionalFields.includes(f))
     const loopDetected = registry.detectReregisterLoop(req.host_id, missingFields)
 
     return c.json({

@@ -2,6 +2,35 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [plugin-bridge-foundation/0.7.2] — 2026-06-02
+
+**Per-package patch: `@nexus-mindgarden/plugin-bridge-foundation@0.7.2`** — fixes **Drift #105 (reregister-Loop)**, the root-cause of Theseus' 119k/168k reregister-call spin. Implements cluster-ruling **Option (c)** (oracle #4520, agent #4515/#4525/#4528). Other foundation packages unchanged.
+
+### Root-cause
+
+A field named *optional* must not, by its absence, trigger `reregister_recommended=true` — that is a self-contradiction in the Foundation heuristic. Two spots produced exactly that:
+
+1. **`HostKeyRegistry.optionalFields` defaulted to `BASELINE_OPTIONAL_REGISTER_FIELDS` (`['host_version','relay_url']`).** Any host that never supplied `relay_url` was flagged for re-registration on *every* call.
+2. **`handshake.ts` hardcoded `providedOptionalFields = ['host_version']`.** So `relay_url` appeared structurally missing on every handshake regardless of what the host actually registered — the host could never satisfy it → infinite loop.
+
+### Changed (Option (c))
+
+- **Foundation default is now `optionalRegisterFields: []` (opt-in).** Absence of an optional field no longer triggers `reregister_recommended`. Plugins that genuinely want to enforce fields opt in:
+  `new HostKeyRegistry(repo, { optionalRegisterFields: BASELINE_OPTIONAL_REGISTER_FIELDS })`.
+- **`handshake.ts` no longer hardcodes provided fields.** It reads the optional fields the host *actually* registered (`registry.getProvidedOptionalFields(host_id)`), unioned with the `host_version` carried in the handshake request. New per-host tracking (`HostKeyRegistry.getProvidedOptionalFields()`), populated at register-time as a union across re-registrations. Self-healing across process restart (one re-register repopulates the cache; not a loop).
+- `BASELINE_OPTIONAL_REGISTER_FIELDS` retained, re-documented as an opt-in convenience (value unchanged → consumers/tests stable).
+- `buildTestRegistry({ optionalRegisterFields })` passthrough for testing the enforcement paths.
+
+### Tests
+
+- `host-keys.test.ts`: default now `[]`; added `getProvidedOptionalFields` per-host tracking + union coverage.
+- `reregister-loop.test.ts`: loop scenarios now model the real opt-in-enforcement case via a `makeReg` helper.
+- `server-observability.test.ts`: opt-in register paths + **new default-behaviour test** (omitted fields → no reregister) + **new authenticated handshake integration test** proving the hardcode is gone (relay_url provided → handshake stops flagging it). 263/263 green, typecheck clean.
+
+### Cluster coordination
+
+- This is plug-tmpl's lever in the agreed ordering: **(c) lands first → Theseus ships (a)** (`relay_url`/`host_version` register-body key-fix). (b) Host-side backoff + flag-honor + hard-cap is already live on Theseus main (`c2568db`).
+
 ## [granite-test/0.0.7] — 2026-05-31
 
 **Per-package patch: `@nexus-mindgarden/granite-test@0.0.7`** — aligns to Oracle's `granite-floor.event.v1.4` FROZEN spec (chatbus #~21:09, 2026-05-31). Adds three additive observability fields (`tools_in_context`, `chunk_id`, `chunk_size`) + plugin-author API surface for canonical Tool-Count-Cap RFC (`toolCountPolicy` shape + `defineGraniteTestSuite()` helper). Foundation packages unchanged.

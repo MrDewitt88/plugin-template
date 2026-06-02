@@ -17,22 +17,30 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+// v0.7.2 (Drift #105): the Foundation default is now optionalRegisterFields=[],
+// so a real reregister-loop only occurs when a plugin OPTS IN to enforce fields
+// the host can't supply. These tests model exactly that scenario by enforcing
+// ['host_version', 'relay_url'] — the tuple that caused the Theseus 119k-loop.
+const ENFORCED = ['host_version', 'relay_url'] as const
+const makeReg = (opts: Record<string, unknown> = {}) =>
+  new HostKeyRegistry(new InMemoryHostKeyRepo(), { optionalRegisterFields: ENFORCED, ...opts })
+
 describe('HostKeyRegistry — Reregister-Loop-Detection (v0.2.3)', () => {
   it('does NOT detect loop on first registration', async () => {
-    const reg = new HostKeyRegistry(new InMemoryHostKeyRepo())
+    const reg = makeReg()
     await reg.register({ host_id: 'teammind', public_key_pem: FAKE_PEM })
     expect(reg.detectReregisterLoop('teammind', ['host_version', 'relay_url'])).toBe(false)
   })
 
   it('does NOT detect loop after 2 same-tuple registers (under threshold)', async () => {
-    const reg = new HostKeyRegistry(new InMemoryHostKeyRepo())
+    const reg = makeReg()
     await reg.register({ host_id: 'teammind', public_key_pem: FAKE_PEM })
     await reg.register({ host_id: 'teammind', public_key_pem: FAKE_PEM })
     expect(reg.detectReregisterLoop('teammind', ['host_version', 'relay_url'])).toBe(false)
   })
 
   it('DOES detect loop after 3 same-tuple registers within 5min window', async () => {
-    const reg = new HostKeyRegistry(new InMemoryHostKeyRepo())
+    const reg = makeReg()
     await reg.register({ host_id: 'teammind', public_key_pem: FAKE_PEM })
     await reg.register({ host_id: 'teammind', public_key_pem: FAKE_PEM })
     await reg.register({ host_id: 'teammind', public_key_pem: FAKE_PEM })
@@ -40,7 +48,7 @@ describe('HostKeyRegistry — Reregister-Loop-Detection (v0.2.3)', () => {
   })
 
   it('does NOT detect loop if window expired (>5min)', async () => {
-    const reg = new HostKeyRegistry(new InMemoryHostKeyRepo())
+    const reg = makeReg()
     await reg.register({ host_id: 'teammind', public_key_pem: FAKE_PEM })
     vi.advanceTimersByTime(6 * 60 * 1000) // 6 minutes
     await reg.register({ host_id: 'teammind', public_key_pem: FAKE_PEM })
@@ -50,9 +58,7 @@ describe('HostKeyRegistry — Reregister-Loop-Detection (v0.2.3)', () => {
   })
 
   it('does NOT detect loop if missing-fields change (host providing new value)', async () => {
-    const reg = new HostKeyRegistry(new InMemoryHostKeyRepo(), {
-      optionalRegisterFields: ['host_version', 'relay_url'],
-    })
+    const reg = makeReg()
     // 3 registers, but second one provides relay_url → fingerprint differs
     await reg.register({ host_id: 'teammind', public_key_pem: FAKE_PEM })
     await reg.register({ host_id: 'teammind', public_key_pem: FAKE_PEM, relay_url: 'ws://r' })
@@ -62,7 +68,7 @@ describe('HostKeyRegistry — Reregister-Loop-Detection (v0.2.3)', () => {
   })
 
   it('Loop-Detection per host_id isolated', async () => {
-    const reg = new HostKeyRegistry(new InMemoryHostKeyRepo())
+    const reg = makeReg()
     await reg.register({ host_id: 'host-a', public_key_pem: FAKE_PEM })
     await reg.register({ host_id: 'host-a', public_key_pem: FAKE_PEM })
     await reg.register({ host_id: 'host-a', public_key_pem: FAKE_PEM })
@@ -75,7 +81,7 @@ describe('HostKeyRegistry — Reregister-Loop-Detection (v0.2.3)', () => {
   })
 
   it('disabled when reregisterLoopThreshold=0', async () => {
-    const reg = new HostKeyRegistry(new InMemoryHostKeyRepo(), { reregisterLoopThreshold: 0 })
+    const reg = makeReg({ reregisterLoopThreshold: 0 })
     for (let i = 0; i < 10; i++) {
       await reg.register({ host_id: 'teammind', public_key_pem: FAKE_PEM })
     }
@@ -83,10 +89,7 @@ describe('HostKeyRegistry — Reregister-Loop-Detection (v0.2.3)', () => {
   })
 
   it('configurable threshold + window', async () => {
-    const reg = new HostKeyRegistry(new InMemoryHostKeyRepo(), {
-      reregisterLoopThreshold: 5,
-      reregisterLoopWindowMs: 1000,
-    })
+    const reg = makeReg({ reregisterLoopThreshold: 5, reregisterLoopWindowMs: 1000 })
     for (let i = 0; i < 4; i++) {
       await reg.register({ host_id: 'teammind', public_key_pem: FAKE_PEM })
     }
@@ -96,10 +99,7 @@ describe('HostKeyRegistry — Reregister-Loop-Detection (v0.2.3)', () => {
   })
 
   it('caps trace at 10 entries (oldest dropped)', async () => {
-    const reg = new HostKeyRegistry(new InMemoryHostKeyRepo(), {
-      reregisterLoopThreshold: 3,
-      reregisterLoopWindowMs: 60 * 60 * 1000,
-    })
+    const reg = makeReg({ reregisterLoopThreshold: 3, reregisterLoopWindowMs: 60 * 60 * 1000 })
     for (let i = 0; i < 15; i++) {
       await reg.register({ host_id: 'teammind', public_key_pem: FAKE_PEM })
     }

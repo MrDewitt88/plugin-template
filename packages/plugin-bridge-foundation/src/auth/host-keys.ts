@@ -11,7 +11,6 @@
 
 import { createHash } from 'node:crypto'
 import {
-  BASELINE_OPTIONAL_REGISTER_FIELDS,
   PLUGIN_REGISTRATION_SCHEMA_VERSION,
   type HostKeyRecord,
   type HostKeyStatus,
@@ -39,10 +38,14 @@ export interface RegistryOptions {
   /** Default false — privacy-by-default. Neue Hosts brauchen User-Confirm. */
   autoAccept?: boolean
   /**
-   * Optional fields die DIESES Plugin von register-host requests akzeptiert.
-   * Default = BASELINE_OPTIONAL_REGISTER_FIELDS. Plugin-Provider können erweitern
-   * (z.B. ['host_version', 'relay_url', 'host_metadata']). Fehlende Fields
-   * landen in host_record_status.missing_optional_fields.
+   * Optional fields die DIESES Plugin von register-host requests ERZWINGT.
+   *
+   * v0.7.2 (Drift #105): Default = `[]` (opt-in). Ein „optional" benanntes Feld
+   * darf durch seine Abwesenheit NICHT `reregister_recommended=true` triggern —
+   * das ist der Selbstwiderspruch, der den reregister-Loop (119k Calls auf
+   * Theseus) ausgelöst hat. Wer die Felder wirklich erzwingen will, opted-in:
+   *   { optionalRegisterFields: BASELINE_OPTIONAL_REGISTER_FIELDS }
+   * Fehlende erzwungene Fields landen in host_record_status.missing_optional_fields.
    */
   optionalRegisterFields?: readonly string[]
   /**
@@ -111,6 +114,14 @@ const DEFAULT_LOOP_WINDOW_MS = 5 * 60 * 1000
 export class HostKeyRegistry implements HostKeyResolver {
   /** In-memory recent-register-trace per host_id (Loop-Detection, v0.2.3). */
   private readonly recentRegisters = new Map<string, RegisterTraceEntry[]>()
+  /**
+   * In-memory cache der optional fields die ein host_id zuletzt bei register
+   * tatsächlich mitgeschickt hat (v0.7.2, Drift #105). Handshake liest hieraus
+   * statt die provided-fields zu hardcoden. Self-healing: nach Prozess-Restart
+   * leer → erster handshake meldet ggf. fehlende erzwungene Felder → host
+   * re-registriert EINMAL → cache populated. Kein Loop (anders als der Hardcode).
+   */
+  private readonly providedOptionalCache = new Map<string, readonly string[]>()
 
   constructor(
     private readonly repo: HostKeyRepo,
@@ -118,11 +129,24 @@ export class HostKeyRegistry implements HostKeyResolver {
   ) {}
 
   /**
-   * Liste der optional fields die DIESES Plugin akzeptiert. Drift #206 nutzt
-   * diese zum Vergleich gegen tatsächlich provided fields im register-Body.
+   * Liste der optional fields die DIESES Plugin ERZWINGT. Drift #206 nutzt
+   * diese zum Vergleich gegen tatsächlich provided fields.
+   *
+   * v0.7.2 (Drift #105): Default ist `[]` (opt-in), NICHT mehr
+   * BASELINE_OPTIONAL_REGISTER_FIELDS — siehe RegistryOptions.optionalRegisterFields.
    */
   get optionalFields(): readonly string[] {
-    return this.options.optionalRegisterFields ?? BASELINE_OPTIONAL_REGISTER_FIELDS
+    return this.options.optionalRegisterFields ?? []
+  }
+
+  /**
+   * Optional fields die `hostId` zuletzt bei register tatsächlich geliefert hat.
+   * Quelle für handshake's host_record_status (v0.7.2) — ersetzt den
+   * `['host_version']`-Hardcode. Leer wenn host_id (noch) nicht registriert ist
+   * bzw. nach Prozess-Restart bis zur nächsten Registrierung.
+   */
+  getProvidedOptionalFields(hostId: string): readonly string[] {
+    return this.providedOptionalCache.get(hostId) ?? []
   }
 
   get loopThreshold(): number {
@@ -159,9 +183,7 @@ export class HostKeyRegistry implements HostKeyResolver {
     if (!entries || entries.length < this.loopThreshold) return false
     const fp = [...missing_optional_fields].sort().join(',')
     const cutoff = Date.now() - this.loopWindowMs
-    const matching = entries.filter(
-      (e) => e.timestamp >= cutoff && e.missingFingerprint === fp,
-    )
+    const matching = entries.filter((e) => e.timestamp >= cutoff && e.missingFingerprint === fp)
     return matching.length >= this.loopThreshold
   }
 
@@ -171,6 +193,12 @@ export class HostKeyRegistry implements HostKeyResolver {
       (k) => k !== 'host_id' && k !== 'public_key_pem' && input[k] !== undefined,
     )
     this.trackRegister(input.host_id, providedFields)
+    // v0.7.2 (Drift #105): remember which optional fields this host has provided,
+    // as a UNION over repeated registrations (a host that once supplied relay_url
+    // stays credited). Handshake reads this instead of hardcoding ['host_version'].
+    const prior = this.providedOptionalCache.get(input.host_id) ?? []
+    const merged = Array.from(new Set([...prior, ...providedFields]))
+    this.providedOptionalCache.set(input.host_id, merged)
 
     const existing = await this.repo.get(input.host_id)
     const fingerprint = fingerprintPublicKey(input.public_key_pem)
@@ -256,9 +284,7 @@ export class InMemoryHostKeyRepo implements HostKeyRepo {
     record: HostKeyRecord,
     opts: { forceStatus?: HostKeyStatus } = {},
   ): Promise<HostKeyRecord> {
-    const finalRecord = opts.forceStatus
-      ? { ...record, status: opts.forceStatus }
-      : record
+    const finalRecord = opts.forceStatus ? { ...record, status: opts.forceStatus } : record
     this.store.set(record.host_id, finalRecord)
     return finalRecord
   }

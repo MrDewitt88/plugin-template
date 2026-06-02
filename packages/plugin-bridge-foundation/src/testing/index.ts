@@ -48,6 +48,11 @@ export interface BuildTestRegistryOptions {
   hostId?: string
   /** Wenn true (default), bootstrap-host wird mit autoAccept=true active. */
   autoAccept?: boolean
+  /**
+   * Optional fields die das Plugin erzwingt (opt-in). Default `[]` (v0.7.2).
+   * Nutze z.B. BASELINE_OPTIONAL_REGISTER_FIELDS um die Drift-#206-Pfade zu testen.
+   */
+  optionalRegisterFields?: readonly string[]
 }
 
 /**
@@ -64,7 +69,12 @@ export async function buildTestRegistry(
   const publicKeyPem = await exportSPKI(publicKey)
 
   const repo = new InMemoryHostKeyRepo()
-  const registry = new HostKeyRegistry(repo, { autoAccept })
+  const registry = new HostKeyRegistry(repo, {
+    autoAccept,
+    ...(opts.optionalRegisterFields !== undefined
+      ? { optionalRegisterFields: opts.optionalRegisterFields }
+      : {}),
+  })
   await registry.register({ host_id: hostId, public_key_pem: publicKeyPem })
   if (!autoAccept) {
     await registry.approve(hostId)
