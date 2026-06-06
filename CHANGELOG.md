@@ -2,22 +2,59 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [plugin-storage-foundation/0.7.0] — 2026-06-06
+
+**Per-package minor: `@nexus-mindgarden/plugin-storage-foundation@0.7.0`** — makes the storage layer **runtime-agnostic** so Bun-runtime plugins can use it. Answers oracle #4665 (Describe-Mind Stage-5 persistence under Bun). Other foundation packages unchanged. Backward-compatible — no changes required for existing Node/Electron consumers.
+
+### Why
+
+`openConnection()` uses `better-sqlite3`, a native addon that does **not** load under **Bun** (`ERR_DLOPEN_FAILED`, Drift #101 — plug-helix). Bun ships its own native `bun:sqlite`. Rather than couple the Foundation to one driver, the migration + pragma layer now targets the small synchronous-SQLite surface both expose.
+
+### Added
+
+- **`SqliteDb` / `SqliteStatement`** (`sqlite/driver.ts`) — structural interface (only `exec` / `prepare` / `transaction`) that both `better-sqlite3` and `bun:sqlite` `Database` satisfy without a cast.
+- **`applyPragmas(db, opts?)`** — applies the Foundation's production pragmas (WAL / foreign_keys / busy_timeout / synchronous / temp_store / cache_size) to **any** `SqliteDb` via raw `PRAGMA …` exec-statements (driver-neutral; not better-sqlite3's `.pragma()`). For Bun consumers that open their own `new Database()` from `bun:sqlite`.
+
+### Changed
+
+- **`migrate` / `rollbackTo` / `listApplied` and `Migration<DB>` retyped to `SqliteDb`** (generic, defaulting to `SqliteDb`). A `better-sqlite3` call still infers the richer type — **fully backward-compatible**; a `bun:sqlite` handle now type-checks against the same helpers. Internal `.prepare<>()` generics replaced with structural casts.
+- `openConnection()` unchanged (better-sqlite3, Node/Electron) — still returns the full `Database` type with `.pragma()`.
+
+### Canonical Bun path
+
+```ts
+import { Database } from 'bun:sqlite'
+import {
+  resolvePaths,
+  ensurePaths,
+  applyPragmas,
+  migrate,
+} from '@nexus-mindgarden/plugin-storage-foundation'
+const db = new Database(resolvePaths({ storageRoot, pluginId, hostId, tenantId }).dbPath)
+applyPragmas(db)
+migrate(db, migrations)
+```
+
+### Tests
+
+- New `driver.test.ts` (5 tests) drives `applyPragmas` + `migrate` + `rollbackTo` + `listApplied` through a `SqliteDb`-narrowed handle — proving the helpers need nothing beyond the bun:sqlite/better-sqlite3 overlap. 496/496 workspace green, typecheck clean.
+
 ## [plugin-bridge-foundation/0.7.2] — 2026-06-02
 
 **Per-package patch: `@nexus-mindgarden/plugin-bridge-foundation@0.7.2`** — fixes **Drift #105 (reregister-Loop)**, the root-cause of Theseus' 119k/168k reregister-call spin. Implements cluster-ruling **Option (c)** (oracle #4520, agent #4515/#4525/#4528). Other foundation packages unchanged.
 
 ### Root-cause
 
-A field named *optional* must not, by its absence, trigger `reregister_recommended=true` — that is a self-contradiction in the Foundation heuristic. Two spots produced exactly that:
+A field named _optional_ must not, by its absence, trigger `reregister_recommended=true` — that is a self-contradiction in the Foundation heuristic. Two spots produced exactly that:
 
-1. **`HostKeyRegistry.optionalFields` defaulted to `BASELINE_OPTIONAL_REGISTER_FIELDS` (`['host_version','relay_url']`).** Any host that never supplied `relay_url` was flagged for re-registration on *every* call.
+1. **`HostKeyRegistry.optionalFields` defaulted to `BASELINE_OPTIONAL_REGISTER_FIELDS` (`['host_version','relay_url']`).** Any host that never supplied `relay_url` was flagged for re-registration on _every_ call.
 2. **`handshake.ts` hardcoded `providedOptionalFields = ['host_version']`.** So `relay_url` appeared structurally missing on every handshake regardless of what the host actually registered — the host could never satisfy it → infinite loop.
 
 ### Changed (Option (c))
 
 - **Foundation default is now `optionalRegisterFields: []` (opt-in).** Absence of an optional field no longer triggers `reregister_recommended`. Plugins that genuinely want to enforce fields opt in:
   `new HostKeyRegistry(repo, { optionalRegisterFields: BASELINE_OPTIONAL_REGISTER_FIELDS })`.
-- **`handshake.ts` no longer hardcodes provided fields.** It reads the optional fields the host *actually* registered (`registry.getProvidedOptionalFields(host_id)`), unioned with the `host_version` carried in the handshake request. New per-host tracking (`HostKeyRegistry.getProvidedOptionalFields()`), populated at register-time as a union across re-registrations. Self-healing across process restart (one re-register repopulates the cache; not a loop).
+- **`handshake.ts` no longer hardcodes provided fields.** It reads the optional fields the host _actually_ registered (`registry.getProvidedOptionalFields(host_id)`), unioned with the `host_version` carried in the handshake request. New per-host tracking (`HostKeyRegistry.getProvidedOptionalFields()`), populated at register-time as a union across re-registrations. Self-healing across process restart (one re-register repopulates the cache; not a loop).
 - `BASELINE_OPTIONAL_REGISTER_FIELDS` retained, re-documented as an opt-in convenience (value unchanged → consumers/tests stable).
 - `buildTestRegistry({ optionalRegisterFields })` passthrough for testing the enforcement paths.
 
@@ -129,7 +166,7 @@ Future v1.5 may promote based on accumulated cluster-evidence. Emitters MAY use 
   - Client-side prefix-guard: fails fast with `forbidden_prefix` if `toolName` doesn't match `REVERSE_CALL_TOOL_PREFIXES`. Bypass with `enforcePrefixGuard: false`.
 - **`REVERSE_CALL_TOOL_PREFIXES`** const — canonical allowlist per agent #~05:47 (Q3):
   ```ts
-  ['projects.', 'contacts.', 'calendar.', 'notes.', 'attachments.', 'image.']
+  ;['projects.', 'contacts.', 'calendar.', 'notes.', 'attachments.', 'image.']
   ```
   (`agent.complete` is NOT here — it routes via dedicated `/agent/complete` endpoint, see `createAgentComplete` with `transport: 'agent-socket-direct'`.)
 - **`ReverseCallError`** typed class with `.code` discriminator. Foundation-emitted codes: `no_handshake_yet`, `transport_failure`, `invalid_response`, `http_error`, `forbidden_prefix`. Host-emitted codes per agent #~05:47 (Q1): `permission_denied`, `not_found`, `validation_failed`, `execution_error`, `timeout` — surfaced verbatim, no `retryable`/`retryHint` field (host shape is just `{code, message}`).
@@ -150,15 +187,17 @@ import { createAgentComplete } from '@nexus-mindgarden/plugin-bridge-foundation/
 const tokenStore = createHandshakeTokenStore()
 
 const app = createBridgeApp({
-  manifest, registry, toolHandlers,
-  handshakeTokenStore: tokenStore,    // NEW v0.7.1 — capture Bearer at /handshake
+  manifest,
+  registry,
+  toolHandlers,
+  handshakeTokenStore: tokenStore, // NEW v0.7.1 — capture Bearer at /handshake
 })
 
 // Then wire outbound clients against the SAME store:
 const agentComplete = createAgentComplete({
   bridgeEndpoint: 'http://127.0.0.1:3400/agent/complete',
   transport: 'agent-socket-direct',
-  tokenResolver: () => tokenStore.current(),  // no env-var, no static token
+  tokenResolver: () => tokenStore.current(), // no env-var, no static token
 })
 
 const reverseCall = createReverseCallClient({
@@ -168,7 +207,8 @@ const reverseCall = createReverseCallClient({
 
 // Image-tools — typed wrapper handles metadata.image_base64 extraction:
 const img = await reverseCall.executeImageTool('image.remove_background', {
-  image_base64: srcB64, mime: 'image/png',
+  image_base64: srcB64,
+  mime: 'image/png',
 })
 // img.image_base64 = PNG bytes, img.mime, img.width, img.height, etc.
 ```
@@ -275,6 +315,7 @@ const img = await reverseCall.executeImageTool('image.remove_background', {
 ### Validation refines
 
 10 refines now (was 9 in v1.2.2):
+
 - v1.0 outcome ⇔ fail_category
 - v1.1 wild-mode replay-bundle PII-guard
 - v1.2 anti-cheating Test-2/4 (applied_repairs required for repair-success)
@@ -382,13 +423,13 @@ The 3-arg form `callMcp(mount, qualifiedName, args)` continues to produce **iden
 
 All Foundation packages re-versioned from `0.5.0` → `0.6.0`:
 
-| Package | 0.5.0 → 0.6.0 |
-|---|---|
-| `@nexus-mindgarden/plugin-bridge-foundation` | 0.5.0 → 0.6.0 (adds `/runtime`) |
+| Package                                       | 0.5.0 → 0.6.0                    |
+| --------------------------------------------- | -------------------------------- |
+| `@nexus-mindgarden/plugin-bridge-foundation`  | 0.5.0 → 0.6.0 (adds `/runtime`)  |
 | `@nexus-mindgarden/plugin-storage-foundation` | 0.5.0 → 0.6.0 (no source change) |
-| `@nexus-mindgarden/plugin-svelte-foundation` | 0.5.0 → 0.6.0 (no source change) |
-| `@nexus-mindgarden/plugin-mcp-foundation` | 0.5.0 → 0.6.0 (no source change) |
-| `@nexus-mindgarden/create-plugin` | 0.5.0 → 0.6.0 (no source change) |
+| `@nexus-mindgarden/plugin-svelte-foundation`  | 0.5.0 → 0.6.0 (no source change) |
+| `@nexus-mindgarden/plugin-mcp-foundation`     | 0.5.0 → 0.6.0 (no source change) |
+| `@nexus-mindgarden/create-plugin`             | 0.5.0 → 0.6.0 (no source change) |
 
 ### Cross-Repo Provenance
 
@@ -435,13 +476,13 @@ All Foundation packages re-versioned from `0.5.0` → `0.6.0`:
 
 All Foundation packages re-versioned from `0.4.x` → `0.5.0`:
 
-| Package | 0.4.x → 0.5.0 |
-|---|---|
-| `@nexus-mindgarden/plugin-bridge-foundation` | 0.4.1 → 0.5.0 (adds `/persona`) |
+| Package                                       | 0.4.x → 0.5.0                    |
+| --------------------------------------------- | -------------------------------- |
+| `@nexus-mindgarden/plugin-bridge-foundation`  | 0.4.1 → 0.5.0 (adds `/persona`)  |
 | `@nexus-mindgarden/plugin-storage-foundation` | 0.4.0 → 0.5.0 (no source change) |
-| `@nexus-mindgarden/plugin-svelte-foundation` | 0.4.0 → 0.5.0 (no source change) |
-| `@nexus-mindgarden/plugin-mcp-foundation` | 0.4.0 → 0.5.0 (no source change) |
-| `@nexus-mindgarden/create-plugin` | 0.4.0 → 0.5.0 (no source change) |
+| `@nexus-mindgarden/plugin-svelte-foundation`  | 0.4.0 → 0.5.0 (no source change) |
+| `@nexus-mindgarden/plugin-mcp-foundation`     | 0.4.0 → 0.5.0 (no source change) |
+| `@nexus-mindgarden/create-plugin`             | 0.4.0 → 0.5.0 (no source change) |
 
 Per v0.4.1 CHANGELOG: lockstep is relaxed for per-package patches, retained for minor/major bumps. v0.5.0 is a minor bump → lockstep.
 
@@ -455,6 +496,7 @@ Per v0.4.1 CHANGELOG: lockstep is relaxed for per-package patches, retained for 
 **v0.6.0 candidate:** `createPersonaAnchoredAgent()` runtime helper under the same `/persona` subpath (additive expansion). Ships when ≥2 consumers signal explicit runtime need. Default-anchoring-logic + `buildPrompt`-override-callback already shape-locked in v0.5.0 — implementation is non-breaking.
 
 **v0.5.0 carry-overs from v0.4.x roadmap:**
+
 - Extend `HostKeyRecord` with per-host `expectedIssuer`/`expectedAudience` for multi-issuer-bridges (markview msg #549) — NOT in v0.5.0, deferred until concrete consumer-need lands
 
 ### Cross-Repo Provenance
@@ -470,7 +512,6 @@ Per v0.4.1 CHANGELOG: lockstep is relaxed for per-package patches, retained for 
 ### Added
 
 - **`@nexus-mindgarden/plugin-bridge-foundation/shapes` subpath** — wire-shape-only re-exports (zod-schemas + inferred-types + canonical-constants). Designed for two adoption-patterns surfaced by v0.4.0 consumer-feedback:
-
   1. **In-Repo-Mirror consumers** (zero supply-chain-Surface): Replace hand-rolled shape-mirrors with `import type { HostRecordStatus } from '@nexus-mindgarden/plugin-bridge-foundation/shapes'`. Drift-immunity without pulling hono/jose/storage-runtimes. The shape-only `import type` syntax + TS-elision means zero bundled bytes for type-only consumers.
 
   2. **Helper-Lib consumers** (selective Foundation-adoption): Pair with main subpath's runtime-helpers (e.g. `buildHostRecordStatus()` from `/auth`) without pulling `createBridgeApp` or full server-runtime.
@@ -523,6 +564,7 @@ Closes the v0.3.0 → v0.3.3 anti-pattern bridge. github-URL+`&path:` subspec is
   - `@nexus-mindgarden/create-plugin`
 
 - **Consumer dependency-syntax change**:
+
   ```diff
   - "@nexus/plugin-bridge-foundation": "github:MrDewitt88/plugin-template#v0.3.3&path:/packages/plugin-bridge-foundation"
   + "@nexus-mindgarden/plugin-bridge-foundation": "^0.4.0"
@@ -574,18 +616,18 @@ Mind-Canva + Wiz-Mind sind primary first-movers. ETA migration ~30min pro Plugin
 
 **First-mover validation:** mind-canva-CC migrated cleanly in **22min** (vs 30min-estimate ✓) — commit [`641f5c5`](https://github.com/MrDewitt88/Mind-Canva/commit/641f5c5) on `main`, 2026-05-21. The sed-script in the migration-section above is **battle-tested** by this run.
 
-| Metric | Wert |
-|---|---|
-| Aufwand | 22min |
-| Files touched | 30 (source + 2 `package.json` + `pnpm-workspace.yaml` + 7 docs) |
-| Source-Renames | `@nexus/plugin-` → `@nexus-mindgarden/plugin-` via sed |
-| Workspace-Konfig | `vendor/plugin-template/packages/*` entfernt aus `pnpm-workspace.yaml` |
-| Vendored-Tree | `vendor/` komplett gelöscht (~50 files) |
+| Metric           | Wert                                                                                    |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| Aufwand          | 22min                                                                                   |
+| Files touched    | 30 (source + 2 `package.json` + `pnpm-workspace.yaml` + 7 docs)                         |
+| Source-Renames   | `@nexus/plugin-` → `@nexus-mindgarden/plugin-` via sed                                  |
+| Workspace-Konfig | `vendor/plugin-template/packages/*` entfernt aus `pnpm-workspace.yaml`                  |
+| Vendored-Tree    | `vendor/` komplett gelöscht (~50 files)                                                 |
 | Workarounds gone | `scripts/setup-foundation.sh` + `setup:foundation` script + `docs/VENDOR-FOUNDATION.md` |
-| `pnpm install` | 2.1s |
-| Tests | 162/162 grün |
-| UI build | 95.1 KB gz (unchanged) |
-| Drift-discipline | maintained (identical foundation-code, just via npm) |
+| `pnpm install`   | 2.1s                                                                                    |
+| Tests            | 162/162 grün                                                                            |
+| UI build         | 95.1 KB gz (unchanged)                                                                  |
+| Drift-discipline | maintained (identical foundation-code, just via npm)                                    |
 
 **Verified import-resolution** out of `@nexus-mindgarden/plugin-bridge-foundation` + `/observability` subpath: `createBridgeApp`, `HostKeyRegistry`, `JsonFileHostKeyRepo`, `loadManifest`, `Logger`, `MetricsRegistry`. Bridge boot identical to vendored-version (`bridge_listening` + `storage_opened` clean).
 
@@ -609,10 +651,12 @@ Third hotfix in 4 hours. wiz-mind (msg #508) + plug-elec (msg #509) independentl
 ### The Real Problem (both install-paths broken before v0.3.3)
 
 **Path A: `pnpm add github:...#v0.3.2`** (no subspec):
+
 - pnpm aliases `@nexus/plugin-bridge-foundation` → ROOT `@nexus/plugin-template` package
 - Root has no `main`/`exports` (`"private": true`) → "Failed to resolve entry"
 
 **Path B: `pnpm add github:...#v0.3.2&path:/packages/plugin-bridge-foundation`** (subspec):
+
 - pnpm installs sub-package isolated
 - BUT prepare-hook only runs at ROOT install, not at sub-package install
 - `dist/` doesn't exist in installed package → ERR_MODULE_NOT_FOUND
@@ -628,6 +672,7 @@ Per plug-elec msg #509 recommendation + wiz-mind msg #508 fallback:
 - **All Foundation packages aligned to `0.3.3`** (were drifted: bridge 0.3.1, svelte 0.3.2, storage/mcp 0.2.0)
 
 Consumer install via `&path:` subspec now finds `dist/` immediately:
+
 ```bash
 pnpm add 'github:MrDewitt88/plugin-template#v0.3.3&path:/packages/plugin-bridge-foundation'
 ```
@@ -635,6 +680,7 @@ pnpm add 'github:MrDewitt88/plugin-template#v0.3.3&path:/packages/plugin-bridge-
 ### Anti-Pattern Acknowledgement
 
 Committing build-output to git is anti-pattern. We're doing it as a **bridge to npm-publish** (v0.4.0 roadmap, per Option A consensus). Trade-offs:
+
 - ✅ Consumers can install via github immediately
 - ✅ Foundation surface stable enough to commit
 - ⚠️ Diffs include dist/ — git-blame/code-review noise
@@ -673,6 +719,7 @@ Critical fix release — second wiz-mind report DM #487. v0.3.1 prepare-hook unb
 Root cause: `.gitignore` line 3 had bare `build/` pattern, which matched any directory named `build/` at any depth. `src/build/` in plugin-svelte-foundation is a **legitimate source-folder** containing `esbuild-config.ts` + `index.ts` for build-pipeline-helpers exposed at `@nexus/plugin-svelte-foundation/build` subpath. These files were untracked since v0.0.1 — locally everything compiled because the files existed on disk, but consumer-clones via `pnpm add github:...` got tarballs without these files.
 
 Fix:
+
 - Removed `build/` rule from `.gitignore` (was overzealous — no package outputs to `build/` directory; everything uses `dist/`)
 - Force-added `packages/plugin-svelte-foundation/src/build/{index.ts,esbuild-config.ts}` to git
 - plugin-svelte-foundation bumped to `v0.3.2` (matches monorepo version, was stuck at `0.2.0` since v0.1.0 release)
@@ -706,6 +753,7 @@ Fix: `prepare: "pnpm -r build"` added to root package.json. When pnpm clones the
 **2. Cross-Repo `register-host` field-name drift** (V8 msg #483 + markview msg #485)
 
 Two wire-format-camps existed parallel:
+
 - Theseus/MarkView-canonical: `public_key`
 - plug-tmpl-Foundation-canonical: `public_key_pem`
 
@@ -741,7 +789,7 @@ Two wire-format-camps existed parallel:
 
 User-Argument (2026-05-21):
 
-> *"wenn jedes Plugin extra zugriff für LM Studio benötigt, hab ich jetzt schon 11 Verbindungen obwohl eine ausreichen würde und zwar über den Chat von Theseus-Agent"*
+> _"wenn jedes Plugin extra zugriff für LM Studio benötigt, hab ich jetzt schon 11 Verbindungen obwohl eine ausreichen würde und zwar über den Chat von Theseus-Agent"_
 
 Agent (Luma) proposed `agent.complete` als canonical Plugin-to-LLM Tool — 1 client am LM Studio statt N racing connections. Theseus shipped `v0.15.0-agent-complete-endpoint` (commit `51921ff`) mit `@theseus/agent-complete-schema` (Theseus monorepo, npm-publish pending). V8 + v8-fam implementieren `/mcp/v1/call-tool` Reverse-Call zu Theseus `POST /agent/complete` per Design-Y.
 

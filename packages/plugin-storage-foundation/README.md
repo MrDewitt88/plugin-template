@@ -40,24 +40,60 @@ console.log('applied:', result.applied) // ['0001_initial']
 ```
 src/
 ├── sqlite/
-│   ├── connection.ts   # openConnection + Production-Pragmas
-│   ├── migrations.ts   # migrate / rollbackTo + Migration-Type
+│   ├── driver.ts       # SqliteDb / SqliteStatement — runtime-agnostic surface
+│   ├── connection.ts   # openConnection (better-sqlite3) + applyPragmas (any driver)
+│   ├── migrations.ts   # migrate / rollbackTo + Migration-Type (typed to SqliteDb)
 │   └── index.ts        # re-exports
 └── fs/
-    ├── multi-host-paths.ts  # resolvePaths + ensurePaths
+    ├── multi-host-paths.ts  # resolvePaths + ensurePaths (runtime-agnostic)
     └── index.ts             # re-exports
 ```
 
+## Runtime: Node/Electron vs. Bun (Drift #101)
+
+`openConnection()` uses **`better-sqlite3`** — a native addon for **Node/Electron**. It does **not** load under **Bun** (`ERR_DLOPEN_FAILED`, Drift #101). Bun ships its own native `bun:sqlite`.
+
+The migration + pragma + path layer is **runtime-agnostic** (v0.7.0): `migrate`/`rollbackTo`/`listApplied` and `applyPragmas` are typed against the structural `SqliteDb` interface, which both `better-sqlite3` and `bun:sqlite` satisfy without a cast. `resolvePaths`/`ensurePaths` are pure path logic.
+
+**Bun-runtime plugin** — open the DB with `bun:sqlite`, reuse everything else:
+
+```ts
+import { Database } from 'bun:sqlite'
+import {
+  resolvePaths,
+  ensurePaths,
+  applyPragmas,
+  migrate,
+  type Migration,
+} from '@nexus-mindgarden/plugin-storage-foundation'
+
+const paths = resolvePaths({ storageRoot, pluginId: 'describe-mind', hostId, tenantId })
+ensurePaths(paths)
+
+const db = new Database(paths.dbPath) // bun-native, no better-sqlite3
+applyPragmas(db) // same WAL/FK/busy-timeout defaults as Node
+migrate(db, migrations) // identical migration helper
+```
+
+**Node/Electron plugin** — `openConnection()` as before (returns a full `better-sqlite3` `Database` with `.pragma()` etc.):
+
+```ts
+const db = openConnection({ path: paths.dbPath }) // pragmas already applied
+migrate(db, migrations)
+```
+
+> Tenancy: write `tenant_id` + `user_id` as columns (+ index) in every table and `WHERE`-filter every query, per plug-db's `unifieddb-tenancy-contract`. The Foundation gives you connection + migrations + per-tenant paths; the plugin writes its own thin repo layer (prepared statements) — `mind-canva`'s `repo/*.ts` is the reference. There is no generic CRUD/repository helper by design.
+
 ## SQLite Pragmas (Defaults)
 
-| Pragma | Default | Purpose |
-|---|---|---|
-| `journal_mode` | `WAL` | concurrent-read + serialized-write, durability OK |
-| `foreign_keys` | `ON` | referential-integrity |
-| `synchronous` | `NORMAL` | WAL-mode-default, fsync only at checkpoint |
-| `busy_timeout` | `5000` | ms wait bei locked-rows |
-| `temp_store` | `MEMORY` | temp-tables in RAM |
-| `cache_size` | `-32000` | 32MB page-cache |
+| Pragma         | Default  | Purpose                                           |
+| -------------- | -------- | ------------------------------------------------- |
+| `journal_mode` | `WAL`    | concurrent-read + serialized-write, durability OK |
+| `foreign_keys` | `ON`     | referential-integrity                             |
+| `synchronous`  | `NORMAL` | WAL-mode-default, fsync only at checkpoint        |
+| `busy_timeout` | `5000`   | ms wait bei locked-rows                           |
+| `temp_store`   | `MEMORY` | temp-tables in RAM                                |
+| `cache_size`   | `-32000` | 32MB page-cache                                   |
 
 Alle override-bar via `ConnectionOptions`.
 
@@ -100,6 +136,7 @@ pnpm typecheck  # tsc --noEmit
 ```
 
 Tests cover:
+
 - `connection.test.ts` — pragmas (WAL/FK/busy_timeout), readonly mode, mkdir-parent, idempotent close
 - `migrations.test.ts` — forward apply, idempotent re-run, atomic per-migration on failure, rollbackTo (reverse-path), non-reversible-throw
 - `multi-host-paths.test.ts` — standard sub-paths, subPath helper, path-traversal rejection (`..` / `/` / hidden), idempotent ensurePaths

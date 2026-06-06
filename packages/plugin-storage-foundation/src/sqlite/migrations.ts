@@ -10,17 +10,17 @@
 //
 // Idempotent: Re-running migrate() ist no-op wenn alle applied.
 
-import type { Database as DatabaseType } from 'better-sqlite3'
 import { StorageError } from '../errors.js'
+import type { SqliteDb } from './driver.js'
 
-export interface Migration {
+export interface Migration<DB extends SqliteDb = SqliteDb> {
   /** Monotonic ID, z.B. "0001_initial" */
   id: string
   /** Forward-migrate. Wird in transaction gewrappt. */
-  up: (db: DatabaseType) => void
+  up: (db: DB) => void
   /** Rollback. Wird in transaction gewrappt. Optional — wenn null,
       dann ist diese Migration "non-reversible". */
-  down: ((db: DatabaseType) => void) | null
+  down: ((db: DB) => void) | null
 }
 
 export interface MigrateResult {
@@ -30,7 +30,7 @@ export interface MigrateResult {
 
 const MIGRATIONS_TABLE = '_plugin_migrations'
 
-function ensureMigrationsTable(db: DatabaseType): void {
+function ensureMigrationsTable(db: SqliteDb): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS ${MIGRATIONS_TABLE} (
       id TEXT PRIMARY KEY,
@@ -39,8 +39,8 @@ function ensureMigrationsTable(db: DatabaseType): void {
   `)
 }
 
-function appliedIds(db: DatabaseType): Set<string> {
-  const rows = db.prepare<[], { id: string }>(`SELECT id FROM ${MIGRATIONS_TABLE}`).all()
+function appliedIds(db: SqliteDb): Set<string> {
+  const rows = db.prepare(`SELECT id FROM ${MIGRATIONS_TABLE}`).all() as Array<{ id: string }>
   return new Set(rows.map((r) => r.id))
 }
 
@@ -49,13 +49,16 @@ function appliedIds(db: DatabaseType): Set<string> {
  * Throws wenn eine Migration in der up-Phase wirft — bisherige
  * applied-rows bleiben (atomic-per-migration via transaction).
  */
-export function migrate(db: DatabaseType, migrations: readonly Migration[]): MigrateResult {
+export function migrate<DB extends SqliteDb>(
+  db: DB,
+  migrations: readonly Migration<DB>[],
+): MigrateResult {
   ensureMigrationsTable(db)
   const applied = appliedIds(db)
   const sorted = [...migrations].sort((a, b) => a.id.localeCompare(b.id))
 
   const result: MigrateResult = { applied: [], skipped: [] }
-  const insert = db.prepare<[string], void>(`INSERT INTO ${MIGRATIONS_TABLE} (id) VALUES (?)`)
+  const insert = db.prepare(`INSERT INTO ${MIGRATIONS_TABLE} (id) VALUES (?)`)
 
   for (const mig of sorted) {
     if (applied.has(mig.id)) {
@@ -80,9 +83,9 @@ export function migrate(db: DatabaseType, migrations: readonly Migration[]): Mig
  * Beispiel: applied=['0001', '0002', '0003'], rollbackTo('0001')
  * → '0003'.down() + '0002'.down() applied; '0001' bleibt.
  */
-export function rollbackTo(
-  db: DatabaseType,
-  migrations: readonly Migration[],
+export function rollbackTo<DB extends SqliteDb>(
+  db: DB,
+  migrations: readonly Migration<DB>[],
   targetId: string,
 ): { rolledBack: string[] } {
   ensureMigrationsTable(db)
@@ -90,7 +93,7 @@ export function rollbackTo(
   const sorted = [...migrations].sort((a, b) => b.id.localeCompare(a.id))
 
   const rolledBack: string[] = []
-  const del = db.prepare<[string], void>(`DELETE FROM ${MIGRATIONS_TABLE} WHERE id = ?`)
+  const del = db.prepare(`DELETE FROM ${MIGRATIONS_TABLE} WHERE id = ?`)
 
   for (const mig of sorted) {
     if (mig.id <= targetId) break
@@ -115,10 +118,10 @@ export function rollbackTo(
 /**
  * Returns applied migration-ids in ascending order (für introspection).
  */
-export function listApplied(db: DatabaseType): string[] {
+export function listApplied(db: SqliteDb): string[] {
   ensureMigrationsTable(db)
-  const rows = db
-    .prepare<[], { id: string }>(`SELECT id FROM ${MIGRATIONS_TABLE} ORDER BY id ASC`)
-    .all()
+  const rows = db.prepare(`SELECT id FROM ${MIGRATIONS_TABLE} ORDER BY id ASC`).all() as Array<{
+    id: string
+  }>
   return rows.map((r) => r.id)
 }

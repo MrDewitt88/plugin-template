@@ -17,6 +17,7 @@
 import Database, { type Database as DatabaseType } from 'better-sqlite3'
 import { dirname } from 'node:path'
 import { mkdirSync } from 'node:fs'
+import type { SqliteDb } from './driver.js'
 
 export interface ConnectionOptions {
   /** Absolute path to .db file. Parent-dirs werden auto-erstellt. */
@@ -107,6 +108,46 @@ export function openConnection(opts: ConnectionOptions): DatabaseType {
   }
 
   return db
+}
+
+export interface PragmaOptions {
+  /** Default true — WAL-mode für concurrent-reads + serialized writes. */
+  walMode?: boolean
+  /** Default true — referential-integrity-enforced. */
+  foreignKeys?: boolean
+  /** Default 5000 — ms wait bei locked-rows. */
+  busyTimeoutMs?: number
+  /** Default -32000 (32MB). */
+  cacheSizeKb?: number
+  /** Default true — `synchronous = NORMAL` (WAL-default). Set false to leave untouched. */
+  synchronousNormal?: boolean
+  /** Default true — `temp_store = MEMORY`. */
+  tempStoreMemory?: boolean
+}
+
+/**
+ * Apply the Foundation's production pragmas to ANY `SqliteDb` via raw
+ * `PRAGMA …` exec-statements — runtime-agnostic (v0.7.0, Drift #101).
+ *
+ * `openConnection()` is better-sqlite3-only (native addon, crashes under Bun).
+ * Bun-runtime plugins open their DB themselves and call this instead:
+ *
+ *   import { Database } from 'bun:sqlite'
+ *   import { applyPragmas, migrate } from '@nexus-mindgarden/plugin-storage-foundation'
+ *   const db = new Database(paths.dbPath)
+ *   applyPragmas(db)                 // same WAL/FK/busy-timeout defaults as Node
+ *   migrate(db, migrations)          // identical migration helper
+ *
+ * Uses `db.exec('PRAGMA …')` (not better-sqlite3's `.pragma()`), which both
+ * drivers honor. Safe to call on a read-write connection before migrating.
+ */
+export function applyPragmas(db: SqliteDb, opts: PragmaOptions = {}): void {
+  if (opts.walMode !== false) db.exec('PRAGMA journal_mode = WAL')
+  if (opts.foreignKeys !== false) db.exec('PRAGMA foreign_keys = ON')
+  if (opts.synchronousNormal !== false) db.exec('PRAGMA synchronous = NORMAL')
+  db.exec(`PRAGMA busy_timeout = ${opts.busyTimeoutMs ?? 5000}`)
+  if (opts.tempStoreMemory !== false) db.exec('PRAGMA temp_store = MEMORY')
+  db.exec(`PRAGMA cache_size = ${opts.cacheSizeKb ?? -32000}`)
 }
 
 /**
