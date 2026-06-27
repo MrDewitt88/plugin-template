@@ -73,11 +73,16 @@ export const PluginManifestSchema = z.object({
    * vom INCOMING-Floor (`provides.scopes_required`), den enforceScopes prüft.
    *
    * OPTIONAL ohne Default (kein `{scopes:[]}`): so kann der Host beim Token-Minting
-   * sauber zurückfallen — `manifest.requires?.scopes ?? manifest.provides.scopes_required`
-   * → alte Manifeste (ohne `requires`) minten exakt wie heute weiter (backward-compat).
+   * sauber zurückfallen. Es splittet NUR der plugin-wide Seed — der Per-Tool-Union
+   * bleibt im Mint (oracle #5418), sonst 403'en granular-scoped Write-Tools (Kanban-
+   * Drift 2026-05-11). Volle Mint-Formel beim Host:
+   *   (manifest.requires?.scopes ?? manifest.provides.scopes_required)
+   *     ∪ ⋃ provides.mcp_tools[].scopes_required
+   * → alte Manifeste (ohne `requires`) minten byte-identisch wie heute (backward-compat).
    *
-   * ⚠️ Feldname `requires.scopes` ist PROPOSED, ausstehend oracle-Naming-Ruling
-   * (vs `consumes_scopes`/`grant.scopes`). Noch nicht npm-publiziert.
+   * ✅ RATIFIED (oracle-Ruling #5418, 2026-06-27): Name `requires.scopes` (vs
+   * `consumes_scopes`/`grant.scopes`) — die `provides`↔`requires`-Symmetrie. Ab
+   * bridge-foundation v0.11.0 npm-publiziert. RFC: docs/RFC-REQUIRES-SCOPES.md.
    */
   requires: z
     .object({

@@ -2,6 +2,40 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [plugin-bridge-foundation/0.11.0] — 2026-06-27
+
+**Per-package minor: `@nexus-mindgarden/plugin-bridge-foundation@0.11.0`** — ships the **`requires.scopes`** manifest field: **Outgoing-Grant ⟂ Incoming-Floor**. RFC ratified by oracle ruling #5418 (name `requires.scopes` over `consumes_scopes`/`grant.scopes`). Additive + backward-compatible: `requires` is optional → manifests without it mint **byte-identically to today**. Origin: wiz-mind #5374, RFC `docs/RFC-REQUIRES-SCOPES.md`, ratification-call #5394.
+
+### Added — `manifest.requires.scopes` (RFC, oracle #5418)
+
+- **`PluginManifestSchema.requires.scopes: string[]`** (optional, no default) — the scopes a host mints into the plugin's bridge-token for **reverse-calls** (e.g. `family.audit.write`, `mcp.read.unifieddb`). Distinct from `provides.scopes_required`, which stays the **Incoming-Floor** (what callers of *this* plugin must hold, read only by `enforceScopes`/`checkToolScopes`).
+- **Why split:** a plugin often needs outgoing scopes that incoming callers must *not* be required to have (wiz-mind: incoming floor `[]`, but its token needs `family.audit.write`). Before this, that scope had to sit in `provides.scopes_required`, forcing every caller to hold it.
+
+### Minting contract (host-side, `HOST-INTEGRATION-GUIDE §2.3`)
+
+- Plugin-wide **seed** splits: `manifest.requires?.scopes ?? manifest.provides.scopes_required`.
+- **Per-tool union UNCHANGED** — `provides.mcp_tools[].scopes_required` **stays in the mint** (oracle #5418); it does **not** move to `requires`. Dropping it re-breaks granular write-tools (token without `mcp.write.tasks` → `tasks.create` 403s silently, Kanban-Drift 2026-05-11). Full formula:
+  ```
+  token.scopes = (requires.scopes ?? provides.scopes_required) ∪ ⋃ mcp_tools[].scopes_required
+  ```
+- `enforceScopes` stays **opt-in/default-off** until the split is cluster-wide.
+
+### Docs
+
+- `docs/RFC-REQUIRES-SCOPES.md` → **RATIFIED**. `HOST-INTEGRATION-GUIDE §2.3` minting source = full formula (seed ∪ per-tool union). New **`PLUGIN-PROVIDER-GUIDE §4.6`** scopes-cookbook (Incoming-Floor ⟂ Outgoing-Grant, wiz-mind example).
+
+### Toolchain
+
+- **Node 24** is now the floor (operator #5417): CI `setup-node` → `24.x`, root `engines.node` → `>=24`.
+
+### Tests
+
+- 322/322 bridge-foundation green (22 files), typecheck clean (additive optional field; no behavior change for manifests without `requires`).
+
+### Unblocks
+
+- Hosts (agent / v8-corp / v8-fam): switch the minting seed to `requires?.scopes ?? provides.scopes_required` (per-tool union path unchanged). Consumers (wiz-mind, plug-db, …): declare reverse-call scopes in `requires.scopes` once hosts switch.
+
 ## [plugin-license-foundation/0.1.0] — 2026-06-27
 
 **New package: `@nexus-mindgarden/plugin-license-foundation@0.1.0`** — the NEXUS plugin-entitlement **LicenseGate** that drops into the host's `PluginManager.activate` seam. Makes the `checkLicense` stub in `HOST-INTEGRATION-GUIDE §2.3` real. Wire: chatbus `#plugin-licensing` (nexus #5374, agent #5377, frozen + GO'd both sides).

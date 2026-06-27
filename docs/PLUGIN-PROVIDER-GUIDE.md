@@ -196,6 +196,51 @@ const registry = new HostKeyRegistry(repo, {
 
 **Cross-Repo-Source:** Pattern etabliert von plug-elec (`etmind-bridge`), adoptiert von oracle/plug-ea (`eamind-bridge`) + V8 + Theseus. Foundation v0.1.0 baked das Standard-Pattern für alle künftigen Plugin-Provider.
 
+### 4.6 Scopes-Cookbook — Incoming-Floor (`provides.scopes_required`) ⟂ Outgoing-Grant (`requires.scopes`)
+
+> **Ab Foundation v0.11.0** (RFC `requires.scopes`, oracle-Ruling #5418). Manifest-Schema-Feld; **optional** → alte Manifeste unverändert gültig.
+
+`scopes_required` und `requires.scopes` sind **zwei verschiedene Achsen** — verwechsle sie nicht:
+
+| Feld | Achse | Wer liest's | Frage |
+| --- | --- | --- | --- |
+| `provides.scopes_required` (plugin-wide) | **Incoming-Floor** | `enforceScopes`/`checkToolScopes` (v0.8.0) | Was muss ein **Caller deiner** Tools mitbringen? |
+| `provides.mcp_tools[].scopes_required` (per-Tool) | **Incoming-Floor** (granular) | `enforceScopes` **+** Host-Mint | Was braucht **dieses eine** Tool? |
+| `requires.scopes` (plugin-wide) | **Outgoing-Grant** | Host-Token-Minting | Welche Scopes mintet der Host in **dein** Token für **Reverse-Calls**? |
+
+**Wann brauchst du `requires.scopes`?** Sobald dein Plugin **zurück** in Host-Tools oder andere Plugins ruft (Reverse-Call) und dafür Scopes braucht, die ein **eingehender** Caller NICHT haben soll. Klassiker (wiz-mind): incoming floor `[]` (granulare Per-Tool-Enforcement), aber das Plugin-Token braucht `family.audit.write` für FamilyMind-Reverse-Calls. Käme das in `provides.scopes_required`, müsste **jeder eingehende Caller** es halten — falsch.
+
+```jsonc
+// manifest.yaml (wiz-mind-Beispiel)
+{
+  "id": "wiz-mind",
+  "provides": {
+    "mcp_tools": [
+      { "name": "session.start", "scopes_required": ["mcp.write.wiz"] } // per-Tool-Floor
+    ],
+    "scopes_required": []          // INCOMING-Floor plugin-wide: leer → granular per Tool
+  },
+  "requires": {
+    "scopes": [                    // OUTGOING-Grant: in DEIN Token gemintet
+      "family.policy.read",
+      "family.audit.write",        // FamilyMind reverse-calls
+      "mcp.read.unifieddb"         // plug-db reverse-calls
+    ]
+  }
+}
+```
+
+**Was der Host daraus mintet** (`HOST-INTEGRATION-GUIDE §2.3`, verbindlich):
+
+```
+token.scopes = (requires.scopes ?? provides.scopes_required)   // plugin-wide Seed
+                 ∪ ⋃ provides.mcp_tools[].scopes_required       // per-Tool-Union (BLEIBT)
+```
+
+⚠️ Der **Per-Tool-Union bleibt im Mint** — er wandert NICHT nach `requires`. Ein Token ohne den granularen Write-Scope eines Tools → das Tool 403't still (Kanban-Drift 2026-05-11). Nur der **plugin-wide Seed** splittet zwischen Incoming-Floor und Outgoing-Grant.
+
+**Migrationspfad (per Plugin):** reduziere `provides.scopes_required` auf den echten eingehenden Floor (oft `[]`), verschiebe Reverse-Call-Scopes nach `requires.scopes`. `enforceScopes` bleibt opt-in/default-off, bis der Split cluster-weit steht — kein Zwang, kein Bruch. Volle Begründung: `docs/RFC-REQUIRES-SCOPES.md`.
+
 ---
 
 ## 5. Layer-3-Walkthrough — erste Bridge

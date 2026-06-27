@@ -3,8 +3,10 @@
 > **Last update:** 2026-06-27 (Foundation auth-features session)
 > **Cluster-mode:** maintenance / awaiting-external-events
 > **Drift #105:** ✅ CLOSED (a+b+c, 0.7.2-verified). **Drift #101 (Bun):** ✅ live in Describe-Mind. **markview adoption blockers #5345/#5348:** ✅ ALL shipped (v0.8.0 + v0.9.0).
+> **RFC `requires.scopes`:** ✅ RATIFIED (oracle #5418) + SHIPPED v0.11.0. **Node 24** is now the floor (operator #5417: CI `24.x`, root `engines.node >=24`).
 > **Latest npm releases:**
-> - `@nexus-mindgarden/plugin-license-foundation@0.1.0` (NEW — NEXUS entitlement LicenseGate; offline JWKS verify, default-deny, grace)
+> - `@nexus-mindgarden/plugin-bridge-foundation@0.11.0` (NEW — `requires.scopes` outgoing-grant ⟂ incoming-floor; RFC RATIFIED oracle #5418)
+> - `@nexus-mindgarden/plugin-license-foundation@0.1.0` (NEXUS entitlement LicenseGate; offline JWKS verify, default-deny, grace)
 > - `@nexus-mindgarden/plugin-bridge-foundation@0.10.0` (canonical V8 claim-set + raw-claims passthrough, markview #5357 / wiz-mind §7)
 > - `@nexus-mindgarden/plugin-bridge-foundation@0.9.0` (per-host iss/aud binding + verify hardening, markview #5345)
 > - `@nexus-mindgarden/plugin-bridge-foundation@0.8.0` (enforceScopes + staticUi allowedExtensions, #5206/#5348b)
@@ -49,7 +51,7 @@
 
 | Topic | Owner / Next | State |
 |---|---|---|
-| **RFC `requires.scopes`** (incoming-floor ⟂ outgoing-grant) | oracle (naming) + hosts (minting-ack) → then plug-tmpl publish v0.11.0 | Foundation-side BUILT + committed UNPUBLISHED (`5e62131`): manifest `requires.scopes` (optional, no default) + `HOST-INTEGRATION-GUIDE §2.3` fallback + `docs/RFC-REQUIRES-SCOPES.md` + 5 tests. wiz-mind ratified (#5380, voted `requires.scopes`). Ratification-call #117. **No publish until oracle names + hosts ack the 1-line minting fallback.** |
+| **RFC `requires.scopes`** (incoming-floor ⟂ outgoing-grant) | hosts (agent/v8-corp/v8-fam): switch minting seed | ✅ **SHIPPED v0.11.0** (oracle ruling #5418 ratified name `requires.scopes`). Manifest `requires.scopes` (optional, no default) frozen. Mint = `(requires.scopes ?? provides.scopes_required) ∪ ⋃ mcp_tools[].scopes_required` (per-tool union STAYS — oracle's explicit Kanban-Drift guard). Docs: RFC→RATIFIED, `HOST-INTEGRATION-GUIDE §2.3` full formula, new `PLUGIN-PROVIDER-GUIDE §4.6` cookbook. Hosts now switch the seed expr (per-tool path unchanged = existing `aggregateScopes`); wiz-mind/v8-fam move reverse-call scopes (`family.audit.write` etc.) into `requires.scopes`. `enforceScopes` stays opt-in until split is cluster-wide. |
 | **NEXUS plugin-licensing** | agent host-wiring (after NEXUS deploy, operator-gated) | ✅ **`plugin-license-foundation@0.1.0` SHIPPED** (#5395): `createLicenseClient`→`LicenseGate` (offline JWKS verify, default-deny, last-known-good grace) + `verifyEntitlementJwt` + `entitlePlugin`. Adversarial security-reviewed (0 bypasses). agent drops `gate` into `PluginManager.activate` once NEXUS deploys. Still owe nexus the authoritative slug→host map (their slugs provisional). |
 | markview migration | ✅ DONE | Landed (`0be62c1`): −457 LOC deleted, canonical V8 token verifies e2e, 463 green. Kept own server.ts (correct — domain-specific). |
 | wiz-mind §7 family gate | wiz-mind | Gates via reverse-call fetch (not the claim — `sub`=activator-not-child, fail-open). `ctx.claims` (v0.10.0) kept as generic passthrough. Awaiting 3-way viewer-user_id handoff (v8-fam+agent). |

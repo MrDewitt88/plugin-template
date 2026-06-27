@@ -1,6 +1,6 @@
 # RFC: `requires.scopes` — Outgoing-Grant ⟂ Incoming-Floor
 
-> **Status:** PROPOSED (2026-06-27). Foundation-side implemented (manifest schema, unpublished). Awaiting: oracle naming-ruling + host minting-ack. Origin: wiz-mind #5374, plug-tmpl draft #5379.
+> **Status:** ✅ RATIFIED (2026-06-27, oracle ruling [#5418]). Name `requires.scopes` (vs `consumes_scopes`/`grant.scopes`) — the `provides`↔`requires` symmetry. Shipped: bridge-foundation **v0.11.0**. Origin: wiz-mind #5374, plug-tmpl draft #5379, ratification-call #5394.
 > **Owner:** plug-tmpl (manifest contract). **Affected:** hosts (agent/v8-corp/v8-fam token-minting), oracle (naming).
 
 ## Problem
@@ -36,11 +36,14 @@ requires: {
 
 ## Migration (backward-compatible — no break for anyone)
 
-- **Host minting changes** from `manifest.provides.scopes_required` to:
+- **Host minting changes** the _plugin-wide seed_ from `manifest.provides.scopes_required` to `manifest.requires?.scopes ?? manifest.provides.scopes_required`. The **per-tool union stays in the mint** (oracle ruling [#5418]) — only the plugin-wide seed splits:
   ```ts
-  token.scopes = manifest.requires?.scopes ?? manifest.provides.scopes_required
+  token.scopes =
+    (manifest.requires?.scopes ?? manifest.provides.scopes_required) // plugin-wide SEED
+    ∪ ⋃ manifest.provides.mcp_tools[].scopes_required               // per-tool UNION (UNCHANGED)
   ```
-  A one-line fallback. Old manifests (no `requires` block) mint **exactly as today**; new manifests separate the two.
+  A one-line change to the seed expression. Old manifests (no `requires` block) mint **byte-identically to today**; new manifests separate incoming-floor from outgoing-grant.
+  > ⚠️ **Do NOT move per-tool `scopes_required` into `requires`.** A token missing a granular write-scope (e.g. `mcp.write.tasks`) → that tool 403s silently (Kanban-Drift 2026-05-11). The per-tool scopes are an additive axis on top of the seed; this is exactly the hosts' existing `aggregateScopes`/`activation.ts` path — only the seed sub-expression changes.
 - **Schema:** `requires` is **optional without a default** (deliberately not `{scopes:[]}`) so the `?? provides.scopes_required` fallback resolves correctly. When present, `requires.scopes` defaults to `[]`.
 - **Per-plugin migration path:** reduce `provides.scopes_required` to the genuine incoming floor (often `[]`), move reverse-call scopes into `requires.scopes`.
 - **enforceScopes stays opt-in/default-off** until this split is cluster-wide.
@@ -54,13 +57,15 @@ requires: {
 | **oracle**                           | Naming ruling (see below).                                                                                                            |
 | **Consumers (wiz-mind, plug-db, …)** | Declare reverse-call scopes in `requires.scopes` once hosts switch.                                                                   |
 
-## Open: naming (oracle ruling)
+## Naming — RULED ✅ (oracle [#5418], 2026-06-27)
 
-- **`requires.scopes`** (plug-tmpl preference) — symmetry: `provides` (what the plugin offers + the incoming floor) ↔ `requires` (what it needs to call out). Mirrors npm `dependencies`/`peerDependencies` intuition.
-- `consumes_scopes` — flat, parallels `scopes_required`.
-- `grant.scopes` — names the host action (what the host grants).
+**`requires.scopes`** — the `provides`↔`requires` symmetry reads cleanest (the plugin _provides_ tools + an incoming floor, and _requires_ scopes to call out), and it already held wiz-mind's, agent's and v8-fam's vote. Mirrors npm `dependencies`/`peerDependencies` intuition.
 
-plug-tmpl implements `requires.scopes` provisionally; renaming pre-publish is trivial. **No npm release until the name is ruled.**
+Considered and rejected:
+- `consumes_scopes` — flat, parallels `scopes_required`, but loses the `provides`/`requires` mirror.
+- `grant.scopes` — names the host action, not the plugin's declaration.
+
+Frozen + published in bridge-foundation **v0.11.0**.
 
 ## Example (wiz-mind)
 

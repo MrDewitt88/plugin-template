@@ -91,12 +91,26 @@ async function activatePlugin(ctx, { pluginId }) {
   const license = await checkLicense(pluginId, ctx)
   if (!license.allowed) throw new PluginLicenseError(license.reason)
 
-  // OUTGOING-Grant (RFC requires-scopes): mint the scopes the plugin token needs
-  // for reverse-calls. Falls back to provides.scopes_required for manifests
-  // without a `requires` block (backward-compat). NOTE: provides.scopes_required
-  // is the INCOMING-Floor (what callers of THIS plugin must hold, enforceScopes) —
-  // it is NOT the grant once a manifest declares `requires.scopes`.
-  const grantedScopes = manifest.requires?.scopes ?? manifest.provides.scopes_required
+  // OUTGOING-Grant (RFC requires-scopes, ratified oracle #5418). Mint the scopes
+  // the plugin token carries for reverse-calls. TWO parts — drop NEITHER:
+  //   1. Plugin-wide SEED — `requires.scopes` overrides `provides.scopes_required`
+  //      as the outgoing grant; falls back for manifests without a `requires` block
+  //      → old manifests mint byte-identically to today (backward-compat).
+  //   2. Per-tool UNION — `provides.mcp_tools[].scopes_required` STAYS in the mint.
+  //      It does NOT move to `requires`. Dropping it re-breaks granular write-tools
+  //      (token without `mcp.write.tasks` → `tasks.create` 403s silently — Kanban-
+  //      Drift 2026-05-11). The split is plugin-wide-seed-only.
+  //
+  // NOTE: plugin-wide `provides.scopes_required` is the INCOMING-Floor (what callers
+  // of THIS plugin must hold, enforceScopes) — it is NOT the grant once a manifest
+  // declares `requires.scopes`. The per-tool scopes are a separate, additive axis.
+  //
+  //   grant = (requires.scopes ?? provides.scopes_required) ∪ ⋃ mcp_tools[].scopes_required
+  const seed = manifest.requires?.scopes ?? manifest.provides.scopes_required
+  const perTool = manifest.provides.mcp_tools.flatMap((t) =>
+    typeof t === 'string' ? [] : (t.scopes_required ?? []),
+  )
+  const grantedScopes = [...new Set([...seed, ...perTool])]
   const issued = await jwtSigner.sign({
     pluginId, tenantId: ctx.tenantId, userId: ctx.userId,
     hostId: ctx.hostId, scopes: grantedScopes,
