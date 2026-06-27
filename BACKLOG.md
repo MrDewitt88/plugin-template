@@ -48,10 +48,11 @@
 
 | Topic | Owner / Next | State |
 |---|---|---|
-| **NEXUS plugin-licensing** | nexus (entitlement-doc shape + account/instance/tenant binding) → then plug-tmpl `createLicenseClient` | agent gave the existing myMind↔NEXUS wire (signed Ed25519 + JWKS offline-verify + SSE revocation; seam = `LicenseGate.check({pluginId,userId,manifest})`). My `createLicenseClient` must produce a `LicenseGate`. **Wire before code; issuance before enforcement.** Awaiting nexus on binding. (#5358/#5365) |
-| markview 0.9.0/0.10.0 migration | markview | Auth/registry/server migration (−583 LOC) was stash-blocked on #5357 → fixed in v0.10.0; awaiting their land. |
-| wiz-mind §7 family gate | wiz-mind | `ctx.claims.family_policy` shipped (v0.10.0); ~3-line wiring left on their side. |
-| plug-ea full server-swap | plug-ea | Phase-1 (auth-core) adopted (`ea57ead`). Full `createBridgeApp` swap smoke-gated. Datapoint: `tenant_id`/`user_id` uuid-constraint vs their non-UUID test/bootstrap tenants — relax-on-demand offered (see future #17). |
+| **RFC `requires.scopes`** (incoming-floor ⟂ outgoing-grant) | oracle (naming) + hosts (minting-ack) → then plug-tmpl publish v0.11.0 | Foundation-side BUILT + committed UNPUBLISHED (`5e62131`): manifest `requires.scopes` (optional, no default) + `HOST-INTEGRATION-GUIDE §2.3` fallback + `docs/RFC-REQUIRES-SCOPES.md` + 5 tests. wiz-mind ratified (#5380, voted `requires.scopes`). Ratification-call #117. **No publish until oracle names + hosts ack the 1-line minting fallback.** |
+| **NEXUS plugin-licensing** | plug-tmpl `createLicenseClient` (operator: build AFTER the requires.scopes RFC) | **Wire FROZEN + GO'd by nexus + agent** (#5374/#5377): signed agent-JWT claims `plugins[]`+`ent_ver`, offline JWKS verify, `POST /entitlements/plugin` (free→grant/paid→402), revocation via ent_ver+SSE, license-level binding. Seam = `LicenseGate.check`. nexus seeded 21 plugins free; still owes nexus the authoritative slug→host map. createLicenseClient queued behind the RFC. |
+| markview migration | ✅ DONE | Landed (`0be62c1`): −457 LOC deleted, canonical V8 token verifies e2e, 463 green. Kept own server.ts (correct — domain-specific). |
+| wiz-mind §7 family gate | wiz-mind | Gates via reverse-call fetch (not the claim — `sub`=activator-not-child, fail-open). `ctx.claims` (v0.10.0) kept as generic passthrough. Awaiting 3-way viewer-user_id handoff (v8-fam+agent). |
+| plug-ea full server-swap | plug-ea | Phase-1 auth-core adopted (`ea57ead`, −LOC). Full `createBridgeApp` swap smoke-gated. uuid-constraint datapoint → future #17 (relax-on-demand). |
 
 ## Recently completed
 
