@@ -2,6 +2,28 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [plugin-license-foundation/0.1.0] — 2026-06-27
+
+**New package: `@nexus-mindgarden/plugin-license-foundation@0.1.0`** — the NEXUS plugin-entitlement **LicenseGate** that drops into the host's `PluginManager.activate` seam. Makes the `checkLicense` stub in `HOST-INTEGRATION-GUIDE §2.3` real. Wire: chatbus `#plugin-licensing` (nexus #5374, agent #5377, frozen + GO'd both sides).
+
+### Model
+
+NEXUS issues plugin entitlements as **signed claims on the agent-JWT** (`plugins: string[]`, `ent_ver: int`), verifiable **offline via JWKS**. The host already verifies this JWT for app-licensing; this package adds the per-plugin gate. Revocation = `ent_ver` bump + SSE → host reconcile (host-side, not here).
+
+### API
+
+- **`createLicenseClient({ resolveEntitlement, graceMs?, failOpen?, now? }) → { gate, lastKnownGood }`** — `gate.check({ pluginId, userId?, manifest? })` → `{ ok:true } | { ok:false, reason }`. **Offline-first** (no online call on the hot path), **default-deny**, with a host-policy **last-known-good grace** window (`exp + graceMs`; past it → `stale_entitlement`, never a silent allow). `failOpen` is opt-in (dev / `enforce_entitlements=false`, issuance-before-enforcement).
+- **`verifyEntitlementJwt(jwt, { jwks, issuer?, audience? })`** + `remoteJwks(url)` — offline JWKS verify, **alg-pinned `EdDSA`** (never `HS*`/`none`); any failure throws (no permissive path).
+- **`entitlePlugin({ endpoint, slug, activationToken })`** — entitle-on-activation `POST`; free → `{ ok:true }`, paid → `{ ok:false, reason:'purchase_required' }` (deterministic `detail.reason` map). Never throws.
+
+### Tests
+
+- `gate.test.ts` (10) default-deny + grace boundary (both sides) + member-from-cache + failOpen, `jwks.test.ts` (5) valid/wrong-issuer/wrong-key/tampered/lenient, `entitle.test.ts` (5) free/402-reason/402-no-body/network/500. 20 green, 575/575 workspace, typecheck clean. Adversarial security review (bypass/correctness/tests) before publish.
+
+### Next
+
+- Host-side wiring (`agent`) drops `gate` into `PluginManager.activate` once NEXUS deploys (operator-gated). Endpoints/claim-names confirmed against nexus #5374; the package is endpoint-agnostic (host passes URLs).
+
 ## [plugin-bridge-foundation/0.10.0] — 2026-06-27
 
 **Per-package minor: `@nexus-mindgarden/plugin-bridge-foundation@0.10.0`** — aligns the bridge-token claim-set to the **canonical V8 spec** (unblocks MarkView's auth/registry migration, #5357) + raw-claims passthrough to handlers (unblocks wiz-mind §7 age-gating). Additive + backward-compatible: Foundation-minted tokens (which carry `plugin_id`/`user_id`) keep verifying unchanged.

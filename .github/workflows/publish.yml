@@ -94,6 +94,11 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Publish @nexus-mindgarden/plugin-license-foundation
+        run: pnpm --filter @nexus-mindgarden/plugin-license-foundation publish --access public --no-git-checks --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Publish @nexus-mindgarden/create-plugin
         run: pnpm --filter @nexus-mindgarden/create-plugin publish --access public --no-git-checks --provenance
         env:
@@ -112,6 +117,7 @@ jobs:
           echo "- plugin-storage-foundation" >> $GITHUB_STEP_SUMMARY
           echo "- plugin-svelte-foundation" >> $GITHUB_STEP_SUMMARY
           echo "- plugin-bridge-foundation" >> $GITHUB_STEP_SUMMARY
+          echo "- plugin-license-foundation" >> $GITHUB_STEP_SUMMARY
           echo "- create-plugin" >> $GITHUB_STEP_SUMMARY
           echo "- granite-test" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
