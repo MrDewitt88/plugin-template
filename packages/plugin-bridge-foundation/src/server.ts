@@ -31,6 +31,7 @@ import {
   HostKeyRegistry,
   verifyAuthorizationHeader,
   type HandshakeTokenStoreImpl,
+  type VerifyBridgeTokenOptions,
 } from './auth/index.js'
 import { extractPublicKeyPem, RegisterHostRequestSchema } from './types.js'
 import { handshakeHandler } from './endpoints/handshake.js'
@@ -114,6 +115,23 @@ export interface BridgeAppOptions {
    * v8-corp #5206).
    */
   enforceScopes?: boolean
+  /**
+   * v0.9.0 — Token-Verifikations-Härtung (markview #5345). Wird an
+   * `verifyBridgeToken` durchgereicht:
+   *  - `requireAudience`: erzwingt einen string-`aud`-Claim (default false).
+   *  - `hostIdFormat`: Format-Gate für den host_id-Claim (default keins).
+   * Per-Host issuer/audience-Binding läuft automatisch über den Registry-
+   * Resolver (`getHostVerification`) sobald ein Host-Record `expected_issuer`/
+   * `expected_audience` trägt — dafür ist KEIN Flag nötig.
+   */
+  tokenVerify?: VerifyBridgeTokenOptions
+  /**
+   * v0.9.0 — wenn true, schreibt die Foundation nach jedem erfolgreichen
+   * Token-Verify best-effort `last_used_at` auf den Host-Record (für Settings-
+   * UI „zuletzt aktiv"). Default false — vermeidet per-Request-Writes; fire-and-
+   * forget, blockt/failt den Request nie.
+   */
+  trackHostLastUsed?: boolean
   /**
    * v0.7.1 — Handshake-token capture for outbound clients.
    *
@@ -299,6 +317,8 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
       public_key_pem: publicKeyPem,
       ...(req.host_version !== undefined ? { host_version: req.host_version } : {}),
       ...(req.relay_url !== undefined ? { relay_url: req.relay_url } : {}),
+      ...(req.expected_issuer !== undefined ? { expected_issuer: req.expected_issuer } : {}),
+      ...(req.expected_audience !== undefined ? { expected_audience: req.expected_audience } : {}),
     })
     const missingFields = opts.registry.optionalFields.filter(
       (f) => !providedOptionalFields.includes(f),
@@ -342,12 +362,16 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
   }
 
   // --- Auth-Middleware für alle anderen Endpoints ---
-  app.use('/plugin-bridge/v1/handshake', authMiddleware(opts.registry))
-  app.use('/plugin-bridge/v1/manifest', authMiddleware(opts.registry))
-  app.use('/plugin-bridge/v1/health', authMiddleware(opts.registry))
-  app.use('/plugin-bridge/v1/execute-tool', authMiddleware(opts.registry))
-  app.use('/plugin-bridge/v1/render-ui', authMiddleware(opts.registry))
-  app.use('/plugin-bridge/v1/invoke-hook', authMiddleware(opts.registry))
+  // v0.9.0 — shared verify-options (iss/aud/host_id-format) + opt-in last-used tracking.
+  const verifyOptions: VerifyBridgeTokenOptions = opts.tokenVerify ?? {}
+  const trackHostLastUsed = opts.trackHostLastUsed ?? false
+  const auth = () => authMiddleware(opts.registry, verifyOptions, trackHostLastUsed)
+  app.use('/plugin-bridge/v1/handshake', auth())
+  app.use('/plugin-bridge/v1/manifest', auth())
+  app.use('/plugin-bridge/v1/health', auth())
+  app.use('/plugin-bridge/v1/execute-tool', auth())
+  app.use('/plugin-bridge/v1/render-ui', auth())
+  app.use('/plugin-bridge/v1/invoke-hook', auth())
 
   // --- Endpoints ---
   app.post('/plugin-bridge/v1/handshake', handshakeHandler(opts.manifest, opts.registry))
@@ -380,12 +404,21 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
   return app
 }
 
-function authMiddleware(registry: HostKeyRegistry): MiddlewareHandler<BridgeEnv> {
+function authMiddleware(
+  registry: HostKeyRegistry,
+  verifyOptions: VerifyBridgeTokenOptions,
+  trackHostLastUsed: boolean,
+): MiddlewareHandler<BridgeEnv> {
   return async (c, next) => {
     const auth = c.req.header('Authorization')
     try {
-      const claims = await verifyAuthorizationHeader(auth, registry)
+      const claims = await verifyAuthorizationHeader(auth, registry, verifyOptions)
       c.set('claims', claims)
+      // v0.9.0 — opt-in last-used tracking. Fire-and-forget: never block or fail
+      // the request on a registry write.
+      if (trackHostLastUsed) {
+        void registry.markHostUsed(claims.host_id).catch(() => {})
+      }
     } catch (err) {
       const code = (err as { code?: string }).code ?? 'unauthorized'
       return c.json({ error: { code, message: (err as Error).message } }, 401)

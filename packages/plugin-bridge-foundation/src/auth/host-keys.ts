@@ -16,7 +16,7 @@ import {
   type HostKeyStatus,
   type HostRecordStatus,
 } from '../types.js'
-import { BridgeTokenError, type HostKeyResolver } from './jwt.js'
+import { BridgeTokenError, type HostKeyResolver, type HostVerification } from './jwt.js'
 
 export interface HostKeyRepo {
   get(hostId: string): Promise<HostKeyRecord | null>
@@ -32,6 +32,10 @@ export interface RegisterHostInput {
   host_version?: string
   /** Optional. Pfad-C-Collab WebSocket / Reverse-Call-Channel (v0.2.0). */
   relay_url?: string
+  /** v0.9.0 — per-Host expected issuer (markview #5345). Auf dem Record persistiert. */
+  expected_issuer?: string
+  /** v0.9.0 — per-Host expected audience (markview #5345). Auf dem Record persistiert. */
+  expected_audience?: string
 }
 
 export interface RegistryOptions {
@@ -204,8 +208,21 @@ export class HostKeyRegistry implements HostKeyResolver {
     const fingerprint = fingerprintPublicKey(input.public_key_pem)
     const isFirstRegister = existing === null
 
-    // Same key + existing → preserve status (Drift #12 idempotency)
+    // v0.9.0 — per-Host optional record fields carried from register (markview
+    // #5345). Only the fields actually provided overlay; unprovided fields keep
+    // the existing value (so a key-rotation/re-register doesn't drop iss/aud).
+    const overlay: Partial<HostKeyRecord> = {}
+    if (input.relay_url !== undefined) overlay.relay_url = input.relay_url
+    if (input.expected_issuer !== undefined) overlay.expected_issuer = input.expected_issuer
+    if (input.expected_audience !== undefined) overlay.expected_audience = input.expected_audience
+
+    // Same key + existing → preserve status (Drift #12 idempotency). Refresh the
+    // per-host optional fields if (re-)provided, otherwise return existing as-is.
     if (existing && existing.public_key_pem.trim() === input.public_key_pem.trim()) {
+      if (Object.keys(overlay).length > 0) {
+        const refreshed = await this.repo.upsert({ ...existing, ...overlay })
+        return { record: refreshed, isFirstRegister: false }
+      }
       return { record: existing, isFirstRegister: false }
     }
 
@@ -220,6 +237,16 @@ export class HostKeyRegistry implements HostKeyResolver {
       fingerprint,
       registered_at: existing?.registered_at ?? now,
       approved_at: initialStatus === 'active' ? now : null,
+      // Preserve existing per-host fields across key-rotation, overlaid by newly provided.
+      ...(existing
+        ? {
+            relay_url: existing.relay_url,
+            expected_issuer: existing.expected_issuer,
+            expected_audience: existing.expected_audience,
+            last_used_at: existing.last_used_at,
+          }
+        : {}),
+      ...overlay,
     }
 
     const upserted = await this.repo.upsert(
@@ -246,9 +273,22 @@ export class HostKeyRegistry implements HostKeyResolver {
     return this.repo.list()
   }
 
+  /**
+   * v0.9.0 — best-effort Touch von `last_used_at` nach erfolgreichem Verify.
+   * Nur aufgerufen wenn `createBridgeApp({ trackHostLastUsed: true })` (opt-in,
+   * vermeidet per-Request-Writes by default). Schluckt Fehler nicht — der
+   * Caller (authMiddleware) ruft fire-and-forget.
+   */
+  async markHostUsed(hostId: string): Promise<void> {
+    const record = await this.repo.get(hostId)
+    if (!record) return
+    await this.repo.upsert({ ...record, last_used_at: new Date().toISOString() })
+  }
+
   // --- HostKeyResolver implementation ---
 
-  async getActivePublicKey(hostId: string): Promise<string> {
+  /** Holt den active-Record oder wirft host_not_registered/pending/rejected. */
+  private async getActiveRecord(hostId: string): Promise<HostKeyRecord> {
     const record = await this.repo.get(hostId)
     if (!record) {
       throw new BridgeTokenError(
@@ -265,7 +305,21 @@ export class HostKeyRegistry implements HostKeyResolver {
     if (record.status === 'rejected') {
       throw new BridgeTokenError('host_rejected', `host '${hostId}' has been rejected by the user`)
     }
-    return record.public_key_pem
+    return record
+  }
+
+  async getActivePublicKey(hostId: string): Promise<string> {
+    return (await this.getActiveRecord(hostId)).public_key_pem
+  }
+
+  /** v0.9.0 — per-Host PEM + expected iss/aud für verifyBridgeToken. */
+  async getHostVerification(hostId: string): Promise<HostVerification> {
+    const record = await this.getActiveRecord(hostId)
+    return {
+      public_key_pem: record.public_key_pem,
+      expected_issuer: record.expected_issuer ?? null,
+      expected_audience: record.expected_audience ?? null,
+    }
   }
 }
 

@@ -28,13 +28,20 @@ export {
   verifyBridgeToken,
   type HostKeyRepo,
   type HostKeyResolver,
+  type HostVerification,
   type JsonFileHostKeyRepoOptions,
   type RegisterHostInput,
   type RegisterResult,
+  type VerifyBridgeTokenOptions,
   type RegistryOptions,
   type SqliteHostKeyRepoDatabase,
   type SqliteHostKeyRepoOptions,
   type SqliteHostKeyRepoStatement,
 } from './auth/index.js'
 
-export { computeManifestHash, loadManifest, ManifestError, validateManifest } from './manifest/index.js'
+export {
+  computeManifestHash,
+  loadManifest,
+  ManifestError,
+  validateManifest,
+} from './manifest/index.js'

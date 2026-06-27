@@ -3,6 +3,8 @@ export {
   verifyAuthorizationHeader,
   verifyBridgeToken,
   type HostKeyResolver,
+  type HostVerification,
+  type VerifyBridgeTokenOptions,
 } from './jwt.js'
 export {
   buildHostRecordStatus,
@@ -14,10 +16,7 @@ export {
   type RegisterResult,
   type RegistryOptions,
 } from './host-keys.js'
-export {
-  JsonFileHostKeyRepo,
-  type JsonFileHostKeyRepoOptions,
-} from './host-keys-jsonfile.js'
+export { JsonFileHostKeyRepo, type JsonFileHostKeyRepoOptions } from './host-keys-jsonfile.js'
 export {
   SqliteHostKeyRepo,
   type SqliteHostKeyRepoDatabase,

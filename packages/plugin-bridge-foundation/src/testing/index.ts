@@ -30,6 +30,8 @@ export interface MintTokenOptions {
   sub?: string
   /** Override `jti`-claim. Default = random hex string. */
   jti?: string
+  /** v0.9.0 — optionaler `aud`-Claim (für per-Host audience-Binding-Tests). */
+  aud?: string
 }
 
 export interface TestRegistryHandle {
@@ -53,6 +55,10 @@ export interface BuildTestRegistryOptions {
    * Nutze z.B. BASELINE_OPTIONAL_REGISTER_FIELDS um die Drift-#206-Pfade zu testen.
    */
   optionalRegisterFields?: readonly string[]
+  /** v0.9.0 — registriert den bootstrap-host mit diesem expected_issuer (per-Host iss-Binding-Tests). */
+  expectedIssuer?: string
+  /** v0.9.0 — registriert den bootstrap-host mit diesem expected_audience (per-Host aud-Binding-Tests). */
+  expectedAudience?: string
 }
 
 /**
@@ -75,7 +81,12 @@ export async function buildTestRegistry(
       ? { optionalRegisterFields: opts.optionalRegisterFields }
       : {}),
   })
-  await registry.register({ host_id: hostId, public_key_pem: publicKeyPem })
+  await registry.register({
+    host_id: hostId,
+    public_key_pem: publicKeyPem,
+    ...(opts.expectedIssuer !== undefined ? { expected_issuer: opts.expectedIssuer } : {}),
+    ...(opts.expectedAudience !== undefined ? { expected_audience: opts.expectedAudience } : {}),
+  })
   if (!autoAccept) {
     await registry.approve(hostId)
   }
@@ -103,6 +114,7 @@ export async function mintTestBridgeToken(
     tenant_id: opts.tenantId,
     user_id: opts.userId,
     scopes: opts.scopes ?? [],
+    ...(opts.aud !== undefined ? { aud: opts.aud } : {}),
   }
   return new SignJWT(claims)
     .setProtectedHeader({ alg: 'EdDSA' })

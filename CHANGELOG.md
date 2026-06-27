@@ -2,6 +2,36 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [plugin-bridge-foundation/0.9.0] — 2026-06-27
+
+**Per-package minor: `@nexus-mindgarden/plugin-bridge-foundation@0.9.0`** — per-host issuer/audience binding + JWT-verify hardening. Closes markview #5345 / #5348a (the last blockers for MarkView to drop ~700–900 LOC of hand-rolled auth/registry/server). All additive + backward-compatible: a host with no `expected_issuer`/`expected_audience` enforces nothing → exact v0.8.x verification behaviour.
+
+### Added — per-host iss/aud binding
+
+- **`HostKeyRecord`** gains optional `expected_issuer`, `expected_audience`, `relay_url`, `last_used_at`. When a record carries `expected_issuer`/`expected_audience`, `verifyBridgeToken` enforces them via `jwtVerify({ issuer, audience })` (Multi-Host: V8 vs Theseus vs FamilyMind each with its own iss/aud).
+- **`register-host`** accepts `expected_issuer` / `expected_audience` (and now persists `relay_url`) onto the record. Re-register with the same key refreshes the per-host fields; key-rotation preserves them.
+- **`HostKeyResolver.getHostVerification?(hostId)`** (optional) — returns `{ public_key_pem, expected_issuer?, expected_audience? }`. `HostKeyRegistry` implements it; resolvers without it fall back to PEM-only verification (no iss/aud) — backward-compatible.
+- **`BridgeTokenClaims.aud?`** + **`mintTestBridgeToken({ aud })`** + `buildTestRegistry({ expectedIssuer, expectedAudience })` for testing the binding.
+
+### Added — verify hardening (opt-in) + last-used tracking
+
+- **`verifyBridgeToken(token, resolver, options?)`** with `VerifyBridgeTokenOptions`: `requireAudience` (force a string `aud` claim even without a per-host expectation) and `hostIdFormat` (RegExp gate on the `host_id` claim, rejected before key lookup). Surfaced on `createBridgeApp({ tokenVerify })`.
+- New `BridgeTokenError` codes `invalid_issuer` / `invalid_audience` (mapped from jose claim-validation failures).
+- **`createBridgeApp({ trackHostLastUsed: true })`** — best-effort `last_used_at` write after each successful verify (fire-and-forget; never blocks/fails the request). Default off (no per-request writes). `HostKeyRegistry.markHostUsed(hostId)`.
+
+### Migration
+
+- **`SqliteHostKeyRepo.ensureSchema()`** adds the 4 new columns to fresh tables and ALTERs any pre-existing table (e.g. MarkView's `host_keys`) to add missing columns as nullable (diffs `PRAGMA table_info`). Additive — existing rows/columns untouched.
+
+### Tests
+
+- New `test/iss-aud-verification.test.ts` (12): per-host aud (match/missing/wrong), per-host iss (match/wrong), backward-compat (no binding → token without aud verifies), `requireAudience`, `hostIdFormat`, e2e through `authMiddleware` (401 `invalid_audience`), registry persistence + refresh + `host_pending`.
+- Extended `test/host-keys-sqlite.test.ts` (+3): 6-column→migrated, round-trip of the new fields, `markHostUsed`. 305/305 bridge green, 537/537 workspace, typecheck clean. Adversarial multi-lens review run before publish.
+
+### Consumer notes
+
+- markview: register your hosts with `expected_issuer`/`expected_audience` and the Foundation enforces per-host iss/aud — you can drop the hand-rolled verifier. `createBridgeApp({ tokenVerify: { hostIdFormat, requireAudience }, trackHostLastUsed: true })` for the extra hardening + Settings-UI "last active".
+
 ## [plugin-bridge-foundation/0.8.0] — 2026-06-27
 
 **Per-package minor: `@nexus-mindgarden/plugin-bridge-foundation@0.8.0`** — two additive, opt-in, fully backward-compatible features. Answers the operator GO for scope-enforcement (closes the markview #5206 + plug-ea scope gap) and markview #5348b (static-serving hardening). No change required for existing consumers — both default to v0.7.x behavior.

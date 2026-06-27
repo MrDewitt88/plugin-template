@@ -94,6 +94,13 @@ export interface BridgeTokenClaims {
   tenant_id: string
   user_id: string
   scopes: string[]
+  /**
+   * v0.9.0 — optionaler Audience-Claim. Wenn ein Host-Record ein
+   * `expected_audience` trägt, erzwingt `verifyBridgeToken` Präsenz + Match
+   * (per-Host iss/aud-Binding, markview #5345). Tokens ohne `aud` bleiben für
+   * Hosts ohne `expected_audience` gültig (backward-compat).
+   */
+  aud?: string
 }
 
 // --- Host-Keys-Registry ---
@@ -107,6 +114,22 @@ export interface HostKeyRecord {
   fingerprint: string
   registered_at: string
   approved_at: string | null
+  /**
+   * v0.9.0 — per-Host iss/aud-Binding (markview #5345). Wenn gesetzt, erzwingt
+   * `verifyBridgeToken` sie an `jwtVerify` (Multi-Host: V8 vs Theseus vs
+   * FamilyMind mit je eigenem Issuer/Audience). Fehlend → keine Erzwingung
+   * (backward-compat).
+   */
+  expected_issuer?: string | null
+  expected_audience?: string | null
+  /** v0.9.0 — Reverse-Call / Pfad-C-Collab WebSocket (vom register-host übernommen). */
+  relay_url?: string | null
+  /**
+   * v0.9.0 — ISO-Timestamp des letzten erfolgreichen Token-Verifies. Nur
+   * gepflegt wenn `createBridgeApp({ trackHostLastUsed: true })` (opt-in,
+   * vermeidet per-Request-Writes). Für Settings-UI „zuletzt aktiv".
+   */
+  last_used_at?: string | null
 }
 
 // --- Drift #206: Schema-Drift Signaling im Handshake ---
@@ -202,6 +225,10 @@ export const RegisterHostRequestSchema = z
     host_version: z.string().optional(),
     // v0.2.0 — Pfad-C-Collab / reverse-call-channel (markview, plug-elec)
     relay_url: z.string().url().optional(),
+    // v0.9.0 — per-Host iss/aud-Binding (markview #5345). Auf dem Record gespeichert,
+    // von verifyBridgeToken an jwtVerify erzwungen wenn vorhanden.
+    expected_issuer: z.string().min(1).optional(),
+    expected_audience: z.string().min(1).optional(),
   })
   .refine((data) => data.public_key_pem !== undefined || data.public_key !== undefined, {
     message: 'either public_key_pem or public_key required',

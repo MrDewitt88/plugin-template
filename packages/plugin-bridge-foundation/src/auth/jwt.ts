@@ -21,12 +21,26 @@ export class BridgeTokenError extends Error {
       | 'host_pending'
       | 'host_rejected'
       | 'expired'
-      | 'invalid_claims',
+      | 'invalid_claims'
+      | 'invalid_issuer'
+      | 'invalid_audience',
     message: string,
   ) {
     super(message)
     this.name = 'BridgeTokenError'
   }
+}
+
+/**
+ * v0.9.0 — per-Host Verifikations-Kontext. Erlaubt issuer/audience pro Host zu
+ * binden (markview #5345, Multi-Host: V8 vs Theseus vs FamilyMind mit je
+ * eigenem iss/aud). `expected_issuer`/`expected_audience` fehlend → keine
+ * Erzwingung (backward-compat).
+ */
+export interface HostVerification {
+  public_key_pem: string
+  expected_issuer?: string | null
+  expected_audience?: string | null
 }
 
 export interface HostKeyResolver {
@@ -36,6 +50,28 @@ export interface HostKeyResolver {
    * wenn Host nicht active in Registry.
    */
   getActivePublicKey(hostId: string): Promise<string>
+  /**
+   * v0.9.0 (optional) — returnt PEM + per-Host expected issuer/audience. Wenn
+   * implementiert, nutzt `verifyBridgeToken` dies und erzwingt iss/aud sofern
+   * gesetzt. Resolver ohne diese Methode → Fallback auf `getActivePublicKey`
+   * (reine Signatur-Verifikation, kein iss/aud — exakt v0.8.x-Verhalten).
+   * Wirft dieselben host_not_registered/pending/rejected-Fehler.
+   */
+  getHostVerification?(hostId: string): Promise<HostVerification>
+}
+
+export interface VerifyBridgeTokenOptions {
+  /**
+   * v0.9.0 — wenn true, MUSS das Token einen string-`aud`-Claim tragen (auch
+   * wenn der Host kein `expected_audience` setzt). Default false.
+   */
+  requireAudience?: boolean
+  /**
+   * v0.9.0 — optionales Format-Gate für `host_id` (Defense-in-Depth, markview
+   * #5345). Wenn gesetzt und der host_id-Claim matcht NICHT → invalid_claims,
+   * bevor überhaupt ein Key-Lookup passiert.
+   */
+  hostIdFormat?: RegExp
 }
 
 /**
@@ -50,6 +86,7 @@ export interface HostKeyResolver {
 export async function verifyBridgeToken(
   token: string,
   resolver: HostKeyResolver,
+  options: VerifyBridgeTokenOptions = {},
 ): Promise<BridgeTokenClaims> {
   let pre: ReturnType<typeof decodeJwt>
   try {
@@ -62,17 +99,44 @@ export async function verifyBridgeToken(
   if (typeof hostId !== 'string' || hostId.length === 0) {
     throw new BridgeTokenError('invalid_claims', 'host_id claim missing')
   }
+  if (options.hostIdFormat && !options.hostIdFormat.test(hostId)) {
+    throw new BridgeTokenError('invalid_claims', `host_id '${hostId}' fails format gate`)
+  }
 
-  const publicKeyPem = await resolver.getActivePublicKey(hostId)
+  // v0.9.0 — per-Host iss/aud binding wenn der Resolver es liefert; sonst
+  // Fallback auf reine PEM-Verifikation (backward-compat mit v0.8.x-Resolvern).
+  let publicKeyPem: string
+  let expectedIssuer: string | undefined
+  let expectedAudience: string | undefined
+  if (resolver.getHostVerification) {
+    const hv = await resolver.getHostVerification(hostId)
+    publicKeyPem = hv.public_key_pem
+    expectedIssuer = hv.expected_issuer ?? undefined
+    expectedAudience = hv.expected_audience ?? undefined
+  } else {
+    publicKeyPem = await resolver.getActivePublicKey(hostId)
+  }
   const key = await importSPKI(publicKeyPem, 'EdDSA')
 
   let payload
   try {
-    const result = await jwtVerify(token, key, { algorithms: ['EdDSA'] })
+    const result = await jwtVerify(token, key, {
+      algorithms: ['EdDSA'],
+      ...(expectedIssuer !== undefined ? { issuer: expectedIssuer } : {}),
+      ...(expectedAudience !== undefined ? { audience: expectedAudience } : {}),
+    })
     payload = result.payload
   } catch (err) {
-    const msg = (err as Error).message ?? 'verify failed'
-    if (msg.includes('expired')) {
+    const e = err as { code?: string; claim?: string; message?: string }
+    const msg = e.message ?? 'verify failed'
+    // jose: ERR_JWT_CLAIM_VALIDATION_FAILED carries `claim` (iss/aud/exp).
+    if (e.claim === 'iss' || /issuer/i.test(msg)) {
+      throw new BridgeTokenError('invalid_issuer', msg)
+    }
+    if (e.claim === 'aud' || /audience/i.test(msg)) {
+      throw new BridgeTokenError('invalid_audience', msg)
+    }
+    if (e.code === 'ERR_JWT_EXPIRED' || /expired/i.test(msg)) {
       throw new BridgeTokenError('expired', msg)
     }
     throw new BridgeTokenError('invalid_token', msg)
@@ -96,6 +160,12 @@ export async function verifyBridgeToken(
   if (!Array.isArray((payload as { scopes?: unknown }).scopes)) {
     throw new BridgeTokenError('invalid_claims', 'scopes claim must be array')
   }
+  if (options.requireAudience && typeof (payload as { aud?: unknown }).aud !== 'string') {
+    throw new BridgeTokenError(
+      'invalid_audience',
+      'aud claim required (requireAudience) but missing',
+    )
+  }
 
   return payload as unknown as BridgeTokenClaims
 }
@@ -107,10 +177,11 @@ export async function verifyBridgeToken(
 export async function verifyAuthorizationHeader(
   authHeader: string | undefined | null,
   resolver: HostKeyResolver,
+  options: VerifyBridgeTokenOptions = {},
 ): Promise<BridgeTokenClaims> {
   if (!authHeader || !authHeader.toLowerCase().startsWith('bearer ')) {
     throw new BridgeTokenError('invalid_token', 'Authorization: Bearer header required')
   }
   const token = authHeader.slice('bearer '.length).trim()
-  return verifyBridgeToken(token, resolver)
+  return verifyBridgeToken(token, resolver, options)
 }
