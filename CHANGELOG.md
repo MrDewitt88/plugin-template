@@ -2,6 +2,33 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [plugin-bridge-foundation/0.8.0] — 2026-06-27
+
+**Per-package minor: `@nexus-mindgarden/plugin-bridge-foundation@0.8.0`** — two additive, opt-in, fully backward-compatible features. Answers the operator GO for scope-enforcement (closes the markview #5206 + plug-ea scope gap) and markview #5348b (static-serving hardening). No change required for existing consumers — both default to v0.7.x behavior.
+
+### Added — opt-in per-tool scope enforcement (`enforceScopes`)
+
+- **`createBridgeApp({ enforceScopes: true })`** — on `/execute-tool`, checks the called tool's required scopes (`manifest.provides.scopes_required` ∪ the matched `mcp_tools` entry's `scopes_required`) against the verified JWT `claims.scopes`. On a miss → **HTTP 403** `{ ok:false, error:{ code:'insufficient_scope', message, details:{ required, missing } } }` **before** the handler runs.
+- New pure helper `checkToolScopes(manifest, toolName, callerScopes)` (`src/auth/scope-check.ts`, not exported from the root). Self-contained — **no** dependency on `@nexus-mindgarden/plugin-mcp-foundation`; it replicates that package's documented scope contract (dedup union floor + caller-side trailing-`.*` wildcard) and locks parity with tests.
+- **Default `false`** → byte-for-byte v0.7.x behaviour; the handler still receives `ctx.scopes` informationally.
+- Precedence: `tool_not_found` wins over the scope check (no info-leak for unknown tools). Applies to `/execute-tool` **only** (render-ui/invoke-hook have no scope model in the manifest).
+- **Boundary:** reads only `claims.scopes` + manifest scopes — **no** `actor_class`/`tenant_id` authz (cross-tenant/impersonation is blocked on v8-corp ruling #5206, deliberately out of scope).
+
+### Added — static-UI extension allowlist (`staticUi.allowedExtensions`)
+
+- **`StaticUiHandlerOptions.allowedExtensions?: string[]`** — when set, only files with a listed (lowercased) extension are served; anything else → **404 `not_found`** (no existence-leak, checked before stat/read). Closes markview #5348b (an accidental `secret.env`/`.map` in the bundle dir could be served via the octet-stream fallback).
+- **Default `undefined` → permissive** (current v0.7.x behaviour: any existing file served). Recommended restrictive, e.g. `['.js', '.mjs', '.css', '.map', '.wasm']`.
+- Added `.wasm` → `application/wasm` to the content-type table.
+
+### Tests
+
+- New `test/scope-enforcement.test.ts` (19): default-off compat, plugin-wide floor, per-tool union, wildcard semantics, string-form/not-in-manifest, `tool_not_found` precedence, 403 shape, + direct `checkToolScopes` parity unit tests.
+- Extended `test/static-ui.test.ts` (+5): permissive default, allow/deny, case-insensitive ext, `.wasm` content-type. 287/287 bridge-foundation green, workspace typecheck clean.
+
+### Consumer notes
+
+- markview / plug-ea: flip `enforceScopes: true` once your tokens mint the right scopes. The remaining markview adoption blockers (per-host iss/aud verification + `HostKeyRecord` fields, #5345/#5348a) land next as a focused JWT-hardening release.
+
 ## [plugin-storage-foundation/0.7.0] — 2026-06-06
 
 **Per-package minor: `@nexus-mindgarden/plugin-storage-foundation@0.7.0`** — makes the storage layer **runtime-agnostic** so Bun-runtime plugins can use it. Answers oracle #4665 (Describe-Mind Stage-5 persistence under Bun). Other foundation packages unchanged. Backward-compatible — no changes required for existing Node/Electron consumers.

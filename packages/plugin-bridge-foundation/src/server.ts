@@ -68,9 +68,7 @@ function generateRequestId(): string {
     return globalThis.crypto.randomUUID()
   }
   // Fallback (sehr defensive — sollte nie erreicht werden auf Node 20+)
-  return Array.from({ length: 4 }, () =>
-    Math.random().toString(16).slice(2, 10),
-  ).join('-')
+  return Array.from({ length: 4 }, () => Math.random().toString(16).slice(2, 10)).join('-')
 }
 
 export interface BridgeAppOptions {
@@ -100,6 +98,22 @@ export interface BridgeAppOptions {
    * content-type-detection, immutable cache-control, path-traversal-safety.
    */
   staticUi?: StaticUiHandlerOptions
+  /**
+   * v0.8.0 — Opt-in per-tool scope-enforcement auf /execute-tool.
+   *
+   * Wenn true, prüft die Foundation die required-scopes des aufgerufenen Tools
+   * (`manifest.provides.scopes_required` ∪ der `scopes_required` des gematchten
+   * `mcp_tools`-Eintrags) gegen den verifizierten JWT-claim `claims.scopes`. Bei
+   * einem Miss → HTTP 403 `{ ok:false, error:{ code:'insufficient_scope', … } }`
+   * VOR dem Handler-Aufruf. Schließt die markview-#5206 / plug-ea Scope-Lücke.
+   *
+   * Default false — exakt v0.7.x-Verhalten (kein Enforcement; der Handler
+   * bekommt `ctx.scopes` weiterhin informativ). Gilt NUR für /execute-tool,
+   * NICHT render-ui/invoke-hook (für die gibt es kein scopes-Modell im Manifest).
+   * Liest ausschließlich Tool-scopes — KEIN actor_class/tenant-Authz (offen,
+   * v8-corp #5206).
+   */
+  enforceScopes?: boolean
   /**
    * v0.7.1 — Handshake-token capture for outbound clients.
    *
@@ -263,9 +277,7 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
         {
           error: {
             code: 'invalid_request',
-            message: parsed.error.issues
-              .map((i) => `${i.path.join('.')}: ${i.message}`)
-              .join('; '),
+            message: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
           },
         },
         400,
@@ -318,8 +330,7 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
   if (opts.handshakeTokenStore) {
     const tokenStore = opts.handshakeTokenStore
     app.use('/plugin-bridge/v1/handshake', async (c, next) => {
-      const authHeader =
-        c.req.header('Authorization') ?? c.req.header('authorization')
+      const authHeader = c.req.header('Authorization') ?? c.req.header('authorization')
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.slice('Bearer '.length).trim()
         if (token.length > 0) {
@@ -342,7 +353,13 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
   app.post('/plugin-bridge/v1/handshake', handshakeHandler(opts.manifest, opts.registry))
   app.get('/plugin-bridge/v1/manifest', manifestHandler(opts.manifest))
   app.get('/plugin-bridge/v1/health', healthHandler({ pluginVersion, manifestHash }))
-  app.post('/plugin-bridge/v1/execute-tool', executeToolHandler(opts.toolHandlers))
+  app.post(
+    '/plugin-bridge/v1/execute-tool',
+    executeToolHandler(opts.toolHandlers, {
+      manifest: opts.manifest,
+      enforceScopes: opts.enforceScopes ?? false,
+    }),
+  )
   if (opts.renderUi) {
     app.post('/plugin-bridge/v1/render-ui', renderUiHandler(opts.renderUi))
   }
