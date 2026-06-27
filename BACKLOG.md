@@ -4,6 +4,7 @@
 > **Cluster-mode:** maintenance / awaiting-external-events
 > **Drift #105:** ✅ CLOSED (a+b+c, 0.7.2-verified). **Drift #101 (Bun):** ✅ live in Describe-Mind. **markview adoption blockers #5345/#5348:** ✅ ALL shipped (v0.8.0 + v0.9.0).
 > **Latest npm releases:**
+> - `@nexus-mindgarden/plugin-bridge-foundation@0.10.0` (canonical V8 claim-set + raw-claims passthrough, markview #5357 / wiz-mind §7)
 > - `@nexus-mindgarden/plugin-bridge-foundation@0.9.0` (per-host iss/aud binding + verify hardening, markview #5345)
 > - `@nexus-mindgarden/plugin-bridge-foundation@0.8.0` (enforceScopes + staticUi allowedExtensions, #5206/#5348b)
 > - `@nexus-mindgarden/plugin-storage-foundation@0.7.0` (runtime-agnostic / Bun support, Drift #101)
@@ -39,10 +40,25 @@
 | 14 | `host_tool_invocation` runtime-side wild-mode emit | agent's host-tool-executor instrumentation |
 | 15 | storage-foundation `bun:sqlite` openConnection convenience | If multiple Bun-plugins want it — currently consumers open `new Database()` themselves. Revisit if 2+ Bun-plugins exist. |
 | 16 | Foundation `actor_class`-gated cross-tenant authz on /execute-tool | BLOCKED on v8-corp ruling #5206 (kiara-admin impersonation semantics). v0.8.0 scope-enforcement deliberately reads only claims.scopes — no actor_class/tenant authz. |
+| 17 | Relax `tenant_id`/`user_id` from `z.string().uuid()` → `z.string().min(1)` (or opt-in `relaxedIds`) across execute-tool/render-ui/invoke-hook/handshake | On-demand: plug-ea hit it (non-UUID test/bootstrap tenants, #5363) — non-blocking, real tokens are UUIDs. 2nd "Foundation stricter than needed" datapoint after the claim-set (v0.10.0). Do if plug-ea or another host confirms a real ongoing need; else hold (uuid = real validation). |
 
 ---
 
+## Active threads (this session, awaiting others)
+
+| Topic | Owner / Next | State |
+|---|---|---|
+| **NEXUS plugin-licensing** | nexus (entitlement-doc shape + account/instance/tenant binding) → then plug-tmpl `createLicenseClient` | agent gave the existing myMind↔NEXUS wire (signed Ed25519 + JWKS offline-verify + SSE revocation; seam = `LicenseGate.check({pluginId,userId,manifest})`). My `createLicenseClient` must produce a `LicenseGate`. **Wire before code; issuance before enforcement.** Awaiting nexus on binding. (#5358/#5365) |
+| markview 0.9.0/0.10.0 migration | markview | Auth/registry/server migration (−583 LOC) was stash-blocked on #5357 → fixed in v0.10.0; awaiting their land. |
+| wiz-mind §7 family gate | wiz-mind | `ctx.claims.family_policy` shipped (v0.10.0); ~3-line wiring left on their side. |
+| plug-ea full server-swap | plug-ea | Phase-1 (auth-core) adopted (`ea57ead`). Full `createBridgeApp` swap smoke-gated. Datapoint: `tenant_id`/`user_id` uuid-constraint vs their non-UUID test/bootstrap tenants — relax-on-demand offered (see future #17). |
+
 ## Recently completed
+
+### 2026-06-27 (Foundation auth-features session — cont.)
+
+- ✅ **`plugin-bridge-foundation@0.10.0`** — **canonical V8 claim-set** (markview #5357 / v8-corp #5354): `verifyBridgeToken` no longer requires `plugin_id`/`user_id` (not in the V8 token); default required `['iss','sub','jti','host_id','tenant_id']` + `requiredClaims` override; `plugin_id`/`user_id` optional; ctx derives `pluginId←sub`, `userId←body`. **Raw-claims passthrough** (wiz-mind §7): `BridgeAuthContext.claims` + `family_policy?`. Adversarial 3-lens review: 0 defects/0 bypasses (1 test-doc nit fixed). Tag `vbridge-0.10.0`.
+- ✅ plug-ea Phase-1 adoption confirmed (#5363→#5369): jose-crypto dropped, `verifyBridgeToken`+`getHostVerification` in.
 
 ### 2026-06-27 (Foundation auth-features session)
 
