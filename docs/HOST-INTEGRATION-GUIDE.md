@@ -91,9 +91,15 @@ async function activatePlugin(ctx, { pluginId }) {
   const license = await checkLicense(pluginId, ctx)
   if (!license.allowed) throw new PluginLicenseError(license.reason)
 
+  // OUTGOING-Grant (RFC requires-scopes): mint the scopes the plugin token needs
+  // for reverse-calls. Falls back to provides.scopes_required for manifests
+  // without a `requires` block (backward-compat). NOTE: provides.scopes_required
+  // is the INCOMING-Floor (what callers of THIS plugin must hold, enforceScopes) —
+  // it is NOT the grant once a manifest declares `requires.scopes`.
+  const grantedScopes = manifest.requires?.scopes ?? manifest.provides.scopes_required
   const issued = await jwtSigner.sign({
     pluginId, tenantId: ctx.tenantId, userId: ctx.userId,
-    hostId: ctx.hostId, scopes: manifest.provides.scopes_required,
+    hostId: ctx.hostId, scopes: grantedScopes,
   })
 
   // Handshake — fail-fast vor DB-Insert
@@ -444,11 +450,11 @@ Cascade-Pattern (Standard-Web-Convention): `/favicon.ico` → `/favicon.png` →
 
 Empfohlen für 3 UI-Loci:
 
-| Surface | Größe | Beispiel-Host |
-|---|---|---|
-| Sidebar-Launcher-Button | ≈ 20×20, border-radius 4px | Theseus Sidebar (`c34f0d8`) |
-| Plugin-Banner-Header über mounted Plugin-UI | ≈ 24×24 | Theseus Banner |
-| Plugin-Catalog/Marketplace-Card | ≈ 64×64 | Nexus-Marketplace (Phase-N) |
+| Surface                                     | Größe                      | Beispiel-Host               |
+| ------------------------------------------- | -------------------------- | --------------------------- |
+| Sidebar-Launcher-Button                     | ≈ 20×20, border-radius 4px | Theseus Sidebar (`c34f0d8`) |
+| Plugin-Banner-Header über mounted Plugin-UI | ≈ 24×24                    | Theseus Banner              |
+| Plugin-Catalog/Marketplace-Card             | ≈ 64×64                    | Nexus-Marketplace (Phase-N) |
 
 ### 11.3 Failure-Modes (alle → Letter-Fallback ohne Konsole-Fehler)
 
@@ -494,12 +500,12 @@ Vor Production-Release:
 
 Per-Host implementation-specifics (Identity-Modell, Keypair-Source, Tenant-Mapping, etc.) leben als Companion-Docs im jeweiligen Host-Repo. Plugin-Template's `HOST-INTEGRATION-GUIDE.md` (dieses Dokument) bleibt high-level Cross-Repo-Vertrag; Host-Specifics werden per Companion-Link referenziert. Pattern aligned mit `PLUGIN-KIARA-INTEGRATION.md §4.4` (Cross-Repo bereits etabliert für die Frag-Kiara-Integration).
 
-| Host | Companion-Doc |
-|---|---|
-| **TeamMindV8** | inline in diesem Guide (§§1-11); Engineering-Reference: `MrDewitt88/TeamMindV8/CLAUDE.md` + `docs/teammind-v8-A2S.md` |
-| **Theseus/myMind** | [PLUGIN-TEMPLATE-HOST-SECTION-THESEUS.md](https://github.com/MrDewitt88/Theseus-Agent/blob/main/docs/PLUGIN-TEMPLATE-HOST-SECTION-THESEUS.md) — Identity (single-user-multi-agent), file-based Keypair-Persistence (`~/.theseus/plugins/keys/`), `/register-tenants` agent-mapping, Persona-Layer-Integration |
-| **FamilyMind** | tbd (Phase 4 Hard-Fork) |
-| **KANBAN, ET-Mind** (future) | tbd (Phase-3.5+ Adoption) |
+| Host                         | Companion-Doc                                                                                                                                                                                                                                                                                                 |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **TeamMindV8**               | inline in diesem Guide (§§1-11); Engineering-Reference: `MrDewitt88/TeamMindV8/CLAUDE.md` + `docs/teammind-v8-A2S.md`                                                                                                                                                                                         |
+| **Theseus/myMind**           | [PLUGIN-TEMPLATE-HOST-SECTION-THESEUS.md](https://github.com/MrDewitt88/Theseus-Agent/blob/main/docs/PLUGIN-TEMPLATE-HOST-SECTION-THESEUS.md) — Identity (single-user-multi-agent), file-based Keypair-Persistence (`~/.theseus/plugins/keys/`), `/register-tenants` agent-mapping, Persona-Layer-Integration |
+| **FamilyMind**               | tbd (Phase 4 Hard-Fork)                                                                                                                                                                                                                                                                                       |
+| **KANBAN, ET-Mind** (future) | tbd (Phase-3.5+ Adoption)                                                                                                                                                                                                                                                                                     |
 
 Pattern skaliert linear: pro neuem Host eine zusätzliche Tabellenzeile + Companion-Doc im Host-Repo. Plugin-Template-Guide bleibt Host-agnostic.
 

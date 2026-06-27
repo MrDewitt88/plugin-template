@@ -89,3 +89,47 @@ describe('computeManifestHash — stable serialization', () => {
     expect(computeManifestHash(VALID)).not.toBe(computeManifestHash(extended))
   })
 })
+
+describe('requires.scopes — outgoing-grant (RFC requires-scopes, PROPOSED)', () => {
+  // Host token-minting fallback under test (locked here even before hosts adopt):
+  // grant = manifest.requires?.scopes ?? provides.scopes_required.
+  const grantOf = (m: PluginManifest) => m.requires?.scopes ?? m.provides.scopes_required
+
+  it('parses a requires.scopes block', () => {
+    const m = validateManifest({
+      ...VALID,
+      requires: { scopes: ['family.audit.write', 'mcp.read.unifieddb'] },
+    })
+    expect(m.requires?.scopes).toEqual(['family.audit.write', 'mcp.read.unifieddb'])
+  })
+
+  it('requires absent → undefined (host fallback resolves to provides.scopes_required)', () => {
+    const m = validateManifest({
+      ...VALID,
+      provides: { ...VALID.provides, scopes_required: ['legacy.grant'] },
+    })
+    expect(m.requires).toBeUndefined()
+    expect(grantOf(m)).toEqual(['legacy.grant']) // backward-compat: mints as today
+  })
+
+  it('requires.scopes defaults to [] when block present but scopes omitted', () => {
+    const m = validateManifest({ ...VALID, requires: {} } as unknown as PluginManifest)
+    expect(m.requires?.scopes).toEqual([])
+    expect(grantOf(m)).toEqual([]) // explicit empty grant overrides legacy floor-as-grant
+  })
+
+  it('migration: floor [] + requires grant decouples incoming from outgoing', () => {
+    const m = validateManifest({
+      ...VALID,
+      provides: { ...VALID.provides, scopes_required: [] }, // incoming floor empty
+      requires: { scopes: ['family.audit.write'] }, // outgoing grant
+    })
+    expect(m.provides.scopes_required).toEqual([]) // enforceScopes floor untouched
+    expect(grantOf(m)).toEqual(['family.audit.write']) // token grant separate
+  })
+
+  it('requires.scopes participates in the manifest hash', () => {
+    const withReq = { ...VALID, requires: { scopes: ['x'] } }
+    expect(computeManifestHash(VALID)).not.toBe(computeManifestHash(withReq))
+  })
+})

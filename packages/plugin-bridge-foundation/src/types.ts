@@ -62,8 +62,28 @@ export const PluginManifestSchema = z.object({
     routes: z.array(PluginRouteSchema).default([]),
     mcp_tools: z.array(PluginMcpToolEntrySchema).default([]),
     module_extensions: z.array(PluginModuleExtensionSchema).default([]),
+    // INCOMING-Floor: scopes ein Caller dieses Plugins haben MUSS (enforceScopes,
+    // v0.8.0). NICHT der Grant fürs Plugin-Token — siehe `requires.scopes`.
     scopes_required: z.array(z.string()).default([]),
   }),
+  /**
+   * v0.11.0 (RFC requires-scopes, wiz-mind #5375) — OUTGOING-Grant: die Scopes,
+   * die der Host in das Plugin-Bridge-Token mintet, damit das Plugin Reverse-
+   * Calls machen darf (z.B. `family.audit.write`, `mcp.read.unifieddb`). Getrennt
+   * vom INCOMING-Floor (`provides.scopes_required`), den enforceScopes prüft.
+   *
+   * OPTIONAL ohne Default (kein `{scopes:[]}`): so kann der Host beim Token-Minting
+   * sauber zurückfallen — `manifest.requires?.scopes ?? manifest.provides.scopes_required`
+   * → alte Manifeste (ohne `requires`) minten exakt wie heute weiter (backward-compat).
+   *
+   * ⚠️ Feldname `requires.scopes` ist PROPOSED, ausstehend oracle-Naming-Ruling
+   * (vs `consumes_scopes`/`grant.scopes`). Noch nicht npm-publiziert.
+   */
+  requires: z
+    .object({
+      scopes: z.array(z.string()).default([]),
+    })
+    .optional(),
   ui: z
     .object({
       sidebar_entry: z
