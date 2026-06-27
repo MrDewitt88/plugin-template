@@ -78,12 +78,16 @@ export function executeToolHandler(
 
     try {
       const result = await handler(req.arguments, {
-        pluginId: claims.plugin_id,
+        // v0.10.0 (markview #5357): plugin_id/user_id sind im V8-Token optional →
+        // pluginId fällt auf `sub` (canonical activator) zurück, userId aufs
+        // Body-Feld (live-caller). claims = raw passthrough (wiz-mind family_policy).
+        pluginId: claims.plugin_id ?? claims.sub,
         hostId: claims.host_id,
         tenantId: claims.tenant_id,
-        userId: claims.user_id,
+        userId: claims.user_id ?? req.user_id,
         scopes: claims.scopes,
         jti: claims.jti,
+        claims,
         actorClass: req.actor_class ?? null,
       })
       return c.json({ ok: true, result })

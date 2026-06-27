@@ -29,9 +29,7 @@ export function renderUiHandler(handler: RenderUiHandler) {
         {
           error: {
             code: 'invalid_request',
-            message: parsed.error.issues
-              .map((i) => `${i.path.join('.')}: ${i.message}`)
-              .join('; '),
+            message: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
           },
         },
         400,
@@ -43,18 +41,21 @@ export function renderUiHandler(handler: RenderUiHandler) {
 
     try {
       const result = await handler(req.route_path, {
-        pluginId: claims.plugin_id,
+        // v0.10.0 (markview #5357): pluginId ← sub-Fallback, userId ← Body-Fallback.
+        pluginId: claims.plugin_id ?? claims.sub,
         hostId: claims.host_id,
         tenantId: claims.tenant_id,
-        userId: claims.user_id,
+        userId: claims.user_id ?? req.user_id,
         scopes: claims.scopes,
         jti: claims.jti,
+        claims,
         context: req.context,
       })
       return c.json(result)
     } catch (err) {
       const e = err as { code?: string; message?: string; status?: number }
-      const status: ContentfulStatusCode = (e.status ?? (e.code === 'not_found' ? 404 : 500)) as ContentfulStatusCode
+      const status: ContentfulStatusCode = (e.status ??
+        (e.code === 'not_found' ? 404 : 500)) as ContentfulStatusCode
       return c.json(
         {
           error: {

@@ -85,15 +85,23 @@ export type PluginManifest = z.infer<typeof PluginManifestSchema>
 
 export interface BridgeTokenClaims {
   iss: string
-  sub: string // = pluginId
+  sub: string // = pluginId (canonical activator)
   jti: string
   iat: number
   exp: number
-  plugin_id: string
   host_id: string
   tenant_id: string
-  user_id: string
   scopes: string[]
+  /**
+   * v0.10.0 (markview #5357): NICHT im kanonischen V8-Token. V8 trägt die
+   * Plugin-ID nur als `sub`; `user_id` ist ein Body-Feld (live-caller), nicht im
+   * Token. Daher OPTIONAL — `verifyBridgeToken` erzwingt sie nicht mehr (default
+   * required-Set = iss/sub/jti/host_id/tenant_id). Foundation-geminte Tokens
+   * tragen sie weiter (backward-compat); Handler lesen `pluginId` (= `sub`-Fallback)
+   * + `userId` (= Body-Fallback) über den ctx.
+   */
+  plugin_id?: string
+  user_id?: string
   /**
    * v0.9.0 — optionaler Audience-Claim. Wenn ein Host-Record ein
    * `expected_audience` trägt, erzwingt `verifyBridgeToken` Präsenz + Match
@@ -101,6 +109,13 @@ export interface BridgeTokenClaims {
    * Hosts ohne `expected_audience` gültig (backward-compat).
    */
   aud?: string
+  /**
+   * v0.10.0 (wiz-mind / v8-fam): host-asserted Familien-Policy-Claim. Generisch
+   * `unknown` — das Plugin validiert selbst (z.B. via Zod). Erreicht den Handler
+   * über `ctx.claims`. Weitere host-asserted Extra-Claims sind zur Laufzeit
+   * ebenfalls auf dem rohen `ctx.claims`-Objekt (cast lesen).
+   */
+  family_policy?: unknown
 }
 
 // --- Host-Keys-Registry ---
@@ -338,6 +353,13 @@ export interface BridgeAuthContext {
   userId: string
   scopes: string[]
   jti: string
+  /**
+   * v0.10.0 (wiz-mind #§7) — die rohen verifizierten JWT-Claims. Passthrough für
+   * host-asserted Extra-Claims (z.B. `claims.family_policy`), die nicht als
+   * dedizierte ctx-Felder modelliert sind. Immer present; das Plugin validiert
+   * Extra-Claims selbst.
+   */
+  claims: BridgeTokenClaims
 }
 
 // --- Tool/Hook-Handler-Signatures ---

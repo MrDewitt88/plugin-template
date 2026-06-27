@@ -2,6 +2,32 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [plugin-bridge-foundation/0.10.0] — 2026-06-27
+
+**Per-package minor: `@nexus-mindgarden/plugin-bridge-foundation@0.10.0`** — aligns the bridge-token claim-set to the **canonical V8 spec** (unblocks MarkView's auth/registry migration, #5357) + raw-claims passthrough to handlers (unblocks wiz-mind §7 age-gating). Additive + backward-compatible: Foundation-minted tokens (which carry `plugin_id`/`user_id`) keep verifying unchanged.
+
+### Fixed — canonical V8 claim-set (markview #5357 / v8-corp #5354)
+
+- **`verifyBridgeToken` no longer requires `plugin_id` / `user_id`.** The canonical V8 bridge-token carries `iss/aud/sub/tenant_id/host_id/scopes/iat/exp` — **not** `plugin_id`/`user_id` (`sub` is the activator; `user_id` is a request-body field). The old hard-required set rejected every real V8 token with `invalid_claims: missing claim: plugin_id`. New default required set: **`['iss','sub','jti','host_id','tenant_id']`** (+ `scopes` array, + `aud` via per-host/`requireAudience`).
+- New **`VerifyBridgeTokenOptions.requiredClaims`** to override the set (re-enforce `plugin_id` etc. if a host wants).
+- `BridgeTokenClaims.plugin_id` / `user_id` are now **optional**.
+- Handler `ctx` derives the values robustly: **`pluginId = claims.plugin_id ?? claims.sub`**, **`userId = claims.user_id ?? <request body user_id>`** (all three request schemas carry `user_id`). No handler change needed; `ctx.pluginId`/`ctx.userId` stay non-empty strings.
+
+### Added — raw-claims passthrough (wiz-mind §7)
+
+- **`BridgeAuthContext.claims: BridgeTokenClaims`** — the raw verified JWT claims now reach every handler (execute-tool / render-ui / invoke-hook). Host-asserted extra claims (e.g. v8-fam's **`family_policy`**) are readable via `ctx.claims.family_policy` without a Foundation release per claim.
+- `BridgeTokenClaims.family_policy?: unknown` added (named convenience; other extras live on the raw object).
+- Testing: `mintTestBridgeToken({ omitClaims, extraClaims })` to mint canonical-V8 tokens (drop `plugin_id`/`user_id`) and host-asserted extras.
+
+### Tests
+
+- New `test/canonical-claims.test.ts` (7): token without `plugin_id`/`user_id` verifies; ctx `pluginId←sub` + `userId←body`; backward-compat (full token still works); `requiredClaims` override re-enforces; still rejects a genuinely-missing canonical claim; `family_policy` reaches `ctx.claims`; `ctx.claims` always present. 316/316 bridge green, 548/548 workspace, typecheck clean.
+
+### Consumer notes
+
+- markview: your migration lands as-is — real V8 tokens (no `plugin_id`/`user_id`) now verify. Use `tokenVerify: { requiredClaims }` only if you want to enforce more than the canonical set.
+- wiz-mind: read `ctx.claims.family_policy` in your `session.start` handler (validate via Zod); `undefined` when the host asserts no policy.
+
 ## [plugin-bridge-foundation/0.9.0] — 2026-06-27
 
 **Per-package minor: `@nexus-mindgarden/plugin-bridge-foundation@0.9.0`** — per-host issuer/audience binding + JWT-verify hardening. Closes markview #5345 / #5348a (the last blockers for MarkView to drop ~700–900 LOC of hand-rolled auth/registry/server). All additive + backward-compatible: a host with no `expected_issuer`/`expected_audience` enforces nothing → exact v0.8.x verification behaviour.

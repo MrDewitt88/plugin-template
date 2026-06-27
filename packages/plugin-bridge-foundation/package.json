@@ -1,6 +1,6 @@
 {
   "name": "@nexus-mindgarden/plugin-bridge-foundation",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Plugin-Bridge HTTP-Server Foundation — handshake/manifest/health/execute-tool/render-ui Endpoints + JWT-Auth + Multi-Host-Registry + manifest_hash",
   "license": "MIT",
   "type": "module",

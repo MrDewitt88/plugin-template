@@ -32,6 +32,16 @@ export interface MintTokenOptions {
   jti?: string
   /** v0.9.0 — optionaler `aud`-Claim (für per-Host audience-Binding-Tests). */
   aud?: string
+  /**
+   * v0.10.0 — Claim-Namen die aus dem Token WEGGELASSEN werden (z.B.
+   * `['plugin_id','user_id']` für einen kanonischen V8-Token, markview #5357).
+   */
+  omitClaims?: readonly string[]
+  /**
+   * v0.10.0 — zusätzliche host-asserted Claims (z.B. `{ family_policy: {...} }`,
+   * wiz-mind) — landen roh im Token + via `ctx.claims` beim Handler.
+   */
+  extraClaims?: Record<string, unknown>
 }
 
 export interface TestRegistryHandle {
@@ -115,7 +125,9 @@ export async function mintTestBridgeToken(
     user_id: opts.userId,
     scopes: opts.scopes ?? [],
     ...(opts.aud !== undefined ? { aud: opts.aud } : {}),
+    ...(opts.extraClaims ?? {}),
   }
+  for (const k of opts.omitClaims ?? []) delete claims[k]
   return new SignJWT(claims)
     .setProtectedHeader({ alg: 'EdDSA' })
     .setIssuedAt()

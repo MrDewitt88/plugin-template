@@ -72,7 +72,18 @@ export interface VerifyBridgeTokenOptions {
    * bevor überhaupt ein Key-Lookup passiert.
    */
   hostIdFormat?: RegExp
+  /**
+   * v0.10.0 (markview #5357) — Override des required-string-Claim-Sets. Default
+   * = das kanonische V8-Set `['iss','sub','jti','host_id','tenant_id']` (KEIN
+   * `plugin_id`/`user_id` — die sind nicht im V8-Token). Hosts, die zusätzliche
+   * Claims erzwingen wollen, setzen sie hier. `scopes` (Array) + `aud`
+   * (via requireAudience / per-Host) werden separat geprüft.
+   */
+  requiredClaims?: readonly string[]
 }
+
+/** v0.10.0 — kanonisches V8-Token required-Set (markview #5357 / v8-corp #5354). */
+const DEFAULT_REQUIRED_CLAIMS: readonly string[] = ['iss', 'sub', 'jti', 'host_id', 'tenant_id']
 
 /**
  * Verifiziert Bridge-Token. Ablauf:
@@ -142,16 +153,8 @@ export async function verifyBridgeToken(
     throw new BridgeTokenError('invalid_token', msg)
   }
 
-  // Validate required claims
-  const required: Array<keyof BridgeTokenClaims> = [
-    'iss',
-    'sub',
-    'jti',
-    'plugin_id',
-    'host_id',
-    'tenant_id',
-    'user_id',
-  ]
+  // Validate required claims (v0.10.0: canonical V8 set — no plugin_id/user_id).
+  const required = options.requiredClaims ?? DEFAULT_REQUIRED_CLAIMS
   for (const claim of required) {
     if (typeof (payload as Record<string, unknown>)[claim] !== 'string') {
       throw new BridgeTokenError('invalid_claims', `missing claim: ${claim}`)
