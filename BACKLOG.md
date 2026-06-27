@@ -4,6 +4,7 @@
 > **Cluster-mode:** maintenance / awaiting-external-events
 > **Drift #105:** ✅ CLOSED (a+b+c, 0.7.2-verified). **Drift #101 (Bun):** ✅ live in Describe-Mind. **markview adoption blockers #5345/#5348:** ✅ ALL shipped (v0.8.0 + v0.9.0).
 > **Latest npm releases:**
+> - `@nexus-mindgarden/plugin-license-foundation@0.1.0` (NEW — NEXUS entitlement LicenseGate; offline JWKS verify, default-deny, grace)
 > - `@nexus-mindgarden/plugin-bridge-foundation@0.10.0` (canonical V8 claim-set + raw-claims passthrough, markview #5357 / wiz-mind §7)
 > - `@nexus-mindgarden/plugin-bridge-foundation@0.9.0` (per-host iss/aud binding + verify hardening, markview #5345)
 > - `@nexus-mindgarden/plugin-bridge-foundation@0.8.0` (enforceScopes + staticUi allowedExtensions, #5206/#5348b)
@@ -49,7 +50,7 @@
 | Topic | Owner / Next | State |
 |---|---|---|
 | **RFC `requires.scopes`** (incoming-floor ⟂ outgoing-grant) | oracle (naming) + hosts (minting-ack) → then plug-tmpl publish v0.11.0 | Foundation-side BUILT + committed UNPUBLISHED (`5e62131`): manifest `requires.scopes` (optional, no default) + `HOST-INTEGRATION-GUIDE §2.3` fallback + `docs/RFC-REQUIRES-SCOPES.md` + 5 tests. wiz-mind ratified (#5380, voted `requires.scopes`). Ratification-call #117. **No publish until oracle names + hosts ack the 1-line minting fallback.** |
-| **NEXUS plugin-licensing** | plug-tmpl `createLicenseClient` (operator: build AFTER the requires.scopes RFC) | **Wire FROZEN + GO'd by nexus + agent** (#5374/#5377): signed agent-JWT claims `plugins[]`+`ent_ver`, offline JWKS verify, `POST /entitlements/plugin` (free→grant/paid→402), revocation via ent_ver+SSE, license-level binding. Seam = `LicenseGate.check`. nexus seeded 21 plugins free; still owes nexus the authoritative slug→host map. createLicenseClient queued behind the RFC. |
+| **NEXUS plugin-licensing** | agent host-wiring (after NEXUS deploy, operator-gated) | ✅ **`plugin-license-foundation@0.1.0` SHIPPED** (#5395): `createLicenseClient`→`LicenseGate` (offline JWKS verify, default-deny, last-known-good grace) + `verifyEntitlementJwt` + `entitlePlugin`. Adversarial security-reviewed (0 bypasses). agent drops `gate` into `PluginManager.activate` once NEXUS deploys. Still owe nexus the authoritative slug→host map (their slugs provisional). |
 | markview migration | ✅ DONE | Landed (`0be62c1`): −457 LOC deleted, canonical V8 token verifies e2e, 463 green. Kept own server.ts (correct — domain-specific). |
 | wiz-mind §7 family gate | wiz-mind | Gates via reverse-call fetch (not the claim — `sub`=activator-not-child, fail-open). `ctx.claims` (v0.10.0) kept as generic passthrough. Awaiting 3-way viewer-user_id handoff (v8-fam+agent). |
 | plug-ea full server-swap | plug-ea | Phase-1 auth-core adopted (`ea57ead`, −LOC). Full `createBridgeApp` swap smoke-gated. uuid-constraint datapoint → future #17 (relax-on-demand). |
@@ -58,6 +59,8 @@
 
 ### 2026-06-27 (Foundation auth-features session — cont.)
 
+- ✅ **`plugin-license-foundation@0.1.0`** (NEW package) — NEXUS entitlement `LicenseGate` for `PluginManager.activate` (makes `checkLicense` §2.3 real): `createLicenseClient` (offline-first, default-deny, last-known-good grace) + `verifyEntitlementJwt` (alg-pinned EdDSA, exp-required) + `entitlePlugin` (free→ok/402→purchase_required). Built against the frozen nexus+agent wire. Adversarial security review: 0 bypasses, 7 doc/test findings fixed (alg-confusion HS256/none rejection now tested). 27 tests. Tag `vlicense-0.1.0`. Added to publish.yml.
+- ✅ **`requires.scopes` RFC** — manifest schema + doc + 5 tests, committed UNPUBLISHED (`5e62131`); ratification-call #5394 (oracle naming + host minting-ack pending).
 - ✅ **`plugin-bridge-foundation@0.10.0`** — **canonical V8 claim-set** (markview #5357 / v8-corp #5354): `verifyBridgeToken` no longer requires `plugin_id`/`user_id` (not in the V8 token); default required `['iss','sub','jti','host_id','tenant_id']` + `requiredClaims` override; `plugin_id`/`user_id` optional; ctx derives `pluginId←sub`, `userId←body`. **Raw-claims passthrough** (wiz-mind §7): `BridgeAuthContext.claims` + `family_policy?`. Adversarial 3-lens review: 0 defects/0 bypasses (1 test-doc nit fixed). Tag `vbridge-0.10.0`.
 - ✅ plug-ea Phase-1 adoption confirmed (#5363→#5369): jose-crypto dropped, `verifyBridgeToken`+`getHostVerification` in.
 
