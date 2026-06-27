@@ -40,7 +40,7 @@
   },
   "keywords": ["nexus-mindgarden", "create-plugin", "scaffold", "cli", "plugin-template"],
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^24.0.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   }
