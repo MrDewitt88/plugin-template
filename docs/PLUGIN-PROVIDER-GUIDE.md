@@ -200,6 +200,10 @@ const registry = new HostKeyRegistry(repo, {
 
 > **Ab Foundation v0.11.0** (RFC `requires.scopes`, oracle-Ruling #5418). Manifest-Schema-Feld; **optional** → alte Manifeste unverändert gültig.
 
+> ⚠️ **Pilot-Realität vs. Zielzustand (agent-Ruling #5971, 2026-07-10).** Der Split ist als **Foundation-Contract ratifiziert**, aber der kanonische Host (Theseus `plugin-system/src/schema.ts`) **mintet ihn noch nicht** — er liest heute nur `provides.scopes_required` in den Bridge-JWT `scopes` (das zeigt auch der Aktivierungs-Dialog).
+> **→ Für den aktuellen Pilot:** deklariere **alle** Scopes — auch Host-Call-/Reverse-Call-Scopes wie `mcp.agent.complete` — in **`provides.scopes_required`**. Das ist, was der Host heute mintet.
+> **→ `requires.scopes`** ist der **Zielzustand (Schema-v2, Thread `plugin-rollout`)**, den Hosts später minten. Es jetzt schon optional zu deklarieren schadet nicht (additiv), aber **verlasse dich noch nicht darauf, dass der Host es mintet.** Migriere `provides.scopes_required` → `requires.scopes` erst, wenn dein Host die Seed-Umstellung angekündigt hat.
+
 `scopes_required` und `requires.scopes` sind **zwei verschiedene Achsen** — verwechsle sie nicht:
 
 | Feld | Achse | Wer liest's | Frage |
