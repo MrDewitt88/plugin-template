@@ -33,8 +33,15 @@ describe('scaffold', () => {
     expect(existsSync(join(target, 'tsconfig.base.json'))).toBe(true)
     expect(existsSync(join(target, 'README.md'))).toBe(true)
     expect(existsSync(join(target, 'CLAUDE.md'))).toBe(true)
-    expect(existsSync(join(target, 'manifest.yaml'))).toBe(true)
+    // manifest.<id>.yaml (CODEX-REV §13.8) — NOT the bare manifest.yaml
+    expect(existsSync(join(target, 'manifest.my-plugin.yaml'))).toBe(true)
+    expect(existsSync(join(target, 'manifest.yaml'))).toBe(false)
     expect(existsSync(join(target, 'docs/ARCHITECTURE.md'))).toBe(true)
+    // Node 24 pins + notices + bundle packer (static asset)
+    expect(existsSync(join(target, '.node-version'))).toBe(true)
+    expect(existsSync(join(target, '.nvmrc'))).toBe(true)
+    expect(existsSync(join(target, 'NOTICES'))).toBe(true)
+    expect(existsSync(join(target, 'scripts/pack-bundle.mjs'))).toBe(true)
     // bridge package
     expect(existsSync(join(target, 'packages/my-plugin-bridge/package.json'))).toBe(true)
     expect(existsSync(join(target, 'packages/my-plugin-bridge/src/index.ts'))).toBe(true)
@@ -50,9 +57,10 @@ describe('scaffold', () => {
     })
     const pkg = readFileSync(join(target, 'package.json'), 'utf-8')
     expect(pkg).toContain('"name": "cool-plugin"')
-    const manifest = readFileSync(join(target, 'manifest.yaml'), 'utf-8')
+    const manifest = readFileSync(join(target, 'manifest.cool-plugin.yaml'), 'utf-8')
     expect(manifest).toContain('id: cool-plugin')
     expect(manifest).toContain('apps: [teammind]')
+    expect(manifest).toContain('service_endpoint: http://127.0.0.1:3600')
   })
 
   it('renders {{pluginNamePascal}} in CLAUDE.md', () => {

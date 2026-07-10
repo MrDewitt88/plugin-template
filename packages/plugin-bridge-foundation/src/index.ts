@@ -42,6 +42,9 @@ export {
 export {
   computeManifestHash,
   loadManifest,
+  discoverManifest,
+  manifestFilename,
   ManifestError,
   validateManifest,
+  type DiscoveredManifest,
 } from './manifest/index.js'

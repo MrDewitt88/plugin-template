@@ -245,6 +245,42 @@ token.scopes = (requires.scopes ?? provides.scopes_required)   // plugin-wide Se
 
 **Migrationspfad (per Plugin):** reduziere `provides.scopes_required` auf den echten eingehenden Floor (oft `[]`), verschiebe Reverse-Call-Scopes nach `requires.scopes`. `enforceScopes` bleibt opt-in/default-off, bis der Split cluster-weit steht — kein Zwang, kein Bruch. Volle Begründung: `docs/RFC-REQUIRES-SCOPES.md`.
 
+### 4.7 Plugin-Rollout — Manifest-Dateiname, Release-Bundle, env-first Port
+
+> **Ab `create-plugin` v0.7.0 / `plugin-bridge-foundation` v0.12.0** (Thread `plugin-rollout`, agent-Ruling #6044). Für die automatische Nexus-Katalog-Auslieferung ohne händisches Manifest-Pasten.
+
+**1 · Manifest-Dateiname `manifest.<id>.yaml` (CODEX-REV §13.8).** Der kanonische Discovery-Dateiname ist `manifest.<plugin-id>.yaml` — der **Suffix MUSS `manifest.id` entsprechen** (Anti-Collision-Guard im globalen `~/Documents/Theseus/Plugins/`-Ordner). Foundation macht **Dual-read**:
+
+```ts
+import { discoverManifest } from '@nexus-mindgarden/plugin-bridge-foundation'
+const { manifest, deprecated } = await discoverManifest('.') // manifest.<id>.yaml bevorzugt
+// deprecated=true + stderr-Warn, falls nur das bare manifest.yaml existiert
+```
+
+Der bare `manifest.yaml` bleibt für **≥2 Releases** als DEPRECATED-Fallback lesbar. `loadManifest(path)` bleibt der low-level Datei-Loader.
+
+**2 · Release-Bundle (`pnpm bundle`).** `scripts/pack-bundle.mjs` (im Scaffold) baut ein **deterministisches** `bundle.tgz` + `bundle.meta.json`:
+
+```jsonc
+{ "id": "…", "version": "…", "min_app_version": "…",
+  "sha256": "<hex>", "bytes": 561, "signature": null,   // signature reserved für v2 Ed25519
+  "files": ["manifest.<id>.yaml", "dist-plugin/…", "server/…"] }
+```
+
+- Inhalt: **nur** `manifest.<id>.yaml` + `server/` (gebündeltes Server-JS) + `dist-plugin/` (Browser-Artefakte). **Kein `node_modules`, keine Runtime** — der Host liefert die signierte Bun-Runtime (G1).
+- Deterministisch: sortierte USTAR-Einträge, `mtime=0`, `uid/gid=0`, gzip level 9 → **reproduzierbarer sha256** (innerhalb einer Node/zlib-Toolchain).
+- **sha256 ist der v1-Integritätsanker** (der Nexus-Katalog ist der Vertrauenskanal); Ed25519-Bundle-Signatur ist v2 (`signature: null` ist additiv reserviert).
+
+**3 · Env-first Port.** Unter einem Host wird der Port **zugewiesen** (`PLUGIN_BRIDGE_PORT`); der Manifest-Port ist nur Standalone-Dev-Default:
+
+```ts
+import { serve } from '@hono/node-server'
+import { createApp, resolvePort } from './index.js'
+serve({ fetch: (await createApp()).fetch, port: resolvePort() }) // env-first; invalid → Klartext-Error
+```
+
+Ein ungültiger/kollidierender Port wirft einen **Klartext-Fehler** (kein Silent-Fail).
+
 ---
 
 ## 5. Layer-3-Walkthrough — erste Bridge

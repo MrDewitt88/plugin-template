@@ -18,16 +18,17 @@ const PACKAGE_JSON_ROOT = `{
   "type": "module",
   "license": "MIT",
   "engines": {
-    "node": ">=20",
+    "node": ">=24",
     "pnpm": ">=10"
   },
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "build": "pnpm -r build"
+    "build": "pnpm -r build",
+    "bundle": "node scripts/pack-bundle.mjs"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^24.0.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   },
@@ -215,7 +216,11 @@ description:
 version: 0.1.0
 distribution:
   type: external-service
-  service_endpoint: http://localhost:3600
+  # Drift #203: use 127.0.0.1, never localhost (Browser-CSP treats loopback
+  # variants as distinct origins). The port here is the STANDALONE-DEV default —
+  # under a host the plugin MUST bind the host-assigned env PLUGIN_BRIDGE_PORT
+  # (see packages/{{pluginName}}-bridge/src/index.ts). agent #6044 (plugin-rollout).
+  service_endpoint: http://127.0.0.1:3600
 compatibility:
   apps: [{{hosts}}]
   min_app_version: 0.5.0
@@ -250,7 +255,7 @@ const ARCHITECTURE_MD = `# {{pluginNamePascal}} — Architecture
 
 ## 3. Plugin-Manifest
 
-See \`manifest.yaml\` — Hosts: {{hosts}}.
+See \`manifest.{{pluginName}}.yaml\` — Hosts: {{hosts}}.
 
 ## 4-10. {Customize from docs/templates/ARCHITECTURE-TEMPLATE.md}
 
@@ -276,13 +281,13 @@ const PKG_BRIDGE_JSON = `{
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@nexus-mindgarden/plugin-bridge-foundation": "^0.0.1",
-    "@nexus-mindgarden/plugin-mcp-foundation": "^0.0.1",
+    "@nexus-mindgarden/plugin-bridge-foundation": "^0.12.0",
+    "@nexus-mindgarden/plugin-mcp-foundation": "^0.6.0",
     "@hono/node-server": "^1.13.0",
     "hono": "^4.6.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^24.0.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   }
@@ -307,9 +312,9 @@ export default defineConfig({
 
 const PKG_BRIDGE_INDEX = `import {
   createBridgeApp,
+  discoverManifest,
   HostKeyRegistry,
   InMemoryHostKeyRepo,
-  loadManifest,
   type ToolHandler,
 } from '@nexus-mindgarden/plugin-bridge-foundation'
 
@@ -319,7 +324,9 @@ const documentsList: ToolHandler = async (_args, _ctx) => {
 }
 
 export async function createApp() {
-  const manifest = await loadManifest('./manifest.yaml')
+  // Dual-read manifest.<id>.yaml (fallback: deprecated manifest.yaml) from the
+  // plugin root — CODEX-REV §13.8.
+  const { manifest } = await discoverManifest('.')
   const registry = new HostKeyRegistry(new InMemoryHostKeyRepo(), {
     autoAccept: process.env.NODE_ENV === 'development',
   })
@@ -331,15 +338,53 @@ export async function createApp() {
     },
   })
 }
+
+// Env-first port: under a host the port is ASSIGNED via PLUGIN_BRIDGE_PORT; the
+// manifest port is only the standalone-dev default (agent #6044, plugin-rollout).
+// Bind it in your server entry:
+//
+//   import { serve } from '@hono/node-server'
+//   serve({ fetch: (await createApp()).fetch, port: resolvePort() })
+//
+// An invalid/conflicting port surfaces as a clear error, never a silent fail.
+export function resolvePort(defaultPort = 3600): number {
+  const raw = process.env.PLUGIN_BRIDGE_PORT
+  if (raw === undefined || raw === '') return defaultPort
+  const port = Number(raw)
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("invalid PLUGIN_BRIDGE_PORT: '" + raw + "' (expected 1..65535)")
+  }
+  return port
+}
 `
 
-const PKG_BRIDGE_TEST = `import { describe, expect, it } from 'vitest'
+const PKG_BRIDGE_TEST = `import { afterEach, describe, expect, it } from 'vitest'
 import { HostKeyRegistry, InMemoryHostKeyRepo } from '@nexus-mindgarden/plugin-bridge-foundation'
+import { resolvePort } from '../src/index.js'
 
 describe('{{pluginNameCamel}} bridge', () => {
+  afterEach(() => {
+    delete process.env.PLUGIN_BRIDGE_PORT
+  })
+
   it('HostKeyRegistry can be instantiated', () => {
     const reg = new HostKeyRegistry(new InMemoryHostKeyRepo())
     expect(reg).toBeDefined()
+  })
+
+  it('resolvePort falls back to the dev default when PLUGIN_BRIDGE_PORT is unset', () => {
+    delete process.env.PLUGIN_BRIDGE_PORT
+    expect(resolvePort(3600)).toBe(3600)
+  })
+
+  it('resolvePort prefers the host-assigned PLUGIN_BRIDGE_PORT', () => {
+    process.env.PLUGIN_BRIDGE_PORT = '4700'
+    expect(resolvePort()).toBe(4700)
+  })
+
+  it('resolvePort rejects an invalid PLUGIN_BRIDGE_PORT (no silent fail)', () => {
+    process.env.PLUGIN_BRIDGE_PORT = 'not-a-port'
+    expect(() => resolvePort()).toThrow()
   })
 })
 `
@@ -371,7 +416,7 @@ const GRANITE_TEST_CONFIG = `// Granite-Floor test-coverage config for {{pluginN
 import { defineGraniteToolTest } from '@nexus-mindgarden/granite-test'
 
 export default [
-  // EXAMPLE — replace with your actual MCP-tools from manifest.yaml:
+  // EXAMPLE — replace with your actual MCP-tools from manifest.{{pluginName}}.yaml:
   defineGraniteToolTest({
     tool: 'example.tool.do_thing',     // ← MCP /tools/list value, no plugin-prefix
     persona: 'user',                    // 'user' | 'admin' | 'any'
@@ -406,13 +451,13 @@ on:
     branches: [main]
     paths:
       - 'granite-test.config.ts'
-      - 'manifest.yaml'
+      - 'manifest.*.yaml'
       - 'packages/**/src/**'
   pull_request:
     branches: [main]
     paths:
       - 'granite-test.config.ts'
-      - 'manifest.yaml'
+      - 'manifest.*.yaml'
 
 jobs:
   granite-floor:
@@ -421,15 +466,15 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v4
         with:
           version: 10
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -446,6 +491,30 @@ jobs:
           GRANITE_TEST_DRY_RUN: \${{ secrets.CHATBUS_ENDPOINT && '0' || '1' }}
 `
 
+// Node 24 = cluster build/dev standard (Note node-standard, agent #5943).
+const NODE_VERSION = `24
+`
+
+const NOTICES = `NOTICES — {{pluginNamePascal}}
+
+Built on the @nexus-mindgarden plugin Foundation
+(https://github.com/MrDewitt88/plugin-template), MIT-licensed.
+
+## Third-party components
+
+List bundled third-party components and their licenses here. Update this file
+when you add a dependency whose license requires attribution.
+
+## Release provenance
+
+Distributable bundles (\`bundle.tgz\`) are produced by \`scripts/pack-bundle.mjs\`
+— deterministic (sorted USTAR, mtime=0, gzip level 9), zero-dependency. The
+bundle contains ONLY this plugin's manifest, \`server/\` build, and \`dist-plugin/\`
+browser artifacts — no runtime, no node_modules. Its sha256 is recorded in
+\`bundle.meta.json\` and verified by the Nexus catalog on install (agent #6044,
+plugin-rollout). \`signature\` is reserved for a future Ed25519 bundle-signature (v2).
+`
+
 // Build the complete file-list. Order: root files, then per-feature packages.
 export const TEMPLATE_FILES: TemplateFile[] = [
   { path: 'package.json', content: PACKAGE_JSON_ROOT },
@@ -454,10 +523,13 @@ export const TEMPLATE_FILES: TemplateFile[] = [
   { path: 'tsconfig.json', content: TSCONFIG_ROOT },
   { path: 'vitest.workspace.ts', content: VITEST_WORKSPACE },
   { path: '.gitignore', content: GITIGNORE },
+  { path: '.node-version', content: NODE_VERSION },
+  { path: '.nvmrc', content: NODE_VERSION },
   { path: 'LICENSE', content: LICENSE },
+  { path: 'NOTICES', content: NOTICES },
   { path: 'README.md', content: README },
   { path: 'CLAUDE.md', content: CLAUDE_MD },
-  { path: 'manifest.yaml', content: MANIFEST_YAML },
+  { path: 'manifest.{{pluginName}}.yaml', content: MANIFEST_YAML },
   { path: 'docs/ARCHITECTURE.md', content: ARCHITECTURE_MD },
 
   // Bridge feature (always included)

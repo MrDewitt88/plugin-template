@@ -2,6 +2,27 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [plugin-rollout] — 2026-07-11 — `plugin-bridge-foundation@0.12.0` + `create-plugin@0.7.0`
+
+Plug-tmpl side of the **plugin-rollout** contract (thread `plugin-rollout`, agent A/B/C ruled in #6044): manifest-filename convention, deterministic release bundle, env-first port. Backward-compatible — the bare `manifest.yaml` still loads (deprecated).
+
+### Added — `plugin-bridge-foundation@0.12.0`
+
+- **`discoverManifest(dir, opts) → { manifest, path, filename, deprecated }`** — directory-level manifest discovery (CODEX-REV §13.8). Prefers **`manifest.<id>.yaml`** (canonical); the filename suffix **MUST equal `manifest.id`** or it throws `validation_error` (anti-collision guard for the shared `~/Documents/Theseus/Plugins/` folder). Falls back to the **deprecated** bare `manifest.yaml` with a warning. Ambiguous (>1 suffixed) → `validation_error`; none → `not_found`. `loadManifest(path)` is unchanged (low-level file loader).
+- **`manifestFilename(id)`** → `manifest.<id>.yaml` + **`DiscoveredManifest`** type. Additive; nothing removed.
+
+### Added / Changed — `create-plugin@0.7.0`
+
+- Scaffolds **`manifest.<id>.yaml`** (was bare `manifest.yaml`); the generated bridge uses `discoverManifest('.')`.
+- **`scripts/pack-bundle.mjs`** — zero-dep deterministic release packer (static asset, `templates-static/` now in the published `files`). Produces `bundle.tgz` (sorted USTAR, `mtime=0`, gzip level 9 → stable sha256) + `bundle.meta.json` = `{ id, version, min_app_version, sha256, bytes, signature: null, files }`. Bundle = manifest + `server/` + `dist-plugin/` only — **no node_modules, no runtime** (host provides the signed Bun runtime, G1). `signature` reserved for a v2 Ed25519 bundle-signature; sha256 is the v1 integrity anchor (agent #6044/B). `pnpm bundle` runs it. Hardened (adversarial review): **fails at pack time** if the filename suffix ≠ `manifest.id` (mirrors the runtime guard, no DOA bundle), tolerates a leading UTF-8 BOM, and **warns rather than silently dropping** symlinked build artifacts.
+- **Env-first port** — generated bridge exports **`resolvePort(default)`** preferring the host-assigned `PLUGIN_BRIDGE_PORT`; invalid/conflicting port throws (no silent fail). Manifest port degrades to a standalone-dev default (agent #6044/C).
+- **Node 24** — scaffold ships `.node-version`/`.nvmrc` = `24`, `engines.node >=24`, `@types/node ^24`, CI on `actions/checkout@v7`/`setup-node@v6`/node `24`. `manifest.distribution.service_endpoint` scaffolds as `127.0.0.1` (Drift #203). Foundation deps pinned to real versions (`^0.12.0`/`^0.6.0`). New `NOTICES` (attribution + release provenance).
+
+### Notes
+
+- Scopes for the pilot stay in `provides.scopes_required` (the host mints that, not `requires.scopes` — agent #5971); `PLUGIN-PROVIDER-GUIDE §4.6` carries the pilot-vs-target callout.
+- 332/332 bridge-foundation green (incl. 10 discovery tests: precedence, filename/id mismatch, stray-shadows-bare guard), 40/40 create-plugin green (incl. 5 packer tests: determinism, mismatch-reject, BOM, symlink-warn, bare-deprecated). Packer determinism + bsdtar-extract verified end-to-end. 7 adversarial-review findings (all minor) confirmed + fixed.
+
 ## [plugin-bridge-foundation/0.11.0] — 2026-06-27
 
 **Per-package minor: `@nexus-mindgarden/plugin-bridge-foundation@0.11.0`** — ships the **`requires.scopes`** manifest field: **Outgoing-Grant ⟂ Incoming-Floor**. RFC ratified by oracle ruling #5418 (name `requires.scopes` over `consumes_scopes`/`grant.scopes`). Additive + backward-compatible: `requires` is optional → manifests without it mint **byte-identically to today**. Origin: wiz-mind #5374, RFC `docs/RFC-REQUIRES-SCOPES.md`, ratification-call #5394.
