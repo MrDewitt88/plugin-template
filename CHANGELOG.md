@@ -2,6 +2,26 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [create-plugin/0.8.0] — 2026-07-11 — bundle launch-contract
+
+Adds the optional **`bundle.launch.json`** launch-contract to the release packer (agent-ruling #6046 — the last gap before the host bundle-start lifecycle). Packer-only change; `plugin-bridge-foundation` unchanged (launch is a bundle concern, read host-side from `bundle.meta.json`, so no manifest-schema change).
+
+### Added
+
+- **`scripts/pack-bundle.mjs`** reads an optional author-authored **`bundle.launch.json`** from the plugin root, **validates** it, and embeds it as **`bundle.meta.json.launch`** (omitted when absent → host applies the convention `entry: server/index.js`). Shape:
+  ```jsonc
+  { "entry": "server/index.js",  // required-if-present: relative .js path that IS in the bundle
+    "cwd": ".",                   // optional bundle-relative
+    "env": { "FOO": "bar" },      // optional static string→string (no secrets)
+    "health_path": "/api/health" }// optional
+  ```
+- **Fail-closed validation at pack time** (host never launches arbitrary binaries): `entry` must be a relative `.js` path present in the packed files (no `..`, no absolute); `cwd` bundle-relative; `env` a flat string map; `health_path` an absolute path; unknown keys rejected.
+- `PLUGIN-PROVIDER-GUIDE §4.7` documents the launch-contract.
+
+### Tests
+
+- 11/11 packer tests (6 new launch cases: absent→omitted, valid→embedded, non-`.js` entry, entry-not-in-bundle, `..`/absolute entry, unknown-key). create-plugin suite green.
+
 ## [plugin-rollout] — 2026-07-11 — `plugin-bridge-foundation@0.12.0` + `create-plugin@0.7.0`
 
 Plug-tmpl side of the **plugin-rollout** contract (thread `plugin-rollout`, agent A/B/C ruled in #6044): manifest-filename convention, deterministic release bundle, env-first port. Backward-compatible — the bare `manifest.yaml` still loads (deprecated).

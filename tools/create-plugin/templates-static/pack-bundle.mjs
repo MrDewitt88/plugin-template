@@ -91,6 +91,70 @@ async function collectFiles(manifestName) {
   return [...new Set(posix)].sort()
 }
 
+// --- Launch-Contract (agent #6046 ruling) ---
+//
+// Optional author-authored `bundle.launch.json` at the plugin root → validated
+// and embedded as `bundle.meta.json.launch`. The host spawns `<host-bun> <entry>`
+// with cwd inside the extracted bundle and always sets PLUGIN_BRIDGE_PORT. If the
+// file is absent the host applies the convention `entry: server/index.js`.
+const LAUNCH_FILE = 'bundle.launch.json'
+const LAUNCH_KEYS = new Set(['entry', 'cwd', 'env', 'health_path'])
+
+// A bundle-relative path: non-empty string, not absolute, no `..` traversal.
+function badPath(p) {
+  return typeof p !== 'string' || p.length === 0 || p.startsWith('/') || p.split('/').includes('..')
+}
+
+async function readLaunch(packedFiles) {
+  let raw
+  try {
+    raw = await readFile(join(ROOT, LAUNCH_FILE), 'utf8')
+  } catch {
+    return null // no launch config — host applies the default convention
+  }
+  let launch
+  try {
+    launch = JSON.parse(raw)
+  } catch (e) {
+    throw new Error(LAUNCH_FILE + ': invalid JSON — ' + e.message)
+  }
+  if (typeof launch !== 'object' || launch === null || Array.isArray(launch)) {
+    throw new Error(LAUNCH_FILE + ': must be a JSON object')
+  }
+  for (const k of Object.keys(launch)) {
+    if (!LAUNCH_KEYS.has(k)) {
+      throw new Error(LAUNCH_FILE + ": unknown key '" + k + "' (allowed: entry, cwd, env, health_path)")
+    }
+  }
+  // entry — REQUIRED: a relative .js path that is actually IN the bundle.
+  if (badPath(launch.entry) || !launch.entry.endsWith('.js')) {
+    throw new Error(LAUNCH_FILE + ": 'entry' must be a relative .js path inside the bundle (no absolute, no '..')")
+  }
+  if (!packedFiles.includes(launch.entry)) {
+    throw new Error(
+      LAUNCH_FILE + ": 'entry' '" + launch.entry + "' is not in the bundle — packed files: " + packedFiles.join(', '),
+    )
+  }
+  // cwd — optional, bundle-relative (".", "server", …).
+  if (launch.cwd !== undefined && badPath(launch.cwd)) {
+    throw new Error(LAUNCH_FILE + ": 'cwd' must be a relative path inside the bundle")
+  }
+  // env — optional flat string→string map (static; NEVER secrets).
+  if (launch.env !== undefined) {
+    if (typeof launch.env !== 'object' || launch.env === null || Array.isArray(launch.env)) {
+      throw new Error(LAUNCH_FILE + ": 'env' must be a JSON object of string values")
+    }
+    for (const [k, v] of Object.entries(launch.env)) {
+      if (typeof v !== 'string') throw new Error(LAUNCH_FILE + ": env['" + k + "'] must be a string")
+    }
+  }
+  // health_path — optional absolute request path.
+  if (launch.health_path !== undefined && (typeof launch.health_path !== 'string' || !launch.health_path.startsWith('/'))) {
+    throw new Error(LAUNCH_FILE + ": 'health_path' must be a string starting with '/'")
+  }
+  return launch
+}
+
 // --- USTAR (tar) ---
 
 function octal(n, len) {
@@ -164,6 +228,7 @@ async function main() {
       'WARN: only the manifest is being packed — no server/ or dist-plugin/ build output found\n',
     )
   }
+  const launch = await readLaunch(files)
 
   const chunks = []
   for (const rel of files) {
@@ -186,6 +251,7 @@ async function main() {
     sha256,
     bytes: tgz.length,
     signature: null, // reserved for v2 Ed25519 bundle-signature (agent #6044/B)
+    ...(launch ? { launch } : {}), // optional launch-contract (agent #6046)
     files,
   }
   await writeFile(META_OUT, JSON.stringify(meta, null, 2) + '\n')

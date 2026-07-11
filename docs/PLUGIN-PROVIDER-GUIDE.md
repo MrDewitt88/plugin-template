@@ -281,6 +281,20 @@ serve({ fetch: (await createApp()).fetch, port: resolvePort() }) // env-first; i
 
 Ein ungültiger/kollidierender Port wirft einen **Klartext-Fehler** (kein Silent-Fail).
 
+**4 · Launch-Contract (`bundle.launch.json`, agent-Ruling #6046).** Optional: wie der Host dein Plugin startet. Author-authored JSON im Plugin-Root; der Packer **validiert** es und bettet es als `bundle.meta.json.launch` ein. Fehlt es → Host-Konvention `entry: server/index.js`.
+
+```jsonc
+// bundle.launch.json (optional)
+{
+  "entry": "server/index.js",   // PFLICHT wenn vorhanden: relative .js-Datei IM Bundle (kein ../, kein absolut)
+  "cwd": ".",                    // optional, bundle-relativ, default "."
+  "env": { "FOO": "bar" },       // optional, statisch, KEINE Secrets
+  "health_path": "/api/health"   // optional, default Foundation-Standard
+}
+```
+
+Host-Semantik: Runtime ist **immer** die Host-Bun (G1) → gespawnt wird `<host-bun> <entry>` mit `cwd` im Bundle; `PLUGIN_BRIDGE_PORT` wird immer gesetzt (env-first). Der Packer **rejected beim Packen**: fehlendes/nicht-`.js`-`entry`, `entry` nicht im Bundle, `../`/absolute Pfade, unbekannte Keys — der Host startet nie beliebige Binaries.
+
 ---
 
 ## 5. Layer-3-Walkthrough — erste Bridge

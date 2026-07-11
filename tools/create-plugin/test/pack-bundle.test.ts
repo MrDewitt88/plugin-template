@@ -109,4 +109,61 @@ describe('pack-bundle.mjs', () => {
     expect(meta.id).toBe('legacy')
     expect(meta.files).toContain('manifest.yaml')
   })
+
+  describe('bundle.launch.json (agent #6046)', () => {
+    beforeEach(() => {
+      writeFileSync(join(dir, 'manifest.demo.yaml'), manifest('demo'))
+      mkdirSync(join(dir, 'server'), { recursive: true })
+      writeFileSync(join(dir, 'server', 'index.js'), 'x\n')
+    })
+
+    it('omits launch when no bundle.launch.json exists', () => {
+      const r = pack(dir)
+      expect(r.status).toBe(0)
+      const meta = JSON.parse(readFileSync(join(dir, 'bundle.meta.json'), 'utf8'))
+      expect(meta.launch).toBeUndefined()
+    })
+
+    it('embeds a valid launch block', () => {
+      writeFileSync(
+        join(dir, 'bundle.launch.json'),
+        JSON.stringify({ entry: 'server/index.js', cwd: '.', env: { FOO: 'bar' }, health_path: '/api/health' }),
+      )
+      const r = pack(dir)
+      expect(r.status).toBe(0)
+      const meta = JSON.parse(readFileSync(join(dir, 'bundle.meta.json'), 'utf8'))
+      expect(meta.launch).toEqual({ entry: 'server/index.js', cwd: '.', env: { FOO: 'bar' }, health_path: '/api/health' })
+    })
+
+    it('rejects an entry that is not a .js file', () => {
+      writeFileSync(join(dir, 'bundle.launch.json'), JSON.stringify({ entry: 'server/index.py' }))
+      const r = pack(dir)
+      expect(r.status).not.toBe(0)
+      expect(r.stderr).toContain('entry')
+    })
+
+    it('rejects an entry that is not present in the bundle', () => {
+      writeFileSync(join(dir, 'bundle.launch.json'), JSON.stringify({ entry: 'server/missing.js' }))
+      const r = pack(dir)
+      expect(r.status).not.toBe(0)
+      expect(r.stderr).toContain('not in the bundle')
+    })
+
+    it('rejects a path-traversal / absolute entry', () => {
+      writeFileSync(join(dir, 'bundle.launch.json'), JSON.stringify({ entry: '../evil.js' }))
+      expect(pack(dir).status).not.toBe(0)
+      writeFileSync(join(dir, 'bundle.launch.json'), JSON.stringify({ entry: '/etc/evil.js' }))
+      expect(pack(dir).status).not.toBe(0)
+    })
+
+    it('rejects an unknown launch key', () => {
+      writeFileSync(
+        join(dir, 'bundle.launch.json'),
+        JSON.stringify({ entry: 'server/index.js', run: 'rm -rf /' }),
+      )
+      const r = pack(dir)
+      expect(r.status).not.toBe(0)
+      expect(r.stderr).toContain('unknown key')
+    })
+  })
 })

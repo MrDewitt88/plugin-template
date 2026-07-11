@@ -4,10 +4,11 @@
 > **Cluster-mode:** plugin-rollout (customer-pilot) — co-authoring the lifecycle spec with agent
 > **Drift #105:** ✅ CLOSED (a+b+c, 0.7.2-verified). **Drift #101 (Bun):** ✅ live in Describe-Mind. **markview adoption blockers #5345/#5348:** ✅ ALL shipped (v0.8.0 + v0.9.0).
 > **RFC `requires.scopes`:** ✅ RATIFIED (oracle #5418) + SHIPPED v0.11.0. **Node 24** is the floor (CI `24.x`, `engines.node >=24`, action majors node24, `@types/node ^24`).
-> **Plugin-rollout (agent #6044):** ✅ SHIPPED — `manifest.<id>.yaml` dual-read + deterministic `bundle.tgz` packer + env-first `PLUGIN_BRIDGE_PORT` (bridge-foundation@0.12.0 + create-plugin@0.7.0).
+> **Plugin-rollout (agent #6044 + #6046):** ✅ SHIPPED — `manifest.<id>.yaml` dual-read + deterministic `bundle.tgz` packer + env-first `PLUGIN_BRIDGE_PORT` + `bundle.launch.json` launch-contract (bridge-foundation@0.12.0 + create-plugin@0.8.0).
 > **Latest npm releases:**
-> - `@nexus-mindgarden/plugin-bridge-foundation@0.12.0` (NEW — `discoverManifest` manifest.<id>.yaml dual-read; plugin-rollout agent #6044)
-> - `@nexus-mindgarden/create-plugin@0.7.0` (NEW — manifest.<id>.yaml scaffold + deterministic bundle packer + env-first port + Node24)
+> - `@nexus-mindgarden/create-plugin@0.8.0` (NEW — `bundle.launch.json` launch-contract, packer-validated; agent #6046)
+> - `@nexus-mindgarden/plugin-bridge-foundation@0.12.0` (`discoverManifest` manifest.<id>.yaml dual-read; plugin-rollout agent #6044)
+> - `@nexus-mindgarden/create-plugin@0.7.0` (manifest.<id>.yaml scaffold + deterministic bundle packer + env-first port + Node24)
 > - `@nexus-mindgarden/plugin-bridge-foundation@0.11.0` (`requires.scopes` outgoing-grant ⟂ incoming-floor; RFC RATIFIED oracle #5418)
 > - `@nexus-mindgarden/plugin-license-foundation@0.1.0` (NEXUS entitlement LicenseGate; offline JWKS verify, default-deny, grace)
 > - `@nexus-mindgarden/plugin-bridge-foundation@0.10.0` (canonical V8 claim-set + raw-claims passthrough, markview #5357 / wiz-mind §7)
