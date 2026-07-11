@@ -2,6 +2,10 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [create-plugin/0.8.1] — 2026-07-11 — packer self-containment guard
+
+Follow-up from the cross-repo seam test (agent #6047): the packer now **warns** when the launch `entry` has bare (non-`node:`/`bun:`, non-relative) imports — i.e. the bundle is not self-contained. The host spawns `bun --no-install`, so an external dep crashes at runtime with `exited before becoming healthy`; the pack-time warning surfaces it early. Heuristic (source-regex) → **warning, not reject** (the host is the hard gate). 13/13 packer tests (2 new). The full download→USTAR-extract→Zod→spawn seam is confirmed working against the packer's output; only a non-self-contained *demo fixture* (not the packer) was at fault.
+
 ## [create-plugin/0.8.0] — 2026-07-11 — bundle launch-contract
 
 Adds the optional **`bundle.launch.json`** launch-contract to the release packer (agent-ruling #6046 — the last gap before the host bundle-start lifecycle). Packer-only change; `plugin-bridge-foundation` unchanged (launch is a bundle concern, read host-side from `bundle.meta.json`, so no manifest-schema change).

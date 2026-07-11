@@ -165,5 +165,26 @@ describe('pack-bundle.mjs', () => {
       expect(r.status).not.toBe(0)
       expect(r.stderr).toContain('unknown key')
     })
+
+    it('warns (not rejects) when the launch entry has a bare npm import', () => {
+      writeFileSync(join(dir, 'server', 'index.js'), 'import { serve } from "@hono/node-server"\nserve()\n')
+      writeFileSync(join(dir, 'bundle.launch.json'), JSON.stringify({ entry: 'server/index.js' }))
+      const r = pack(dir)
+      expect(r.status).toBe(0) // warning, not a hard fail — the host is the hard gate
+      expect(r.stderr).toContain('bare import')
+      expect(r.stderr).toContain('@hono/node-server')
+    })
+
+    it('does not warn for a self-contained entry (node:/bun:/relative only)', () => {
+      writeFileSync(
+        join(dir, 'server', 'index.js'),
+        'import { createServer } from "node:http"\nimport "./util.js"\nBun.serve({ port: 3600 })\n',
+      )
+      writeFileSync(join(dir, 'server', 'util.js'), 'export const u = 1\n')
+      writeFileSync(join(dir, 'bundle.launch.json'), JSON.stringify({ entry: 'server/index.js' }))
+      const r = pack(dir)
+      expect(r.status).toBe(0)
+      expect(r.stderr).not.toContain('bare import')
+    })
   })
 })

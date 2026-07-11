@@ -293,7 +293,9 @@ Ein ungültiger/kollidierender Port wirft einen **Klartext-Fehler** (kein Silent
 }
 ```
 
-Host-Semantik: Runtime ist **immer** die Host-Bun (G1) → gespawnt wird `<host-bun> <entry>` mit `cwd` im Bundle; `PLUGIN_BRIDGE_PORT` wird immer gesetzt (env-first). Der Packer **rejected beim Packen**: fehlendes/nicht-`.js`-`entry`, `entry` nicht im Bundle, `../`/absolute Pfade, unbekannte Keys — der Host startet nie beliebige Binaries.
+Host-Semantik: Runtime ist **immer** die Host-Bun (G1) → gespawnt wird `bun --no-install <entry>` mit `cwd` im Bundle; `PLUGIN_BRIDGE_PORT` wird immer gesetzt (env-first). Der Packer **rejected beim Packen**: fehlendes/nicht-`.js`-`entry`, `entry` nicht im Bundle, `../`/absolute Pfade, unbekannte Keys — der Host startet nie beliebige Binaries.
+
+⚠️ **`entry` muss self-contained sein** (esbuild-single-file, keine externen deps). Weil der Host `bun --no-install` fährt, crasht ein `entry` mit bare npm-import zur Laufzeit (`exited before becoming healthy`). Nur `node:`/`bun:`-Builtins + relative/absolute Imports (die im Bundle liegen) sind ok. Der Packer **warnt** beim Packen, wenn er bare imports im `entry` findet.
 
 ---
 

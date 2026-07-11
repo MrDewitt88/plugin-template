@@ -105,6 +105,30 @@ function badPath(p) {
   return typeof p !== 'string' || p.length === 0 || p.startsWith('/') || p.split('/').includes('..')
 }
 
+// Heuristic self-containment check: the launch entry must be esbuild-single-file
+// (no external deps). The host spawns `bun --no-install`, so a bare npm import
+// crashes at runtime. `node:`/`bun:` builtins and relative/absolute paths are
+// fine. Warn (not reject) — the scan is source-regex-based (false-positive-prone);
+// the host is the hard gate (agent #6047, main 7947fd2).
+const ALLOWED_BARE = /^(?:node:|bun:)/
+function scanBareImports(src) {
+  const specs = new Set()
+  const patterns = [
+    /(?:^|[^.\w])(?:import|export)\b[^'"]*?\bfrom\s*['"]([^'"]+)['"]/g, // import/export … from '…'
+    /(?:^|[^.\w])import\s*['"]([^'"]+)['"]/g, // import '…' (side-effect)
+    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g, // import('…')
+    /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g, // require('…')
+  ]
+  for (const re of patterns) {
+    let m
+    while ((m = re.exec(src))) {
+      const spec = m[1]
+      if (!spec.startsWith('.') && !spec.startsWith('/') && !ALLOWED_BARE.test(spec)) specs.add(spec)
+    }
+  }
+  return [...specs]
+}
+
 async function readLaunch(packedFiles) {
   let raw
   try {
@@ -134,6 +158,21 @@ async function readLaunch(packedFiles) {
     throw new Error(
       LAUNCH_FILE + ": 'entry' '" + launch.entry + "' is not in the bundle — packed files: " + packedFiles.join(', '),
     )
+  }
+  // Self-containment heads-up (the host runs `bun --no-install`).
+  try {
+    const bare = scanBareImports(await readFile(join(ROOT, launch.entry), 'utf8'))
+    if (bare.length) {
+      process.stderr.write(
+        'WARN: launch entry ' +
+          launch.entry +
+          ' has bare import(s) [' +
+          bare.join(', ') +
+          '] — the bundle must be self-contained (esbuild single-file); the host runs `bun --no-install` and will crash on external deps\n',
+      )
+    }
+  } catch {
+    // unreadable entry is unexpected (it is a packed file); the tar step surfaces it
   }
   // cwd — optional, bundle-relative (".", "server", …).
   if (launch.cwd !== undefined && badPath(launch.cwd)) {
