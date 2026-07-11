@@ -270,6 +270,7 @@ Der bare `manifest.yaml` bleibt für **≥2 Releases** als DEPRECATED-Fallback l
 - Inhalt: **nur** `manifest.<id>.yaml` + `server/` (gebündeltes Server-JS) + `dist-plugin/` (Browser-Artefakte). **Kein `node_modules`, keine Runtime** — der Host liefert die signierte Bun-Runtime (G1).
 - Deterministisch: sortierte USTAR-Einträge, `mtime=0`, `uid/gid=0`, gzip level 9 → **reproduzierbarer sha256** (innerhalb einer Node/zlib-Toolchain).
 - **sha256 ist der v1-Integritätsanker** (der Nexus-Katalog ist der Vertrauenskanal); Ed25519-Bundle-Signatur ist v2 (`signature: null` ist additiv reserviert).
+- **Zwei Katalog-Artefakte, beide hochladen** (agent-Ruling #6065): `bundle.tgz` (→ `bundle_url`) **und** `bundle.meta.json` (→ `bundle_meta_url`). Das `bundle.meta.json` ist ein **externes Sidecar** — es MUSS außerhalb des tgz liegen, weil seine `sha256`/`bytes` das tgz beschreiben (self-referential, nicht einbettbar). Der Host holt das Sidecar, prüft `id`/`version`/`sha256`/`bytes` gegen die Katalog-Spec (Abweichung = harter Reject), persistiert es **kanonisch** ins Installationsverzeichnis und liest `launch` daraus. Der Nexus-`plugin_details`-Eintrag trägt `{version, bundle_url, bundle_meta_url, sha256, bytes, min_app_version}`.
 
 **3 · Env-first Port.** Unter einem Host wird der Port **zugewiesen** (`PLUGIN_BRIDGE_PORT`); der Manifest-Port ist nur Standalone-Dev-Default:
 
