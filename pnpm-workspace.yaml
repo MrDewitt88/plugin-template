@@ -1,3 +1,17 @@
 packages:
   - 'packages/*'
   - 'tools/*'
+
+# Native-Build-Freigaben. ACHTUNG, zwei Mechanismen sind BEIDE nötig — sie
+# decken disjunkte pnpm-Versionsbereiche ab, und jede Lücke bringt still
+# "Could not locate the bindings file" (better-sqlite3) zurück:
+#
+#   pnpm 10.0–10.25  → kennt `allowBuilds` NOCH NICHT, liest `pnpm.onlyBuiltDependencies`
+#                      aus package.json  (deshalb bleibt der Block dort stehen)
+#   pnpm 10.26+/11+  → liest `allowBuilds` hier; pnpm 11 IGNORIERT das package.json-Feld
+#
+# Die Listen-Form `onlyBuiltDependencies:` in dieser Datei ist KEIN Ersatz —
+# pnpm 11 bricht damit hart ab (ERR_PNPM_IGNORED_BUILDS).
+allowBuilds:
+  better-sqlite3: true
+  esbuild: true

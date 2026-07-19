@@ -24,6 +24,7 @@
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   },
+  "_comment_pnpm": "Fallback für pnpm 10.0–10.25, die `allowBuilds` in pnpm-workspace.yaml noch nicht kennen. pnpm 11 ignoriert dieses Feld — beide Stellen müssen gepflegt bleiben, sonst brechen native Builds (better-sqlite3) still weg.",
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3",

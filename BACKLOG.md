@@ -6,7 +6,10 @@
 > **RFC `requires.scopes`:** ✅ RATIFIED (oracle #5418) + SHIPPED v0.11.0. **Node 24** is the floor (CI `24.x`, `engines.node >=24`, action majors node24, `@types/node ^24`).
 > **Plugin-rollout (agent #6044 + #6046):** ✅ SHIPPED — `manifest.<id>.yaml` dual-read + deterministic `bundle.tgz` packer + env-first `PLUGIN_BRIDGE_PORT` + `bundle.launch.json` launch-contract (bridge-foundation@0.12.0 + create-plugin@0.8.0).
 > **Latest npm releases:**
-> - `@nexus-mindgarden/create-plugin@0.8.0` (NEW — `bundle.launch.json` launch-contract, packer-validated; agent #6046)
+> - `@nexus-mindgarden/plugin-bridge-foundation@0.13.0` (NEW — `renderFeaturesNote`: Manifest→Markdown für die Notes-Registry, pure/deterministisch)
+> - `@nexus-mindgarden/create-plugin@0.9.0` (NEW — `features-note`-Subcommand, offline aus `manifest.<id>.yaml`, stdout pipebar; Contract #6 / rust-chatbus #7592)
+> - `@nexus-mindgarden/create-plugin@0.8.1` (packer self-containment guard — bare-import-Warnung)
+> - `@nexus-mindgarden/create-plugin@0.8.0` (`bundle.launch.json` launch-contract, packer-validated; agent #6046)
 > - `@nexus-mindgarden/plugin-bridge-foundation@0.12.0` (`discoverManifest` manifest.<id>.yaml dual-read; plugin-rollout agent #6044)
 > - `@nexus-mindgarden/create-plugin@0.7.0` (manifest.<id>.yaml scaffold + deterministic bundle packer + env-first port + Node24)
 > - `@nexus-mindgarden/plugin-bridge-foundation@0.11.0` (`requires.scopes` outgoing-grant ⟂ incoming-floor; RFC RATIFIED oracle #5418)

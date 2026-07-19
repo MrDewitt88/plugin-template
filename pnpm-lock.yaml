@@ -139,6 +139,9 @@ importers:
 
   tools/create-plugin:
     devDependencies:
+      '@nexus-mindgarden/plugin-bridge-foundation':
+        specifier: workspace:^
+        version: link:../../packages/plugin-bridge-foundation
       '@types/node':
         specifier: ^24.0.0
         version: 24.13.2

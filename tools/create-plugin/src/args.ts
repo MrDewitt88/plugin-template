@@ -10,22 +10,39 @@
 //   --target=./<plugin-name>
 
 export interface ParsedArgs {
+  /** `scaffold` (default) oder das `features-note`-Subcommand. */
+  command: 'scaffold' | 'features-note'
   pluginName: string
   hosts: string[]
   features: ('bridge' | 'storage' | 'svelte' | 'mcp')[]
   target: string
   help: boolean
+  /** features-note: Verzeichnis mit `manifest.<id>.yaml` (default: cwd). */
+  dir: string
+  /** features-note: Ausgabedatei, oder `-` für stdout (default: stdout). */
+  out: string
 }
 
 export class ArgsError extends Error {
   constructor(
-    public readonly code: 'invalid_name' | 'missing_name' | 'invalid_features' | 'invalid_hosts',
+    public readonly code:
+      | 'invalid_name'
+      | 'missing_name'
+      | 'invalid_features'
+      | 'invalid_hosts'
+      | 'missing_value',
     message: string,
   ) {
     super(message)
     this.name = 'ArgsError'
   }
 }
+
+// Flags, die einen Wert TRAGEN. Ohne diese Liste würde `--out datei.md`
+// (Leerzeichen- statt `=`-Form) als Boolean `'true'` geparst und der Wert
+// stillschweigend in positional[] verschwinden — die Datei landete dann
+// wörtlich unter `./true`, mit exit 0.
+const VALUE_FLAGS = new Set(['hosts', 'features', 'target', 'dir', 'out'])
 
 const VALID_HOSTS = ['teammind', 'theseus', 'familymind'] as const
 const VALID_FEATURES = ['bridge', 'storage', 'svelte', 'mcp'] as const
@@ -37,30 +54,69 @@ export function parseArgs(argv: string[]): ParsedArgs {
   const positional: string[] = []
   let help = false
 
-  for (const arg of args) {
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!
     if (arg === '--help' || arg === '-h') {
       help = true
       continue
     }
     if (arg.startsWith('--')) {
       const eq = arg.indexOf('=')
-      if (eq < 0) {
-        flags[arg.slice(2)] = 'true'
-      } else {
+      if (eq >= 0) {
         flags[arg.slice(2, eq)] = arg.slice(eq + 1)
+        continue
       }
-    } else {
-      positional.push(arg)
+      const name = arg.slice(2)
+      if (VALUE_FLAGS.has(name)) {
+        // Leerzeichen-Form: `--out datei.md` — nächstes Token ist der Wert.
+        const next = args[i + 1]
+        if (next === undefined || next.startsWith('--')) {
+          throw new ArgsError(
+            'missing_value',
+            `--${name} braucht einen Wert (--${name}=<wert> oder --${name} <wert>)`,
+          )
+        }
+        flags[name] = next
+        i++
+        continue
+      }
+      flags[name] = 'true'
+      continue
     }
+    positional.push(arg)
   }
 
   if (help) {
     return {
+      command: 'scaffold',
       pluginName: '',
       hosts: [],
       features: [],
       target: '',
       help: true,
+      dir: '.',
+      out: '-',
+    }
+  }
+
+  // Subcommand: manifest → Feature-Katalog (Markdown) für die Notes-Registry.
+  // Kein plugin-name; liest das lokale Manifest, schreibt nach stdout.
+  // NB: `features-note` ist damit als Plugin-Name reserviert (in HELP_TEXT dokumentiert).
+  if (positional[0] === 'features-note') {
+    for (const k of ['dir', 'out'] as const) {
+      if (flags[k] !== undefined && flags[k] === '') {
+        throw new ArgsError('missing_value', `--${k} darf nicht leer sein`)
+      }
+    }
+    return {
+      command: 'features-note',
+      pluginName: '',
+      hosts: [],
+      features: [],
+      target: '',
+      help: false,
+      dir: flags.dir ?? '.',
+      out: flags.out ?? '-',
     }
   }
 
@@ -102,7 +158,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
 
   const target = flags.target ?? `./${pluginName}`
 
-  return { pluginName, hosts, features, target, help: false }
+  return { command: 'scaffold', pluginName, hosts, features, target, help: false, dir: '.', out: '-' }
 }
 
 export const HELP_TEXT = `
@@ -135,4 +191,22 @@ After scaffolding:
   cd <plugin-name>
   pnpm install
   pnpm test
+
+Subcommand — features-note (Chatbus-Notes-Registry, Contract #6):
+  npx @nexus-mindgarden/create-plugin features-note [--dir=<pfad>] [--out=<datei>]
+
+  Rendert aus dem lokalen manifest.<id>.yaml einen Markdown-Feature-Katalog
+  (Tools + Descriptions, Routes, Scopes, Hosts) mit eingebettetem manifest_hash
+  und schreibt ihn nach stdout. Offline, deterministisch — keine laufende Bridge
+  nötig, gleiches Manifest ⇒ byte-identische Ausgabe.
+
+  --dir=<pfad>   Verzeichnis mit manifest.<id>.yaml   (default: .)
+  --out=<datei>  Ausgabedatei, '-' = stdout           (default: -)
+
+  Beide Flag-Formen gehen: --out=datei.md und --out datei.md.
+  Hinweis: 'features-note' ist dadurch als Plugin-Name reserviert.
+
+  Diagnostik geht auf stderr, damit stdout pipebar bleibt:
+    create-plugin features-note | <in append_note(topic="repo/<role>/features",
+                                                  supersedes=[<vorgänger-id>])>
 `.trim()

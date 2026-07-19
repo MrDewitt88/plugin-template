@@ -2,6 +2,45 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [features-note] — 2026-07-20 — `plugin-bridge-foundation@0.13.0` + `create-plugin@0.9.0`
+
+Manifest → Markdown-Feature-Katalog für die Chatbus-Notes-Registry `repo/<role>/features` (Contract #6; rust-chatbus #7557, Schnitt ratifiziert in #7592). Ersetzt handgepflegte Feature-Notes für ~12 Bridge-Plugins durch einen Befehl pro Release.
+
+### Added — `plugin-bridge-foundation@0.13.0`
+
+- **`renderFeaturesNote(manifest, { manifestHash?, generatedAt? }) → string`** — rendert einen Markdown-Feature-Katalog aus einem validierten Manifest: MCP-Tools (Name · Scopes · erste Description-Zeile, string- **und** extended-Form), Routes, Module-Extensions (Hooks sortiert), Incoming-Floor ⟂ Outgoing-Grant, Distribution. Leere Abschnitte entfallen; Pipes in Descriptions werden escaped (Tabelle bleibt intakt).
+- **Pure + deterministisch by design:** zero-network, zero-auth, **kein Datum** — gleiches Manifest ⇒ byte-identische Ausgabe (ein Re-Append lässt sich sparen). Staleness läuft über den eingebetteten `manifest_hash` (identisch mit dem `/health`-Hash der Bridge), nicht über einen Zeitstempel.
+
+### Added — `create-plugin@0.9.0`
+
+- **`create-plugin features-note [--dir=<pfad>] [--out=<datei>]`** — liest das lokale `manifest.<id>.yaml` (`discoverManifest`), berechnet `computeManifestHash`, schreibt den Katalog nach **stdout** (Default) oder in eine Datei. **Alle Diagnostik auf stderr**, damit stdout pipebar bleibt. Offline — keine laufende Bridge nötig, CI-tauglich, funktioniert vor dem ersten Deploy.
+- Neue Runtime-Dependency auf `plugin-bridge-foundation` (dynamisch importiert → der Scaffold-Pfad `npx create-plugin <name>` zahlt nicht dafür).
+- **Der Bus-Append bleibt außerhalb des CLIs** (ratifizierter Schnitt): `append_note` braucht Session-Identität + `supersedes`-Vorgänger-id; sonst hätte jedes Plugin eine Bus-Dependency im Release-Pfad. Release-Schritt: `create-plugin features-note` → `append_note(topic="repo/<role>/features", supersedes=[…])`.
+
+### Fixed — pnpm-Native-Builds (betraf jeden frischen `node_modules`, auch CI)
+
+- `pnpm 11` liest `pnpm.onlyBuiltDependencies` aus `package.json` **nicht mehr** → `better-sqlite3` baute sein Native-Addon nicht (`Could not locate the bindings file`, storage-foundation rot). Freigaben stehen jetzt zusätzlich in `pnpm-workspace.yaml` unter `allowBuilds:`.
+- **Beide Mechanismen bleiben nötig** und decken disjunkte Bereiche ab: `allowBuilds` existiert erst ab **pnpm 10.26**, `engines.pnpm` erlaubt aber `>=10` — auf 10.0–10.25 wäre die Freigabe sonst still verschwunden und die Regression zurück. Der package.json-Block bleibt deshalb als Fallback stehen (in beiden Dateien kommentiert).
+
+### Hardening — 17 Befunde aus adversarialer Multi-Lens-Review, alle gefixt
+
+Vier davon `major`, alle im dokumentierten Hauptpfad:
+
+- **Pipe-Truncation bei 64 KiB (still, exit 0):** `bin/cli.js` rief `process.exit()`, bevor Node einen asynchronen stdout-Write in eine **Pipe** geleert hatte — genau der dokumentierte `features-note | append_note`-Pfad verlor bei großen Manifesten Daten. Jetzt `process.exitCode` + normales Auslaufen. Regressionstest mit 1400 Tools (>64 KiB) vergleicht Pipe- gegen Datei-Bytes.
+- **`--out datei.md` (Leerzeichen-Form) schrieb `./true`** und meldete Erfolg: value-lose Flags wurden als Boolean `'true'` geparst, der Pfad verschwand in `positional[]`. Beide Formen werden jetzt unterstützt; ein Flag ohne Wert wirft `ArgsError`. Betraf auch das bestehende `--target /pfad` im Scaffold-Pfad.
+- **Versionslücke pnpm `allowBuilds`** (siehe oben).
+- **CLI hatte null Testabdeckung** — `runFeaturesNote` war nur per Hand geprüft. Neu: 8 Prozess-Spawn-Tests (stdout-Reinheit, Pipe-Größe, beide Flag-Formen, unschreibbares `--out`, fehlendes Manifest, deprecated-Pfad, nicht-auflösbare Foundation).
+- **Provenienz log auf dem deprecated-Pfad:** die Note nannte `manifest.<id>.yaml`, obwohl aus dem bare `manifest.yaml` geladen — eine Datei, die es im Repo nicht gibt. Neu: `sourceFilename`/`deprecatedSource` (CLI reicht `DiscoveredManifest` durch), inkl. sichtbarem Deprecation-Hinweis.
+- **Outgoing-Grant-Zeile war irreführend:** sie behauptete zu zeigen, „was der Host ins Token mintet", ließ aber den Per-Tool-Union weg — und verschwand ganz, wenn `requires` fehlte. Jetzt immer gerendert (inkl. „nicht deklariert") **plus** die vollständige ratifizierte Mint-Formel.
+- **Escaping unvollständig:** `cell()` escapte Pipes, aber nicht den Backslash selbst und flachte kein einzelnes `\r` — Manifest-Text konnte aus der Tabelle ausbrechen. Tool-Descriptions (das einzige Feld ohne Code-Span) werden zusätzlich HTML-/Backtick-entschärft; rohes `<img …>` landet nicht mehr im Note-Body.
+- **fs-Fehler auf `--out`** entkamen als roher Node-Stacktrace mit exit 2 → jetzt `error: …` / exit 1 wie überall sonst.
+- **Dependency-Richtung korrigiert:** bridge-foundation ist nur noch **devDependency** (Typen). Zur Laufzeit lädt `features-note` die Foundation **aus dem Ziel-Plugin** — dadurch stammt der `manifest_hash` garantiert aus derselben Version, die dieses Plugin im `/health` meldet (kein Versions-Skew), und der Scaffold-Pfad `npx create-plugin <name>` installiert nichts davon.
+
+### Tests / Docs
+
+- **346/346** bridge-foundation, **60/60** create-plugin (inkl. 8 neue CLI-Prozess-Tests), 7/7 typecheck.
+- `PLUGIN-PROVIDER-GUIDE §4.8` dokumentiert den Befehl + den Registry-Release-Schritt; `features-note` ist als Plugin-Name reserviert (in `--help` vermerkt).
+
 ## [create-plugin/0.8.1] — 2026-07-11 — packer self-containment guard
 
 Follow-up from the cross-repo seam test (agent #6047): the packer now **warns** when the launch `entry` has bare (non-`node:`/`bun:`, non-relative) imports — i.e. the bundle is not self-contained. The host spawns `bun --no-install`, so an external dep crashes at runtime with `exited before becoming healthy`; the pack-time warning surfaces it early. Heuristic (source-regex) → **warning, not reject** (the host is the hard gate). 13/13 packer tests (2 new). The full download→USTAR-extract→Zod→spawn seam is confirmed working against the packer's output; only a non-self-contained *demo fixture* (not the packer) was at fault.

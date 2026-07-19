@@ -65,3 +65,29 @@ describe('parseArgs', () => {
     expect(r.features.sort()).toEqual(['bridge', 'mcp', 'storage', 'svelte'])
   })
 })
+
+describe('parseArgs — features-note subcommand', () => {
+  it('recognises the subcommand with defaults (cwd → stdout)', () => {
+    const r = call(['features-note'])
+    expect(r.command).toBe('features-note')
+    expect(r.dir).toBe('.')
+    expect(r.out).toBe('-')
+    expect(r.help).toBe(false)
+  })
+
+  it('honours --dir and --out', () => {
+    const r = call(['features-note', '--dir=/tmp/plug', '--out=features.md'])
+    expect(r.command).toBe('features-note')
+    expect(r.dir).toBe('/tmp/plug')
+    expect(r.out).toBe('features.md')
+  })
+
+  it('does NOT require a plugin-name (unlike scaffold)', () => {
+    expect(() => call(['features-note'])).not.toThrow()
+    expect(() => call([])).toThrow(ArgsError)
+  })
+
+  it('leaves the scaffold path on command=scaffold', () => {
+    expect(call(['my-plugin']).command).toBe('scaffold')
+  })
+})

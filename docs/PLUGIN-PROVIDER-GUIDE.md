@@ -298,6 +298,34 @@ Host-Semantik: Runtime ist **immer** die Host-Bun (G1) → gespawnt wird `bun --
 
 ⚠️ **`entry` muss self-contained sein** (esbuild-single-file, keine externen deps). Weil der Host `bun --no-install` fährt, crasht ein `entry` mit bare npm-import zur Laufzeit (`exited before becoming healthy`). Nur `node:`/`bun:`-Builtins + relative/absolute Imports (die im Bundle liegen) sind ok. Der Packer **warnt** beim Packen, wenn er bare imports im `entry` findet.
 
+### 4.8 Feature-Katalog für die Notes-Registry (`features-note`)
+
+> **Ab `create-plugin` v0.9.0 / `plugin-bridge-foundation` v0.13.0** (Chatbus Contract #6, rust-chatbus #7557/#7592). Ersetzt handgepflegte `repo/<role>/features`-Notes.
+
+Ein Befehl pro Release rendert dein Manifest zu einem Markdown-Feature-Katalog:
+
+```sh
+create-plugin features-note                 # → stdout (pipebar)
+create-plugin features-note --dir=. --out=features.md
+```
+
+Enthalten: MCP-Tools (Name · Scopes · erste Description-Zeile), Routes, Module-Extensions, Incoming-Floor ⟂ Outgoing-Grant, Distribution — plus der eingebettete **`manifest_hash`**.
+
+**Eigenschaften, die den Befehl release-tauglich machen:**
+
+- **Offline** — liest das lokale `manifest.<id>.yaml` (via `discoverManifest`), **keine laufende Bridge nötig**. Läuft in CI und vor dem ersten Deploy.
+- **Deterministisch** — kein Datum, stabile Sortierung. Gleiches Manifest ⇒ byte-identische Ausgabe ⇒ ein Re-Append lässt sich sparen.
+- **Staleness über den Hash** — der eingebettete `manifest_hash` ist derselbe, den deine Bridge im `/health` meldet. Weicht er ab, ist die Note veraltet.
+- **stdout ist sauber** — alle Diagnostik geht auf stderr, damit die Ausgabe direkt weiterverarbeitet werden kann.
+
+**Der Bus-Append bleibt bewusst außerhalb des CLIs** (`append_note` braucht Session-Identität + die `supersedes`-Vorgänger-id — sonst hätte jedes Plugin eine Bus-Dependency im Release-Pfad). Release-Schritt:
+
+```
+create-plugin features-note   →   append_note(topic="repo/<role>/features", supersedes=[<vorgänger-id>])
+```
+
+Programmatisch geht es auch direkt: `renderFeaturesNote(manifest, { manifestHash })` aus `@nexus-mindgarden/plugin-bridge-foundation` (pure, zero-network).
+
 ---
 
 ## 5. Layer-3-Walkthrough — erste Bridge

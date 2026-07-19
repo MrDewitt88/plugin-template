@@ -44,7 +44,9 @@ export {
   loadManifest,
   discoverManifest,
   manifestFilename,
+  renderFeaturesNote,
   ManifestError,
   validateManifest,
   type DiscoveredManifest,
+  type RenderFeaturesNoteOptions,
 } from './manifest/index.js'
