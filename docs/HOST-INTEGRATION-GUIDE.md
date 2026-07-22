@@ -132,6 +132,38 @@ async function activatePlugin(ctx, { pluginId }) {
 }
 ```
 
+### 2.4 Host-managed spawn: register-host GEHÖRT in den Aktivierungs-Pfad
+
+> Verbindlich für host-gespawnte Bundle-Plugins (Plugin-Rollout, agent #7944). Der Deadlock, den das sonst erzeugt, hat den ersten vollen Aktivierungs-Handshake blockiert.
+
+Die Bridge-Endpoints `handshake`/`execute-tool`/… sind **authentifiziert**: die Auth-Middleware verifiziert das Bridge-Token (JWT, mit dem Host-Key signiert) gegen den **registrierten Public Key**. Ohne vorherige Registrierung wirft sie `host_not_registered` (401) — der Handshake kann strukturell **nicht** aus dem Body auto-registrieren (er hätte keinen verifizierten Key). `/register-host` ist also **Voraussetzung**, kein reiner Recovery-Pfad.
+
+Bei **spawn-on-activate / teardown-on-fail** heißt das — Reihenfolge zwingend:
+
+```ts
+async function activateBundledPlugin(ctx, { pluginId }) {
+  const port = allocatePort()                       // → env PLUGIN_BRIDGE_PORT
+  const svc  = await spawnService(bundle, { PLUGIN_BRIDGE_PORT: String(port) })
+  await waitForHealth(svc, manifest.launch?.health_path)
+
+  // (1) register-host ZUERST — idempotent (Drift #12), also bei JEDEM Spawn
+  //     rufen; verlass dich NICHT auf Persistenz (das Plugin kann InMemory sein).
+  await post(svc, '/plugin-bridge/v1/register-host', {
+    host_id: ctx.hostId, public_key_pem: ctx.hostPublicKey, relay_url: ctx.reverseCallUrl,
+    // optional: expected_issuer / expected_audience (per-Host iss/aud-Binding)
+  })
+
+  // (2) DANN handshake mit dem Bridge-Token
+  const hs = await post(svc, '/plugin-bridge/v1/handshake', { bridgeToken, ... })
+  return hs
+}
+```
+
+**Zwei Fallstricke:**
+
+1. **`host_pending` statt `active`.** register-host setzt einen neuen Host auf `pending` — außer das Plugin konfiguriert `new HostKeyRegistry(repo, { autoAccept: true })`. Für host-gespawnte Bundle-Plugins IST der Host die Trust-Root (er spawnt den Prozess, ist der einzige Loopback-Caller) → das Scaffold (`create-plugin` ≥0.9.1) setzt `autoAccept`, wenn `PLUGIN_BRIDGE_PORT` gesetzt ist. Prüfe bei bestehenden Plugins, dass sie das auch tun — sonst 401 `host_pending`.
+2. **Kein Teardown bei `host_not_registered`/`host_unknown`/`host_pending`.** Behandle das im Handshake als „register-host + retry" (Analog zu `onHandshakeStale`), NICHT als fatalen Fehler mit Service-Teardown — sonst ist keine Reihenfolge mehr erfüllbar (Re-Register braucht den laufenden Dienst).
+
 ---
 
 ## 3. JWT-Bridge-Token-Issue

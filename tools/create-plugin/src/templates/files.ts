@@ -328,7 +328,15 @@ export async function createApp() {
   // plugin root — CODEX-REV §13.8.
   const { manifest } = await discoverManifest('.')
   const registry = new HostKeyRegistry(new InMemoryHostKeyRepo(), {
-    autoAccept: process.env.NODE_ENV === 'development',
+    // Host-managed bundled plugin: der Host (myMind) spawnt diesen Prozess und
+    // ist der einzige Loopback-Caller — er IST die Trust-Root. Deshalb seinen
+    // register-host automatisch akzeptieren (erkannt an PLUGIN_BRIDGE_PORT, das
+    // der Host beim Spawn setzt). Ohne das landet register-host auf 'pending'
+    // und der Handshake wirft host_pending → Aktivierungs-Deadlock.
+    // Aktivierungs-Sequenz host-seitig: spawn → register-host (idempotent, bei
+    // JEDEM Spawn) → handshake → activate. Siehe HOST-INTEGRATION-GUIDE §2.4.
+    autoAccept:
+      process.env.NODE_ENV === 'development' || process.env.PLUGIN_BRIDGE_PORT !== undefined,
   })
   return createBridgeApp({
     manifest,

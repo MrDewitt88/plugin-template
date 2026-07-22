@@ -44,7 +44,14 @@ describe('scaffold', () => {
     expect(existsSync(join(target, 'scripts/pack-bundle.mjs'))).toBe(true)
     // bridge package
     expect(existsSync(join(target, 'packages/my-plugin-bridge/package.json'))).toBe(true)
-    expect(existsSync(join(target, 'packages/my-plugin-bridge/src/index.ts'))).toBe(true)
+    const bridgeIndex = readFileSync(
+      join(target, 'packages/my-plugin-bridge/src/index.ts'),
+      'utf-8',
+    )
+    // host-managed activation: auto-accept the host when spawned with a port
+    // (else register-host lands on `pending` → handshake host_pending deadlock).
+    expect(bridgeIndex).toContain('PLUGIN_BRIDGE_PORT')
+    expect(bridgeIndex).toContain('autoAccept')
   })
 
   it('renders {{pluginName}}-placeholders korrekt', () => {

@@ -2,6 +2,18 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [create-plugin/0.9.1] — 2026-07-23 — host-managed activation fix
+
+Cross-repo activation deadlock, found on the first full host-managed activation handshake (agent #7944, eamind 0.2.0 from the Nexus catalog). Scaffold + docs only; `plugin-bridge-foundation` is correct as-is (register-host-before-handshake is the intended, auth-required contract — the handshake can't verify a bridge-token from a host whose key it never received).
+
+### Fixed — scaffold auto-accepts the host under host-managed spawn
+
+- The scaffolded bridge set `autoAccept: NODE_ENV === 'development'` — so in production a host-spawned bundled plugin would leave the host's `register-host` on status `pending`, and the very next handshake 401s with `host_pending` (activation deadlock, teardown-on-fail kills the service before the manual approve is reachable). Now: **`autoAccept` also when `PLUGIN_BRIDGE_PORT` is set** (the host-spawn signal) — the host is the trust root for a bundled plugin it spawned on loopback.
+
+### Docs
+
+- `HOST-INTEGRATION-GUIDE §2.4` — the mandatory host-managed activation sequence: **spawn → register-host (idempotent, every spawn) → handshake → activate**, service continuously up; treat `host_not_registered`/`host_pending` on handshake as *register + retry*, never teardown. Explains why the handshake cannot auto-register (it authenticates against the registered key).
+
 ## [features-note] — 2026-07-20 — `plugin-bridge-foundation@0.13.0` + `create-plugin@0.9.0`
 
 Manifest → Markdown-Feature-Katalog für die Chatbus-Notes-Registry `repo/<role>/features` (Contract #6; rust-chatbus #7557, Schnitt ratifiziert in #7592). Ersetzt handgepflegte Feature-Notes für ~12 Bridge-Plugins durch einen Befehl pro Release.
