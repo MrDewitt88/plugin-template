@@ -298,6 +298,11 @@ Host-Semantik: Runtime ist **immer** die Host-Bun (G1) → gespawnt wird `bun --
 
 ⚠️ **`entry` muss self-contained sein** (esbuild-single-file, keine externen deps). Weil der Host `bun --no-install` fährt, crasht ein `entry` mit bare npm-import zur Laufzeit (`exited before becoming healthy`). Nur `node:`/`bun:`-Builtins + relative/absolute Imports (die im Bundle liegen) sind ok. Der Packer **warnt** beim Packen, wenn er bare imports im `entry` findet.
 
+> 🐛 **bun:sqlite Named-Param-Falle (Drift #118, plug-ea/eamind).** Wer für Self-Containment einen eigenen `better-sqlite3`↔`bun:sqlite`-Treiber-Shim baut (jedes SQLite-Plugin **ohne** `plugin-storage-foundation`) läuft in einen **stillen** Bug: `bun:sqlite` bindet einen Plain-Key `{ public_key: v }` **nicht** an einen `@public_key`-Named-Param — er landet als **NULL, ohne Throw** (better-sqlite3 bindet ihn korrekt). Ergebnis: `NOT NULL constraint failed` erst im Betrieb, nicht im Test.
+> - **Fix:** **positionale Params** (`?`) bevorzugen, oder die bun:sqlite-Prefix-Key-Form (`{ '@public_key': v }`) verwenden — konsistent über alle Statements.
+> - **Warum Node-Tests es nicht fangen:** better-sqlite3 (Node) beweist bun:sqlite-Verhalten **nicht**. Fahre mindestens **einen Smoke unter echtem Bun** (`bun --no-install` gegen das extrahierte Bundle, inkl. eines `register-host`-Roundtrips) — der Packer-Scan kann das nicht fangen (Laufzeit-Semantik, kein Import).
+> - **Am einfachsten:** nimm `@nexus-mindgarden/plugin-storage-foundation` (runtime-agnostischer SQLite-Driver, node+bun getestet) statt einen eigenen Shim zu bauen.
+
 ### 4.8 Feature-Katalog für die Notes-Registry (`features-note`)
 
 > **Ab `create-plugin` v0.9.0 / `plugin-bridge-foundation` v0.13.0** (Chatbus Contract #6, rust-chatbus #7557/#7592). Ersetzt handgepflegte `repo/<role>/features`-Notes.
