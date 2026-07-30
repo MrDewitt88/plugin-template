@@ -4,6 +4,8 @@
 
 **Audience:** Engineering-Teams oder solo-Devs die Plugin-Provider werden wollen. Plus AI-CC-Workforce (siehe `CLAUDE-TEMPLATE.md`).
 
+> 🐍 **Nicht-TypeScript-Plugin?** Dieser Guide setzt die TS-Foundation voraus. Wenn du die Bridge in einer anderen Sprache nachbaust (Python/MLX, Rust, Go, Swift), ist **`PLUGIN-BRIDGE-WIRE-SPEC.md`** dein Dokument — sprachneutral, gegen die Referenz-Implementierung verifiziert, mit Conformance-Checkliste.
+
 ---
 
 ## 1. Voraussetzungen
