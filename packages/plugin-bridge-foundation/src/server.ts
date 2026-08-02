@@ -137,7 +137,8 @@ export interface BridgeAppOptions {
    *
    * When provided, Foundation hooks the `/plugin-bridge/v1/handshake` middleware
    * to capture the incoming Authorization Bearer (the per-plugin activation JWT
-   * issued by the host during register-tenants) and write it into the store.
+   * issued by the host during register-tenants) after JWT authentication and a
+   * successful 2xx handshake response, then writes it into the store.
    * The plugin-author can then pass the same store to outbound clients:
    *
    *   const tokenStore = createHandshakeTokenStore()
@@ -154,9 +155,9 @@ export interface BridgeAppOptions {
    *     tokenStore,
    *   })
    *
-   * Capture is BEFORE Foundation's JWT-validation middleware — so even if
-   * verification fails, the token is captured for diagnostics. Plugin-authors
-   * who don't need outbound calls can omit this field (zero impact).
+   * Rejected authentication and unsuccessful handshake responses never replace
+   * the last known-good token. Plugin-authors who don't need outbound calls can
+   * omit this field (zero impact).
    *
    * @see createHandshakeTokenStore in '/auth' subpath
    */
@@ -338,26 +339,33 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
     })
   })
 
-  // --- v0.7.1 — Handshake-Token Capture Middleware (BEFORE authMiddleware) ---
+  // --- v0.7.1 — Handshake-Token Capture Middleware ---
   // When BridgeAppOptions.handshakeTokenStore is provided, we capture the
-  // incoming Authorization Bearer before JWT-validation. This lets outbound
-  // clients (createAgentComplete, createReverseCallClient) reuse the per-plugin
-  // activation JWT without manual env-var wiring.
+  // incoming Authorization Bearer after JWT-validation AND a successful 2xx
+  // handshake response. This lets outbound clients (createAgentComplete,
+  // createReverseCallClient) reuse the per-plugin activation JWT without
+  // manual env-var wiring.
   //
-  // Capture runs BEFORE authMiddleware so we still capture for diagnostics
-  // even if validation fails (e.g. expired JWT — the store has the most-recent
-  // value, useful for staleness-debug via lastUpdated()).
+  // The middleware wraps auth + handler so it can commit only after downstream
+  // success. Failed verification or a 4xx/5xx handler result leaves the last
+  // known-good token and lastUpdated() unchanged.
   if (opts.handshakeTokenStore) {
     const tokenStore = opts.handshakeTokenStore
     app.use('/plugin-bridge/v1/handshake', async (c, next) => {
       const authHeader = c.req.header('Authorization') ?? c.req.header('authorization')
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.slice('Bearer '.length).trim()
-        if (token.length > 0) {
-          tokenStore._capture(token)
-        }
-      }
+      const token =
+        authHeader?.toLowerCase().startsWith('bearer ') === true
+          ? authHeader.slice('bearer '.length).trim()
+          : ''
       await next()
+      if (
+        token.length > 0 &&
+        c.get('claims') !== undefined &&
+        c.res.status >= 200 &&
+        c.res.status < 300
+      ) {
+        tokenStore._capture(token)
+      }
     })
   }
 

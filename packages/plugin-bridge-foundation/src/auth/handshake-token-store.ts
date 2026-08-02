@@ -1,6 +1,7 @@
-// createHandshakeTokenStore — captures the inbound Bearer-token at
-// /plugin-bridge/v1/handshake time so plugin-authors can hand it to
-// outbound clients (createAgentComplete, createReverseCallClient).
+// createHandshakeTokenStore — captures the inbound Bearer-token after an
+// authenticated, successful /plugin-bridge/v1/handshake so plugin-authors can
+// hand the last known-good token to outbound clients (createAgentComplete,
+// createReverseCallClient).
 //
 // Context: Foundation v0.6.x's createBridgeApp validates incoming JWTs
 // against host pubkeys (handshake-handler), but never caches the raw
@@ -41,7 +42,8 @@
  * — but the read interface is what they pass to outbound clients.
  *
  * Implementation also carries an internal write-method `_capture()` used by
- * `createBridgeApp`'s handshake middleware. Not part of the public contract.
+ * `createBridgeApp`'s handshake middleware after downstream success. Not part
+ * of the public contract.
  */
 export interface HandshakeTokenStore {
   /**
@@ -91,9 +93,10 @@ export interface CreateHandshakeTokenStoreOptions {
  * Create a HandshakeTokenStore.
  *
  * Pass the result to `BridgeAppOptions.handshakeTokenStore` so Foundation's
- * handshake-middleware writes the inbound Bearer on every `/plugin-bridge/v1/handshake`
- * POST. Then pass the same instance to outbound clients (e.g. `createAgentComplete`'s
- * `tokenResolver`, `createReverseCallClient`'s `tokenStore`).
+ * handshake-middleware writes the inbound Bearer after every authenticated
+ * `/plugin-bridge/v1/handshake` POST that returns 2xx. Then pass the same instance
+ * to outbound clients (e.g. `createAgentComplete`'s `tokenResolver`,
+ * `createReverseCallClient`'s `tokenStore`).
  *
  * The store is plain in-memory — no persistence. If your bridge restarts,
  * it waits for the next handshake from the host before outbound calls work.
@@ -124,8 +127,8 @@ export function createHandshakeTokenStore(
     _capture: (newToken: string) => {
       if (typeof newToken !== 'string' || newToken.length === 0) {
         // Silently ignore empty/invalid input — Foundation only calls _capture
-        // after extracting from a valid Authorization: Bearer X header, so this
-        // is defence-in-depth.
+        // after an authenticated, successful handshake, so this is
+        // defence-in-depth.
         return
       }
       token = newToken
