@@ -2,6 +2,14 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [plugin-bridge-foundation/0.10.1] — 2026-08-03
+
+**Per-package security patch: `@nexus-mindgarden/plugin-bridge-foundation@0.10.1`** — handshake-token capture now commits only after JWT authentication and a successful 2xx handshake. Rejected or unsuccessful rotation attempts preserve the last known-good token and its timestamp, preventing an invalid candidate from poisoning outbound reverse calls. Other Foundation packages are unchanged.
+
+### Fixed
+
+- Added authenticated integration coverage for malformed, invalid-signature, wrong-audience, malformed-body and plugin-ID-mismatch candidates, successful rotation, and the no-store compatibility path. 318/318 bridge tests and 550/550 runnable workspace tests green (one live smoke test remains intentionally skipped); typecheck clean.
+
 ## [plugin-bridge-foundation/0.10.0] — 2026-06-27
 
 **Per-package minor: `@nexus-mindgarden/plugin-bridge-foundation@0.10.0`** — aligns the bridge-token claim-set to the **canonical V8 spec** (unblocks MarkView's auth/registry migration, #5357) + raw-claims passthrough to handlers (unblocks wiz-mind §7 age-gating). Additive + backward-compatible: Foundation-minted tokens (which carry `plugin_id`/`user_id`) keep verifying unchanged.
