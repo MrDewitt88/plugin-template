@@ -2,6 +2,14 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [plugin-bridge-foundation/0.13.1] — 2026-08-03
+
+**Per-package security patch: `@nexus-mindgarden/plugin-bridge-foundation@0.13.1`** — handshake-token capture now commits only after JWT authentication and a successful 2xx handshake. Rejected or unsuccessful rotation attempts preserve the last known-good token and its timestamp, preventing an invalid candidate from poisoning outbound reverse calls. Other Foundation packages are unchanged.
+
+### Fixed
+
+- Added authenticated integration coverage for malformed, invalid-signature, wrong-audience, malformed-body and plugin-ID-mismatch candidates, successful rotation, and the no-store compatibility path. 347/347 bridge tests green; typecheck clean.
+
 ## [create-plugin/0.9.1] — 2026-07-23 — host-managed activation fix
 
 Cross-repo activation deadlock, found on the first full host-managed activation handshake (agent #7944, eamind 0.2.0 from the Nexus catalog). Scaffold + docs only; `plugin-bridge-foundation` is correct as-is (register-host-before-handshake is the intended, auth-required contract — the handshake can't verify a bridge-token from a host whose key it never received).
