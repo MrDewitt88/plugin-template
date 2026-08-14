@@ -1,6 +1,6 @@
 {
   "name": "@nexus-mindgarden/create-plugin",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "description": "CLI scaffold for @nexus-mindgarden Plugin-Provider — npx @nexus-mindgarden/create-plugin <name>",
   "license": "MIT",
   "type": "module",
@@ -39,7 +39,13 @@
   "bugs": {
     "url": "https://github.com/MrDewitt88/plugin-template/issues"
   },
-  "keywords": ["nexus-mindgarden", "create-plugin", "scaffold", "cli", "plugin-template"],
+  "keywords": [
+    "nexus-mindgarden",
+    "create-plugin",
+    "scaffold",
+    "cli",
+    "plugin-template"
+  ],
   "_comment_bridgeFoundation": "Nur für Typen als devDependency. Zur Laufzeit lädt `features-note` die Foundation aus dem Ziel-Plugin (loadFoundation in src/cli.ts), damit der manifest_hash zur dortigen Version passt und der Scaffold-Pfad nichts installieren muss.",
   "devDependencies": {
     "@nexus-mindgarden/plugin-bridge-foundation": "workspace:^",

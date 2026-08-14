@@ -206,7 +206,12 @@ kanban comment t_abc123 "<text>"
 Volle Engineering-Regeln-Reference: \`@nexus-mindgarden/plugin-template\` docs/CLAUDE-TEMPLATE.md
 `
 
-const MANIFEST_YAML = `id: {{pluginName}}
+const MANIFEST_YAML = `# ⚠️ Die id wird vom Host jedem Werkzeugnamen vorangestellt (<id>.<modul>.<verb>),
+# und die Domänen-Zuordnung entscheidet am ERSTEN Segment. Generische Kennungen
+# (mail, notes, image, memory, web, fs …) sind daher reserviert — sie schöben
+# alle deine Werkzeuge in eine Kern-Domäne. Produktspezifisch wählen:
+# 'mail-mind' ist frei, 'mail' nicht. (agent, rc.31)
+id: {{pluginName}}
 name:
   de: {{pluginNamePascal}}
   en: {{pluginNamePascal}}
@@ -223,7 +228,10 @@ distribution:
   service_endpoint: http://127.0.0.1:3600
 compatibility:
   apps: [{{hosts}}]
-  min_app_version: 0.5.0
+  # ⚠️ rc-FALLE: Prerelease rangiert VOR Release — '1.0.0-rc.31' ist KLEINER als
+  # '1.0.0'. Wer min_app_version: 1.0.0 schreibt, sperrt damit JEDEN aktuellen
+  # rc-Build aus. Der Conformance-Runner prüft das (A4).
+  min_app_version: 1.0.0-rc.1
 provides:
   routes: []
   mcp_tools: []
@@ -354,7 +362,10 @@ export async function createApp() {
 //   import { serve } from '@hono/node-server'
 //   serve({ fetch: (await createApp()).fetch, port: resolvePort() })
 //
-// An invalid/conflicting port surfaces as a clear error, never a silent fail.
+// NIEMALS den Port aus dem Manifest hartcodieren: bei einer Slot-Installation
+// verschiebt der Host den Loopback-Port um einen Instanz-Offset — ein Plugin mit
+// festem Port funktioniert dann in der ZWEITEN Installation nicht mehr.
+// Ein ungültiger/kollidierender Port ist ein Klartext-Fehler, nie ein Silent-Fail.
 export function resolvePort(defaultPort = 3600): number {
   const raw = process.env.PLUGIN_BRIDGE_PORT
   if (raw === undefined || raw === '') return defaultPort
@@ -363,6 +374,36 @@ export function resolvePort(defaultPort = 3600): number {
     throw new Error("invalid PLUGIN_BRIDGE_PORT: '" + raw + "' (expected 1..65535)")
   }
   return port
+}
+
+/**
+ * Host-autoritatives Datenverzeichnis. **Lege ALLE persistenten Daten hierhin**
+ * — Datenbank, Host-Keys, Caches — und nirgendwo sonst.
+ *
+ * Semantik (vom Host garantiert):
+ *  - **absolut**, vom Host gesetzt, **existiert garantiert** (er legt es an);
+ *  - **pro Installation**, nicht pro Version → zwei myMind-Installationen auf
+ *    einem Rechner haben getrennte Daten, ohne dass jemand etwas konfiguriert;
+ *  - **überlebt Updates** — es liegt bewusst NICHT unter dem Bundle. Ein Update
+ *    ersetzt <pluginsRoot>/<id>/app/<version> KOMPLETT: wer Daten dort ablegt,
+ *    verliert sie beim nächsten Update;
+ *  - **der Host gewinnt** — die Variable wird NACH launch.env gesetzt, ein im
+ *    Bundle eingebackener Pfad kann sie nicht überschreiben.
+ *
+ * Braucht dein Plugin einen eigenen Variablennamen, deklariere ihn im Manifest
+ * (distribution.storage_env) statt deinen Code umzubauen — der Host setzt beide.
+ * Migrationen hier drin **rückwärtskompatibel** halten (oder versioniert
+ * nebeneinander legen): bei einem fehlgeschlagenen Update rollt der Host auf die
+ * VORHERIGE Version zurück, und die muss dann noch starten können.
+ */
+export function resolveDataDir(fallback?: string): string {
+  const dir = process.env.PLUGIN_DATA_DIR
+  if (dir !== undefined && dir !== '') return dir
+  if (fallback !== undefined) return fallback
+  throw new Error(
+    'PLUGIN_DATA_DIR is not set — under a host it always is. ' +
+      'For standalone dev pass an explicit fallback: resolveDataDir("./.data")',
+  )
 }
 `
 

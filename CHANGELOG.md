@@ -9,6 +9,29 @@ All notable changes to `@nexus-mindgarden/plugin-template` and its foundation pa
 ### Fixed
 
 - Added authenticated integration coverage for malformed, invalid-signature, wrong-audience, malformed-body and plugin-ID-mismatch candidates, successful rotation, and the no-store compatibility path. 347/347 bridge tests green; typecheck clean.
+## [create-plugin/0.10.0] — 2026-08-14 — "aktivierbar beim Endkunden" ab Werk
+
+Brings the base in line with the host contract as of **myMind rc.31**, confirmed by `agent` (contract owner) in #8428/#8429/#8430. Trigger: cad-2d 1.2.2 died at the customer on **three** of these at once — `sub === "<plugin-id>"` (myMind signs `sub = user_id`; the plugin binding belongs on `aud`/`plugin_id`), a `pending` deadlock, and an ignored `PLUGIN_DATA_DIR`. Everything here is confirmed by the host; nothing speculative went in.
+
+### Added — scaffold
+
+- **`resolveDataDir()`** next to `resolvePort()`. `PLUGIN_DATA_DIR` is **host-authoritative**: absolute, guaranteed to exist, **per installation** (two myMind installs keep separate data), and it **survives updates** because it deliberately sits outside the bundle — an update replaces `<pluginsRoot>/<id>/app/<version>` wholesale. The host sets it **after** `launch.env`, so a path baked into the bundle cannot win; a plugin needing its own variable name declares `distribution.storage_env` instead.
+- **Manifest guard rails.** `min_app_version` now scaffolds as **`1.0.0-rc.1`**: prerelease sorts *before* release, so `1.0.0` locks out every current `1.0.0-rc.N` host (conformance check A4). Plus a comment on generic plugin ids — the host prefixes `<id>.` onto every tool name and routes domains on the first segment, so `mail`/`notes`/`image`/`memory`/`web`/`fs` are reserved; `mail-mind` is free, `mail` is not.
+- `resolvePort` doc now states why hardcoding the manifest port breaks: slot installs shift the loopback port by an instance offset, so a fixed port fails in the *second* installation.
+
+### Added — `PLUGIN-PROVIDER-GUIDE §4.9` "Aktivierbar beim Endkunden"
+
+The complete, host-confirmed checklist in one place: the six-step order · the conformance runner's 12 checks (A1–A6, B1, C0, C1, D1–D3, E1–E3) with the C0-before-C1 ordering trap · `PLUGIN_DATA_DIR` · **consent-drift breadth** (fingerprint covers endpoint · scopes · routes · **tool names** · **skill names** · `module_extensions` incl. hook endpoint names · sidebar — but *not* descriptions/schemas, since better docs are not a new right) · health's ~5 s budget and suspend-with-reason · update/rollback expectations (old version must stay startable, backwards-compatible `PLUGIN_DATA_DIR` migrations, clean `SIGTERM`; handshake-fail ⇒ rollback, **consent-fail ⇒ no rollback**) · service-state/logging · licensing gate (exists, **off** today — build so a later rejection is a message, not a crash).
+
+The runner itself lives with the host and is **referenced, not duplicated** — it tests the contract the host actually runs, so a copy here would become a second truth within weeks.
+
+### Fixed — docs
+
+- `PLUGIN-BRIDGE-WIRE-SPEC` audience line no longer lists Edessa. That was inherited unverified from #8064: EdessaV1 is a training pipeline whose contract is `mymind-tool-catalog/policy-contract-v1`, not the plugin bridge, and its vision encoder is model-internal. Med-Mind remains a genuine second Python case.
+
+### Open
+
+- `bundle.tgz.sha256` and a standalone `manifest.<id>.yaml` in the slot: the **host** needs neither (integrity comes from the catalog via streaming sha256). Whether the **publish path** requires them is nexus' call — asked in #8432.
 
 ## [create-plugin/0.9.1] — 2026-07-23 — host-managed activation fix
 

@@ -1,7 +1,8 @@
 # Plugin-Bridge Wire-Spec (language-neutral)
 
 > **Status:** NORMATIVE for the wire. Verified line-by-line against `@nexus-mindgarden/plugin-bridge-foundation@0.13.0` (the reference implementation) on 2026-07-30, including empirical probes against the compiled artifact.
-> **Audience:** anyone implementing a plugin bridge **without** the TypeScript foundation — Python (Speak-Mind, Med-Mind, Edessa), Rust, Go, Swift.
+> **Audience:** anyone implementing a plugin bridge **without** the TypeScript foundation — Python (Speak-Mind, Med-Mind), Rust, Go, Swift.
+> *(Correction: an earlier revision also listed Edessa. That was wrong — EdessaV1 is a training pipeline whose contract with myMind is `mymind-tool-catalog/policy-contract-v1`, not the plugin bridge; its vision encoder is model-internal. Being written in Python does not make a repo a bridge consumer.)*
 > **Owner:** plug-tmpl. **Origin:** Speak-Mind's Python port (`anon` #8064) surfaced that the only reference implementation was TS — this document closes that gap.
 >
 > **Authority order:** this document → the foundation code → everything else.

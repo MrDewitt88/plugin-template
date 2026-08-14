@@ -335,6 +335,91 @@ Programmatisch geht es auch direkt: `renderFeaturesNote(manifest, { manifestHash
 
 ---
 
+## 4.9 ✅ Aktivierbar beim Endkunden — die vollständige Checkliste
+
+> **Verbindlich.** Bestätigt von `agent` (myMind-Host, Vertrags-Owner) für rc.31, #8428/#8429/#8430. Jeder Punkt hier hat mindestens ein Plugin einen Kundentermin gekostet — cad-2d 1.2.2 ist an **drei** davon gleichzeitig gestorben.
+>
+> **Rollenverteilung:** der **Host** besitzt den Vertrag und seine ausführbare Fassung (den Conformance-Runner). **plug-tmpl** besitzt die Basis (Scaffold, Packer, Guides, Wire-Spec) und hält sie aktuell. Ändert sich der Vertrag, wird erst die Basis nachgezogen, dann die Plugins.
+
+### 4.9.1 Die Reihenfolge
+
+1. Scaffold ziehen, **Kennung produktspezifisch** wählen (`mail-mind`, nicht `mail`)
+2. Port aus **`PLUGIN_BRIDGE_PORT`** lesen, niemals aus dem Manifest
+3. Daten in **`PLUGIN_DATA_DIR`** ablegen, nirgendwo sonst
+4. **`sub` niemals validieren** — Plugin-Bindung an `aud`/`plugin_id`
+5. **`min_app_version`** prüfen: `1.0.0` sperrt jeden rc-Build aus
+6. **Conformance-Runner lokal grün** — *dann erst* Kandidat melden
+
+**Punkt 6 ist der wichtigste.** Ein Kandidat, der die Prüfung nicht bestanden hat, kostet einen Kundentermin.
+
+### 4.9.2 Der Conformance-Runner
+
+`packages/plugin-system/scripts/plugin-conformance.ts` (myMind/Theseus-Agent) — **die maßgebliche Prüfung**, weil sie den Vertrag testet, den der Host *tatsächlich* fährt. Er spricht HTTP, läuft also gegen ein Python-Plugin genauso wie gegen ein TypeScript-Plugin. **Nicht kopieren** — eine Kopie wäre in zwei Wochen eine zweite Wahrheit.
+
+| | Prüfung |
+| --- | --- |
+| **A1** | Manifest ist gültig |
+| **A2** | Dateiname trägt die Plugin-Kennung (`manifest.<id>.yaml`) |
+| **A3** | `compatibility.apps` enthält `theseus` |
+| **A4** | `min_app_version` sperrt keine rc-Builds aus |
+| **A5** | Version ist pfadsicher |
+| **A6** | `service_endpoint` vorhanden |
+| **B1** | Dienst antwortet |
+| **C0** | nimmt den Host-Schlüssel entgegen (`register-host`) |
+| **C1** | Erstkontakt: Plugin verlangt `register-host` |
+| **D1** | weist ein Token für ein **anderes Plugin** ab |
+| **D2** | weist eine **fremde Signatur** ab |
+| **D3** | weist ein **abgelaufenes Token** ab |
+| **E1–E3** | Qualitätshinweise: `input_schema` vorhanden · Beschreibung vorhanden · Werkzeugnamen wiederholen die Kennung nicht |
+
+**C0 läuft vor C1** — und das ist kein Detail: prüft man das positive Token, *bevor* der Host registriert ist, meldet der Lauf „Signaturprüfung fehlgeschlagen", obwohl in Wahrheit nur der Schlüssel fehlte. Unterscheide bei einem Fehlschlag immer zwischen **„kennt uns nicht"** (repariert der Host selbst) und **„lehnt gültiges Token ab"** (musst du fixen).
+
+### 4.9.3 `PLUGIN_DATA_DIR` — host-autoritativ
+
+**Alle** persistenten Daten dorthin: Datenbank, Host-Keys, Caches. Absolut, vom Host gesetzt, existiert garantiert, **pro Installation** (zwei myMind-Installationen = getrennte Daten), **überlebt Updates**. Es liegt bewusst **nicht** unter dem Bundle — ein Update ersetzt `<pluginsRoot>/<id>/app/<version>` komplett, dort abgelegte Daten sind weg.
+
+**Der Host gewinnt:** die Variable wird **nach** `launch.env` gesetzt, ein eingebackener Pfad kann sie nicht überschreiben. Brauchst du einen eigenen Variablennamen, deklariere ihn als `distribution.storage_env` — der Host setzt dann beide.
+
+Im Scaffold: `resolveDataDir()` neben `resolvePort()`.
+
+### 4.9.4 Consent-Drift — breiter als „Scopes"
+
+Der Host bildet einen **Fingerabdruck** über das Manifest. Ändert er sich, wird die Aktivierung **suspendiert, bis der Nutzer zustimmt**. Enthalten sind:
+
+> Endpunkt · Scopes · **Routen** · **Werkzeugnamen** · **Skill-Namen** · `module_extensions` **inkl. der Hook-Endpunktnamen** · **Sidebar-Eintrag**
+
+**Nicht** enthalten: Beschreibungen und Schemata — bessere Doku ist kein neues Recht.
+
+Ein nachgeschobenes Werkzeug in Bare-String-Form trägt keine `scopes_required` und wäre trotzdem sofort für den Agenten aufrufbar — **genau deshalb zählt der Name mit**. Praktische Folge: **ein neues Werkzeug in einer Minor-Version ist ein Zustimmungs-Ereignis.** Erwartbar machen (Changelog), nicht überraschen.
+
+### 4.9.5 Health — schnell, sonst Suspend
+
+`/health` läuft durch **dieselbe Warteschlange wie Nutzerklicks**, Budget **~5 s**. **Nicht** im Health-Handler Modelle laden, Netz aufrufen oder auf Locks warten — ein hängendes Plugin blockierte früher jeden Klick.
+
+Ein fehlgeschlagener Health-Pass **suspendiert** das Plugin; seit rc.31 mit Begründung, die einen App-Neustart überlebt. `degraded`/`unhealthy` nur melden, wenn es stimmt.
+
+### 4.9.6 Update & Rollback — der Host führt ihn, du machst ihn möglich
+
+Ablauf: alte Version stoppen → neues Bundle starten → Handshake. Scheitert Start oder Handshake, rollt der Host auf die vorherige Version zurück.
+
+1. **Die alte Version muss startbar bleiben.** Migrationen im `PLUGIN_DATA_DIR` rückwärtskompatibel halten oder versioniert nebeneinander legen — sonst ist der Rollback wertlos.
+2. **Sauberer `SIGTERM`-Abgang.** Wer nicht binnen weniger Sekunden geht, wird hart beendet.
+3. **Handshake-Fehlschlag ⇒ Rollback. Consent-Fehlschlag ⇒ *kein* Rollback** — die neue Version bleibt installiert und wartet auf Zustimmung. Das ist der wahrscheinlichste Fall, sobald neue Werkzeuge den Fingerabdruck ändern (§4.9.4).
+
+### 4.9.7 Dienstzustand & Logging
+
+„Aktiviert" und „läuft gerade" sind seit rc.31 **getrennte Tatsachen**: ein abgestürzter Dienst wird nicht mehr als aktiv angezeigt und startet bis zu **dreimal** selbst neu; danach bleibt er gestoppt und meldet, dass aufgegeben wurde.
+
+**Beim Start sparsam loggen.** Ein Dienst, der viel auf stdout schreibt, blockierte früher am vollen Pipe-Puffer und wurde nie bereit. Der Host greift die Ausgabe inzwischen sofort nach dem Spawn ab — sparsames Start-Logging bleibt trotzdem die bessere Bauweise.
+
+### 4.9.8 Lizenz/Entitlement — heute nicht scharf
+
+Das Gate (`createNexusLicenseGate`) existiert, steht aber **per Default aus**, weil NEXUS derzeit keine Plugin-Entitlements ausgibt — ein scharfes Gate würde jedes Plugin nach der Aktivierung aussperren.
+
+**Du musst heute nichts tun.** Baue nur so, dass eine Ablehnung beim Aktivieren später **eine Meldung ist, kein Absturz**. Das Scharfschalten ist eine Host-Entscheidung und wird vorher angekündigt.
+
+---
+
 ## 5. Layer-3-Walkthrough — erste Bridge
 
 ```ts

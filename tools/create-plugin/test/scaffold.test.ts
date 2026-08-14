@@ -52,6 +52,9 @@ describe('scaffold', () => {
     // (else register-host lands on `pending` → handshake host_pending deadlock).
     expect(bridgeIndex).toContain('PLUGIN_BRIDGE_PORT')
     expect(bridgeIndex).toContain('autoAccept')
+    // host-authoritative data dir — data outside the bundle survives updates
+    expect(bridgeIndex).toContain('resolveDataDir')
+    expect(bridgeIndex).toContain('PLUGIN_DATA_DIR')
   })
 
   it('renders {{pluginName}}-placeholders korrekt', () => {
@@ -68,6 +71,10 @@ describe('scaffold', () => {
     expect(manifest).toContain('id: cool-plugin')
     expect(manifest).toContain('apps: [teammind]')
     expect(manifest).toContain('service_endpoint: http://127.0.0.1:3600')
+    // A4: min_app_version must not lock out rc builds (prerelease < release,
+    // so `1.0.0` would exclude every current 1.0.0-rc.N host).
+    expect(manifest).toContain('min_app_version: 1.0.0-rc.1')
+    expect(manifest).not.toMatch(/min_app_version: 1\.0\.0\s*$/m)
   })
 
   it('renders {{pluginNamePascal}} in CLAUDE.md', () => {
