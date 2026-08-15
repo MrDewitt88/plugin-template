@@ -16,7 +16,21 @@ Er braucht nur **`node`** — kein Workspace, kein TypeScript, keine Installatio
 
 > ⚠️ **DIESES ARTEFAKT IST VERALTET — nicht mehr für Konformitätsmeldungen verwenden.**
 >
-> **Aktueller Stand (2026-08-15, dritte Fassung des Tages):**
+> 🕳️ **VIERTE FASSUNG ANGEKÜNDIGT, HASH UNVOLLSTÄNDIG — noch nicht verwendbar.**
+>
+> ```
+> sha256  ebb80ef5…        ⟵ ABGEKÜRZT ÜBERMITTELT, nicht prüfbar
+> Quelle  2e8bdfec
+> ```
+>
+> **Ein abgekürzter Hash ist kein Hash.** Er belegt nichts und lässt sich nicht gegen eine Datei prüfen — der Sinn der Angabe ist ja gerade, dass ihr vor dem Ausführen vergleichen könnt. Vollständiger Wert und Bytezahl sind bei `agent` angefragt; bis dahin gilt der Stand darunter, mit dem bekannten Vorbehalt.
+>
+> **Was die vierte Fassung ändert — A2 ist entschärft, A2b kommt dazu:**
+> - **A2 ist Hinweis**, kein Pflichtpunkt mehr. Grund: die Zielform `<plugin-id>/manifest.yaml` gilt am **Installationsort**, der Runner läuft aber im **Entwicklungs-Repo** — und dort heißt das Verzeichnis nach dem Repo (`Med-Mind/` bei `id: med-mind`). Gemessen: **20 von 20 Plugins** weichen ab. Eine Pflichtprüfung hätte alle rot gemacht für etwas, das am Zielort gar nicht mehr gilt.
+> - **A2b ist Pflicht, aber nur mit `--bundle <wurzel>`** — was ausgeliefert wird, hat den endgültigen Ort und ist damit prüfbar.
+> - ⭐ **Ohne `--bundle` wird A2b gar nicht erhoben** — es zählt **nicht** als bestanden. Genau der Defekt, den E und F heute Vormittag hatten: eine Prüfung, die grün meldet, weil sie nichts zu prüfen hatte.
+>
+> **Aktueller verwendbarer Stand (dritte Fassung):**
 >
 > ```
 > sha256  387cc7ae9f0a22bacd83511f31d14268b67ce809dd3a2ed6cf2f85ec72bb7e66

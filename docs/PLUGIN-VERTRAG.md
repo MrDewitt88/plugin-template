@@ -113,11 +113,20 @@ requires:
 
 ---
 
-## Die dreizehn Pflichtprüfungen
+## Die Pflichtprüfungen
 
-`node tools/conformance/plugin-conformance.mjs manifest.<id>.yaml [--endpoint URL]`
+`node tools/conformance/plugin-conformance.mjs <manifest> [--endpoint URL] [--bundle <wurzel>]`
 
-**A1–A6** Manifest · **B1** Dienst antwortet · **C0** nimmt den Host-Schlüssel entgegen · **C1** akzeptiert ein vertragskonformes Token — *außer der Host wartet noch auf Freigabe (`pending`), dann gilt der Lauf als **nicht geprüft**, nicht als bestanden* · **D1–D3** weist fremdes, falsch signiertes und abgelaufenes Token ab · **E1** `input_schema` je Werkzeug. Das übrige **E/F sind Hinweise**.
+**A1, A3–A6** Manifest · **B1** Dienst antwortet · **C0** nimmt den Host-Schlüssel entgegen · **C1** akzeptiert ein vertragskonformes Token — *außer der Host wartet noch auf Freigabe (`pending`), dann gilt der Lauf als **nicht geprüft**, nicht als bestanden* · **D1–D3** weist fremdes, falsch signiertes und abgelaufenes Token ab · **E1** `input_schema` je Werkzeug. Das übrige **E/F sind Hinweise**.
+
+**Die Ablage prüft `--bundle`, nicht der Manifest-Lauf:**
+
+| | |
+|---|---|
+| **A2** | **Hinweis.** Die Zielform gilt am **Installationsort**; der Runner läuft im **Entwicklungs-Repo**, wo das Verzeichnis nach dem Repo heißt (`Med-Mind/` bei `id: med-mind`). Gemessen: **20 von 20** weichen ab. Als Pflichtpunkt hätte er alle rot gemacht — für etwas, das am Zielort nicht mehr gilt |
+| **A2b** | **Pflicht, aber nur mit `--bundle`.** Was ausgeliefert wird, hat den endgültigen Ort. ⭐ **Ohne `--bundle` wird der Punkt gar nicht erhoben — er zählt nicht als bestanden** |
+
+Der Stern ist die Lehre aus einem Defekt von heute: E und F standen hinter dem Netz-Abbruch, wurden ohne `--endpoint` übersprungen — und trotzdem als bestanden **mitgezählt**. **Eine Prüfung, die grün meldet, weil sie nichts zu prüfen hatte, ist schlimmer als keine.**
 
 - **Ohne `--endpoint`** laufen Manifest- und Hinweisprüfungen bereits — sie finden den häufigsten Blocker, bevor ein Dienst läuft.
 - **Melde einen Hash erst, wenn der Lauf grün ist.**
@@ -177,6 +186,20 @@ Die Form erzwingt die Semantik, statt sie zu verlangen: das Plugin meldet die Ze
 > **Ein rotes Ergebnis ist eine Frage, keine Antwort.** Frag bei jedem Rot zuerst, ob der Messpunkt stimmt, bevor du das Gemessene änderst.
 
 > **Wo ein Fehler zu „nichts" geglättet wird, sieht der Nutzer statt eines Problems eine Leere — und über Leere beschwert sich niemand.** An einem Tag dreimal gefunden: verwaiste Daten hinter einer leeren Liste · ein `EACCES`, das der Lesepfad zu `ENOENT` glättet, sodass ein leerer Katalog aussieht wie „nichts gekauft" · eine übersprungene Pflichtprüfung, die als bestanden mitgezählt wurde. **Ein lautes Scheitern ist ein Geschenk.**
+
+---
+
+## Offene Schulden — mit Namen und Auslöser
+
+Nicht „fehlt", sondern **„wird geöffnet, wenn X"**. Eine Lücke ohne Auslöser ist eine Ausrede; eine mit Auslöser ist ein Plan.
+
+| Schuld | Wer | Auslöser |
+|---|---|---|
+| **Locale im Handshake** | plug-tmpl + myMind | das erste Plugin mit **mehr als einer Sprache**. Vorher wäre es ein Feld, das validiert und nichts bewirkt |
+| **`host_pending` + Knopf** | TeamMind, FamilyMind (myMind prüft, ob es dieselbe Schuld hat) | sofort — die Aktivierung **wirft** dort, statt eine Zeile anzulegen, also gibt es keine Karte für den Knopf |
+| **Dauerhafter signierter `once`-Nachweis** | Nexus | blockiert das beschlossene Lizenzmodell. Das 10-Minuten-JWT ist ausdrücklich **nicht** dieser Nachweis |
+| **Tenantweiten Kauf-Fan-out entfernen** | Nexus | bevor die Lizenzprüfung echt antwortet — sonst zahlt ein Kunde fünfmal für dasselbe Plugin |
+| **`exp` beim Minten** | myMind, TeamMind, FamilyMind | Phase 2 der Übergangsfrist. Der Stichtag wird gesetzt, **wenn die Minter gemeldet haben**, nicht vorher |
 
 ---
 
