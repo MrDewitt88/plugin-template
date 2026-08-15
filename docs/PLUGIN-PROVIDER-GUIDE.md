@@ -390,8 +390,13 @@ Im Scaffold: `resolveDataDir()` neben `resolvePort()`.
 - **„Host gewinnt" heißt auch: deine eigenen Env-Overrides verlieren.** Wenn `PLUGIN_DATA_DIR` gesetzt ist, muss ein plugin-eigenes `MY_DB_PATH`/`CAD_DATA_DIR` **ignoriert** werden — sonst zeigen zwei Installationen wieder auf denselben Ort.
 - **Host-Keys gehören ebenfalls hierhin** (§10.3) — `./data/host-keys.json` unter dem Bundle ist beim nächsten Update weg.
 
-> ⚠️ **Bestehende Nutzerdaten — offener Punkt, nicht raten.** Wer heute unter `~/Library/Application Support/<Produkt>/` liegende Nutzerdaten hat, steht beim Wechsel auf `PLUGIN_DATA_DIR` vor der Frage: migrieren, beide Orte lesen, oder erst ab Slot-Installation umschalten? **Das ist beim Host angefragt und noch nicht bestätigt** — ich schreibe hier bewusst keine Empfehlung hin, die dann 25-mal kopiert wird.
-> **Bis zur Antwort die konservative Arbeitsannahme** (so von cad3d gewählt): `PLUGIN_DATA_DIR` gewinnt, die eigene Variable bleibt **Fallback**, **keine automatische Migration** — kein Datenverlustrisiko. Sobald die Antwort da ist, steht sie hier.
+**Bestehende Nutzerdaten — die Regel** (bestätigt von agent, #8444):
+
+1. **`PLUGIN_DATA_DIR` gewinnt**, deine eigene Variable bleibt **Fallback**.
+2. **Keine automatische Migration.** Begründung: sie müsste entscheiden, was passiert, wenn **zwei Installationen** auf dieselben Altdaten zeigen — das kann kein Plugin für den Nutzer entscheiden.
+3. **Neue Daten nur nach `PLUGIN_DATA_DIR` schreiben**, und dem Nutzer **sichtbar machen**, dass Altdaten noch am alten Ort liegen. Wer migrieren will, tut es bewusst.
+
+> ⚠️ **Punkt 3 „beide Orte lesen" ist kein pauschales Rezept — entscheide es bewusst** (med-plug #8455). Bei **personenbezogenen Daten** heißt „beide Orte lesen" faktisch: dieselben Daten an zwei Stellen halten und im Zweifel duplizieren. Das ist eine **Betreiber**-Entscheidung, keine Plugin-Entscheidung. Med-Mind hat sich für Patientendaten bewusst **gegen** Dual-Read entschieden und macht den Altpfad stattdessen nur **sichtbar** (Health, Status, eine Startzeile) — kopiert nichts. Für Plugins mit personenbezogenen Daten ist das in der Regel die richtige Wahl.
 
 ### 4.9.4 Consent-Drift — breiter als „Scopes"
 
@@ -497,6 +502,15 @@ function audGuard(pluginId: string) {
 
 **Alternative auf Registry-Ebene** (wiz-mind): im Resolver `expected_audience ?? manifest.id` als Default setzen — ein explizit registrierter Host-Wert gewinnt weiter. Ein Plugin kennt seine eigene Kennung immer; „an alles gebunden" ist nie richtig. *(Ob die Foundation das künftig selbst als Default tut, ist beim Host angefragt — es würde Tokens **ohne** `aud` ablehnen und ist deshalb keine einseitige Entscheidung.)*
 
+> 🚨 **Prüf zuerst deine Foundation-Version — der Registry-Weg existiert erst ab 0.9.0** (med-plug #8455, von mir am Code verifiziert):
+>
+> | Deine Version | Was geht |
+> |---|---|
+> | **< 0.9.0** (0.7.x, 0.8.x) | `expected_audience` gibt es **gar nicht** — die Foundation hat **keinerlei** `aud`-Behandlung, und `plugin_id` wird nirgends gegen die Manifest-Id verglichen. Dein Plugin ist **komplett ungebunden**: ein Token, das derselbe registrierte Host für ein *anderes* Plugin ausstellt, wird akzeptiert. **Der Guard ist hier der einzige Weg.** |
+> | **≥ 0.9.0** | Registry-Weg **oder** Guard möglich — aber beide nur wirksam, wenn du sie selbst setzt (siehe oben: ohne host-gesendetes `expected_audience` prüft die Foundation nichts). |
+>
+> Wer die Registry-Zeile aus diesem Guide auf einer 0.7.x einbaut, hakt **D1 fälschlich als erledigt ab** — sie läuft dort ins Leere. Genau deshalb steht die Versionsgrenze hier.
+
 ### 4.9.11 `min_app_version`: immer mit `-rc.1`-Suffix
 
 Die Regel ist strenger als „nimm nicht `1.0.0`": **jede reine Release-Angabe sperrt ihre eigene rc-Serie aus**, weil Prerelease vor Release rangiert. `0.5.0` schließt `0.5.0-rc.x` aus und failt A4 genauso wie `1.0.0` (mind-canva #8440).
@@ -510,6 +524,19 @@ Und die zweite Fehlerrichtung, die seltener genannt wird (plug-inst): `min_app_v
 ### 4.9.12 Manifest-Felder, die der Host derzeit nicht liest
 
 Ehrlichkeitshalber (Runner-Hinweis F2, mind-canva #8440): **`routes[].service_endpoint`, `mcp_tools[].output_schema` und `ui.sidebar_entry.label_key` wertet der Host aktuell nicht aus.** Sie schaden nicht und bleiben schema-gültig — aber verlass dich nicht auf eine Wirkung, die es heute nicht gibt.
+
+### 4.9.13 🚨 Zwei Pfade, eine Regel — der Tool-Pfad umgeht gern deine RBAC
+
+**Die Prüffrage, die du dir stellen musst:** *jede Operation, die über `/api/*` (deine eigene UI/HTTP-Fläche) eine Berechtigungsprüfung durchläuft — durchläuft sie dieselbe Prüfung auch, wenn sie über `execute-tool` von der Bridge kommt?*
+
+Bei Med-Mind war die Antwort **nein**, und das Ergebnis war ernst: `med.deidentify` hatte über die Bridge **keine** Sperre und gab das **PII-Mapping an jeden Aufrufer** heraus — den Agenten eingeschlossen — während dieselbe Operation über `/api/*` sauber geprüft war (med-plug #8455).
+
+Das Muster ist allgemein: die HTTP-Fläche wächst mit Sessions, Rollen und Middleware; der Tool-Handler wird später drangebaut und bekommt die Prüfung nicht mit. **Der Bridge-Pfad ist aber der mächtigere** — dort ruft ein Agent an, nicht ein eingeloggter Mensch.
+
+**Konkret prüfen:**
+- Handler, die schreiben, löschen oder **de-anonymisieren**: hängt die Rollen-/Rechteprüfung am Handler oder nur an der HTTP-Route?
+- Kommt die Rolle aus einem **Claim** (signiert) oder aus einem **Header** (vom Aufrufer setzbar)? Header sind auf dem Bridge-Pfad keine Autorisierung.
+- Der Tenant-Check gehört ebenfalls hierher — die Foundation macht ihn **nicht** für dich (`PLUGIN-BRIDGE-WIRE-SPEC §10`).
 
 ---
 

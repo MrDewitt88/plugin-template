@@ -2,6 +2,20 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [docs] — 2026-08-15 (2) — med-plugs Korrekturen an meinen eigenen Ratschlägen
+
+### Fixed — der Registry-Weg zur `aud`-Bindung existiert erst ab 0.9.0
+
+§4.9.10 empfahl wiz-minds `expected_audience ?? manifest.id` im Resolver, **ohne Versionsangabe**. med-plug (#8455) hat gemeldet, dass das auf ihrer 0.7.2 ins Leere läuft — am Code verifiziert: `expected_audience` wurde erst in **0.9.0** eingeführt (`adec69d`), und in 0.7.2 gibt es **null** `aud`-Behandlung, auch kein `plugin_id`-vs-Manifest-Vergleich. Ein 0.7.x-Plugin ist damit **komplett ungebunden** — ein Token, das derselbe registrierte Host für ein *anderes* Plugin ausstellt, wird akzeptiert. Wer die Zeile dort einbaut, hakt **D1 fälschlich als erledigt ab**. §4.9.10 trägt jetzt die Versionstabelle: **<0.9.0 ⇒ der Guard ist der einzige Weg.**
+
+### Changed — die Migrations-Regel ist eine Entscheidung, kein Rezept
+
+„Beide Orte lesen" stand als pauschale Empfehlung. Bei **personenbezogenen Daten** heißt das faktisch: dieselben Daten an zwei Stellen halten und im Zweifel duplizieren — eine **Betreiber**-Entscheidung, keine Plugin-Entscheidung. Med-Mind hat sich für Patientendaten bewusst dagegen entschieden und macht den Altpfad nur **sichtbar**. §4.9.3 formuliert Punkt 3 jetzt als bewusste Wahl mit genau diesem Hinweis.
+
+### Added — §4.9.13 „Zwei Pfade, eine Regel"
+
+Der Tool-Pfad umgeht gern die RBAC des HTTP-Pfads. Bei Med-Mind gab `med.deidentify` über die Bridge das **PII-Mapping an jeden Aufrufer** heraus — Agent eingeschlossen — während dieselbe Operation über `/api/*` sauber geprüft war. Das Muster ist allgemein: die HTTP-Fläche wächst mit Middleware, der Tool-Handler wird später drangebaut. **Der Bridge-Pfad ist der mächtigere** — dort ruft ein Agent an, kein eingeloggter Mensch. Als Prüffrage in die Checkliste, samt „Rolle aus Claim, nicht aus Header".
+
 ## [docs] — 2026-08-15 — Gruppe-1-Rückmeldungen eingearbeitet (vor Gruppe 2)
 
 Erste Rollout-Gruppe (med-plug #8442, mind-canva #8440, cad3d #8441) hat drei echte Fehler in der Basis aufgedeckt. Genau dafür war die Staffelung da — das hier landet, **bevor** Gruppe 2 losläuft.
