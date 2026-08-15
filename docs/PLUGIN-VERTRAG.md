@@ -20,6 +20,7 @@ Jede Regel nennt den **sichtbaren Ausfall**, den sie verhindert. Findest du eine
 | | **`<plugin-id>/manifest.yaml`** — Verzeichnis trägt die Kennung (siehe unten) | ein Layout, das ein Host nicht kennt, macht dein Plugin dort **unsichtbar**: kein Fehler, kein Katalogeintrag, einfach nicht da |
 | **aktivieren** | **Wartest du auf eine menschliche Freigabe, sag es im Fehlercode:** `host_pending`, `host_awaiting_confirmation` oder `pending_approval` mit 401/403 | auf `invalid_token` normalisiert (cad-2ds alter Fehler) sieht der Nutzer „nicht aktivierbar" statt „wartet auf dich". **Der Code entscheidet, ob er eine Sackgasse oder einen Knopf sieht** |
 | | **`aud` selbst erzwingen.** Die Foundation prüft die Signatur, nicht die Zielrichtung | du akzeptierst das Token des Nachbarplugins |
+| | **Niemals `aud ?? sub`** als Rückfallkette | du nimmst jedes Token an, in dem jemand die Plugin-Kennung an die **Nutzer**-Stelle geschrieben hat |
 | | **`sub` niemals validieren** — Format ist host-intern | bricht beim nächsten Host-Update |
 | | `autoAccept` als **Autorenkonstante**, nie aus einer Umgebungsvariablen | ein selbstverwalteter Dienst vertraut seinem eigenen Launcher und nimmt `register-host` von jedem auf Loopback |
 | | `register-host` **beide Schreibweisen** lesen: `public_key_pem` **und** `public_key` | Handshake scheitert mit „Signaturprüfung fehlgeschlagen", obwohl nur der Schlüssel fehlte |
@@ -187,6 +188,9 @@ Die Form erzwingt die Semantik, statt sie zu verlangen: das Plugin meldet die Ze
 > **Ein rotes Ergebnis ist eine Frage, keine Antwort.** Frag bei jedem Rot zuerst, ob der Messpunkt stimmt, bevor du das Gemessene änderst.
 
 > **Wo ein Fehler zu „nichts" geglättet wird, sieht der Nutzer statt eines Problems eine Leere — und über Leere beschwert sich niemand.** An einem Tag dreimal gefunden: verwaiste Daten hinter einer leeren Liste · ein `EACCES`, das der Lesepfad zu `ENOENT` glättet, sodass ein leerer Katalog aussieht wie „nichts gekauft" · eine übersprungene Pflichtprüfung, die als bestanden mitgezählt wurde. **Ein lautes Scheitern ist ein Geschenk.**
+
+> **Ein Feld, dessen Name in die Irre führt, braucht eine mechanische Absicherung — ein Satz im Vertrag reicht nicht** (agent, v8-corp). Von `iss`/`aud`/`sub`/`jti` ist **`sub`** das einzige, dessen Name das Gegenteil nahelegt: *„Subject"* liest sich wie „worum es in diesem Token geht" — und genau so hat cad-2ds Verifier es gelesen. `user_id` sagt, was drinsteht; `sub` **muss man wissen**.
+> Wir konvergieren also bewusst auf ein Paar, dessen eine Hälfte selbsterklärend ist und dessen andere eine Falle bleibt: die RFC-Begründung wiegt schwerer (**jede JWT-Bibliothek prüft `aud` von selbst**, ein Eigenname muss jeder Verifier von Hand nachbauen). Daraus folgt aber, dass die Falle **geprüft** gehört, nicht nur beschrieben.
 
 > **Eine Abhilfe, die einen Fehlschlag selten macht, kann ihn ausgerechnet auf die verlagern, die es richtig machen.** myMinds Aktivierung heilt den häufigsten `pending`-Fall selbst (neu registrieren, einmal wiederholen) — übrig bleibt genau der Fall, in dem ein Plugin **wirklich** auf eine menschliche Freigabe wartet, also das Plugin **mit** einer echten Freigabe-Oberfläche. *„Selten" beschreibt die Häufigkeit, nicht die Klasse* — und wer nur die Häufigkeit misst, hält den Rest für gelöst.
 
