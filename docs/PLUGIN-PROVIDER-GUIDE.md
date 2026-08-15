@@ -341,6 +341,28 @@ Programmatisch geht es auch direkt: `renderFeaturesNote(manifest, { manifestHash
 >
 > **Rollenverteilung:** der **Host** besitzt den Vertrag und seine ausführbare Fassung (den Conformance-Runner). **plug-tmpl** besitzt die Basis (Scaffold, Packer, Guides, Wire-Spec) und hält sie aktuell. Ändert sich der Vertrag, wird erst die Basis nachgezogen, dann die Plugins.
 
+### 4.9.0 🧭 Zuerst: welche Betriebsart bist du?
+
+**Nicht alles unten gilt für dich.** Es gibt drei Betriebsarten, und sie unterscheiden sich in genau den Punkten, die diese Runde Geld gekostet haben — wer Ratschläge der falschen Art befolgt, baut an sich vorbei.
+
+⚠️ **Der Host entscheidet die Betriebsart NICHT an `distribution.type`, sondern an der Bundle-Präsenz** (`plugin-service-manager.ts`: `bundleDir` + `launch`). Das Feld `type` beschreibt deine Absicht, es steuert nichts.
+
+| | **A — Host-gespawntes Bundle** | **B — Eigenständiger Dienst** | **C — `embedded`** |
+|---|---|---|---|
+| **Erkennungsmerkmal** | Bundle liegt im Slot/Katalog; der Host startet deinen Prozess | Kein Bundle. Deine App läuft selbst, der Host prüft nur den Port | Schema-Wert |
+| **Lebenszyklus** | Host: spawn · health-poll · stop · Update-Swap · Rollback | **Du.** Eigener Updater (z.B. Sparkle), eigener Start | — |
+| **Port** | Host setzt **`PLUGIN_BRIDGE_PORT`** (Instanz-Offset!) — env-first ist Pflicht | Dein fester Port; im Manifest deklariert | — |
+| **Datenverzeichnis** | Host setzt **`PLUGIN_DATA_DIR`** — host-autoritativ, gewinnt | Deins. `PLUGIN_DATA_DIR` kommt nie | — |
+| **`autoAccept`** | **`true`** (erkannt an `PLUGIN_BRIDGE_PORT`) — der Host ist die Trust-Root | **Allowlist** `{host_id → Fingerprint}`; `register-host` ist unauthentifiziert und jeder auf Loopback kann es rufen | — |
+| **Rollback/SIGTERM** | §4.9.6 gilt voll | Deine Sache | — |
+| **Bundle-Packer** | ja (§4.7) | nur wenn du über den Katalog verteilst | — |
+
+**A+ — Bundle mit Oberfläche** (Navbar-Eintrag und/oder Routen, startet mit dem Host): technisch **A**, aber der **Consent-Fingerabdruck greift breiter** (§4.9.4) — Routen und Sidebar-Eintrag zählen mit, jede UI-Erweiterung ist ein Zustimmungs-Ereignis.
+
+> 🚫 **`distribution.type: 'embedded'` nicht verwenden.** Der Wert steht im Manifest-Schema der Foundation, aber **myMind implementiert ihn nicht** (nachgemessen: null Treffer im Host). Ein Manifest damit validiert und tut dann nichts. Wenn du UI im Host willst, ist das **A+** — Bundle mit `routes`/`ui.sidebar_entry`.
+
+**Was für ALLE gilt**, unabhängig von der Betriebsart: `sub` nie validieren + `aud`-Bindung selbst erzwingen (§4.9.10) · `min_app_version` mit `-rc.1` (§4.9.11) · Werkzeugnamen (§4.9.9) · der Tenant-Check und die RBAC auf dem Tool-Pfad (§4.9.13) · Conformance-Runner vor dem Kandidaten (§4.9.2).
+
 ### 4.9.1 Die Reihenfolge
 
 1. Scaffold ziehen, **Kennung UND Werkzeugnamen** produktspezifisch wählen (`mail-mind`, nicht `mail`) — **beides ist später faktisch eingefroren** (§4.9.9)
@@ -424,6 +446,8 @@ Im Scaffold: `resolveDataDir()` neben `resolvePort()`.
 - **Host-Keys NICHT adoptieren.** Das sind Sicherheits-Grants: eine alte Freigabeliste in eine neue Installation zu tragen **re-approved einen Host, den der Nutzer hier nie freigegeben hat**. Der Host registriert sich neu — auch wenn das eine Freigabe kostet. *(Unabhängig bestätigt von wiz-mind und med-plug; bei letzterem hängt an dieser Freigabe der Zugriff auf Patientendaten.)*
 
 > ⚠️ **„Sichtbar" heißt: beim Nutzer, nicht in JSON** (med-plug). Health, Status und eine Startzeile erreichen keine Ärztin — die sieht eine leere Fallliste und sonst nichts. **Gezählt** melden (`cases=1 audit=18`) statt „da ist was", und dort, wo der Nutzer hinschaut (Banner in der Oberfläche).
+
+> 🕳️ **„Sichtbar machen" heißt zuerst: überhaupt suchen** (wiz-mind). Die naheliegende Implementierung steigt bei `target_not_empty` **sofort aus** — verständlich, denn sie soll ja nichts überschreiben. Genau dann **schaut sie die Kandidatenpfade nie an** und meldet folglich auch keine Verwaisung. Das ist der Zustand, in dem wiz-mind grün war und trotzdem 2 Charaktere fehlten: das Ziel war nicht leer (frische DB **mit Schema**), also lief die Adoption gar nicht erst los. **Scanne die Kandidaten immer, auch wenn du nicht adoptierst** — und melde, was du findest. „Nicht adoptieren" und „nicht nachsehen" sind zwei verschiedene Entscheidungen; nur die erste ist sicher.
 
 > 🔑 **Prüf, ob zu deinen Daten ein Schlüssel oder ein anderes Nebenartefakt gehört — und nenn es dem Nutzer beim Namen** (med-plug). Bei Med-Mind liegt der **Verschlüsselungs-Key im Datenverzeichnis**: wer dem Rat „kopier den Ordner" folgt und nur die DB mitnimmt, hat **Chiffrat, das er nie wieder aufmacht** — die Daten *sehen* übernommen aus und sind es nicht. Bei einem RPG ist das nichts, bei personenbezogenen Daten der Unterschied zwischen Übernahme und Totalverlust.
 
