@@ -111,16 +111,20 @@ describe('create-plugin features-note (CLI)', () => {
     expect(r.stdout).toBe('')
   })
 
-  it('names the REAL source file and flags the deprecated bare manifest.yaml', () => {
+  // Umgekehrt seit bridge-foundation@0.17.0. Hier stand, dass ein bares
+  // `manifest.yaml` als DEPRECATED gemeldet werden MUSS. Gemessen an allen drei
+  // Hosts war das falsch herum: myMind liest beide Formen, TeamMind und
+  // FamilyMind lesen ausschliesslich `<plugin-id>/manifest.yaml`. Die Warnung
+  // riet also dazu, sich bei zwei von drei Hosts unsichtbar zu machen.
+  it('names the REAL source file and does NOT deprecate a bare manifest.yaml', () => {
     writeFileSync(join(dir, 'manifest.yaml'), manifest('legacy'))
     const r = run(dir, [])
     expect(r.status).toBe(0)
     // Provenienz muss die tatsächlich geladene Datei nennen …
     expect(r.stdout).toContain('Generiert aus `manifest.yaml`')
     expect(r.stdout).not.toContain('Generiert aus `manifest.legacy.yaml`')
-    // … und den Deprecation-Hinweis tragen; die Warnung geht auf stderr.
-    expect(r.stdout).toContain('DEPRECATED')
-    expect(r.stderr).toContain('warning:')
+    // … und die bare Form NICHT mehr abwerten.
+    expect(r.stdout).not.toContain('DEPRECATED')
   })
 
   it('fails clearly when bridge-foundation is not resolvable from --dir', () => {
