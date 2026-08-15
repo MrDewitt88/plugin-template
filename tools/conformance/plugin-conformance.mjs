@@ -7335,7 +7335,7 @@ var require_dist = __commonJS({
 
 // scripts/plugin-conformance.ts
 import { promises as fs } from "node:fs";
-import { basename } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 // ../../node_modules/jose/dist/node/esm/runtime/base64url.js
 import { Buffer as Buffer2 } from "node:buffer";
@@ -12360,7 +12360,7 @@ var I18nStringSchema = z.object({
   en: z.string().min(1)
 });
 var PluginDistributionSchema = z.object({
-  type: z.enum(["external-service", "library"]),
+  type: z.enum(["external-service"]),
   service_endpoint: z.string().min(1).optional(),
   /** WIRD DERZEIT NICHT GELESEN. Der Katalog kommt aus dem NEXUS-Feed, nicht
    *  aus dem Manifest — ein Wert hier hat keine Wirkung. */
@@ -12483,6 +12483,40 @@ var PluginManifestSchema = z.object({
   distribution: PluginDistributionSchema,
   compatibility: PluginCompatibilitySchema,
   provides: PluginProvidesSchema,
+  /**
+   * Was das Plugin nach AUSSEN zu rufen erklärt — die Gegenrichtung zu
+   * `provides.scopes_required`.
+   *
+   * Bis hierher gab es dieses Feld bei uns nicht, und Zod streift unbekannte
+   * Schlüssel still ab: ein Manifest mit `requires` wurde ANGENOMMEN und das
+   * Feld verschwand an der Grenze. Der Autor deklarierte, der Host sah nie
+   * etwas. Gemessen mit `parseManifest` gegen ein 0.15.0-Manifest.
+   *
+   * DREI unterscheidbare Zustände, und die Unterscheidung ist der ganze Punkt
+   * (plug-tmpl, foundation 0.15.0 — dieselbe Logik wie bei E1: eine leere
+   * Angabe ist eine Aussage, eine fehlende eine Auslassung):
+   *
+   *   `requires` fehlt        → nicht deklariert
+   *   `requires: {scopes: []}` → Aussage „ich rufe nichts nach aussen"
+   *   `requires: {}`           → FEHLER
+   *
+   * Deshalb steht hier bewusst KEIN `.default([])` auf `scopes`: mit Default
+   * würde `requires: {}` still zur schärfsten Einstellung, und ein Autor, der
+   * das Feld halb hinschreibt, verlöre unbemerkt alles. Weil wir das an
+   * UNSERER Grenze erzwingen, hängt die Unterscheidung nicht an der
+   * Foundation-Version des Plugins.
+   *
+   * ⚠ DERZEIT NICHT DURCHGESETZT. Der Rückruf-Pfad entscheidet weiter an einer
+   * globalen Präfixliste (`REVERSE_CALL_TOOL_PREFIXES`), nicht hieran — die
+   * Scope-Sprache (`mcp.read.unifieddb`, `family.policy.read`) und die
+   * Präfixe (`contacts.`) sind zwei Vokabulare, und eine Host-Vokabel gibt es
+   * noch nicht. Das Feld ist bis dahin Erklärung und Zustimmungs-Gegenstand,
+   * keine Grenze. Es steht im Fähigkeiten-Fingerabdruck, damit eine spätere
+   * Erweiterung nicht ohne erneute Zustimmung durchgeht.
+   */
+  requires: z.object({
+    scopes: z.array(z.string().min(1))
+  }).optional(),
   ui: PluginUiSchema.optional()
 });
 var BridgeTokenClaimsSchema = z.object({
@@ -12717,6 +12751,49 @@ async function bridgeHandshake(ctx, body) {
   }
   return parsed.data;
 }
+async function bridgeRegisterHost(serviceEndpoint, body, options = {}) {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const url = joinUrl(serviceEndpoint, "/plugin-bridge/v1/register-host");
+  const dualEmitBody = {
+    ...body,
+    public_key_pem: body.public_key
+  };
+  const reverseUrl = body.relay_url ?? body.reverse_call_url;
+  if (reverseUrl !== void 0) {
+    dualEmitBody.relay_url = reverseUrl;
+    dualEmitBody.reverse_call_url = reverseUrl;
+  } else {
+    delete dualEmitBody.relay_url;
+    delete dualEmitBody.reverse_call_url;
+  }
+  const init = {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(dualEmitBody)
+  };
+  if (options.signal !== void 0) init.signal = options.signal;
+  let res;
+  try {
+    res = await fetchImpl(url, init);
+  } catch (err) {
+    throw new PluginBridgeError(
+      "network_error",
+      0,
+      `POST ${url}: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+  if (!res.ok) {
+    let parsed = null;
+    try {
+      parsed = await res.json();
+    } catch {
+    }
+    const code = parsed?.error?.code !== void 0 ? String(parsed.error.code) : statusToCode(res.status);
+    const message2 = parsed?.error?.message !== void 0 ? String(parsed.error.message) : `POST ${url} \u2192 HTTP ${res.status} ${res.statusText}`;
+    throw new PluginBridgeError(code, res.status, message2);
+  }
+  return readJsonOrThrow(res, res.status);
+}
 
 // src/plugin-consent.ts
 function effectivePluginScopes(manifest) {
@@ -12770,12 +12847,18 @@ async function main() {
   const argv = process.argv.slice(2);
   const manifestPfad = argv.find((a) => !a.startsWith("--"));
   if (manifestPfad === void 0) {
-    console.error("Aufruf: plugin-conformance <pfad/zu/manifest.<id>.yaml> [--endpoint URL]");
+    console.error(
+      "Aufruf: plugin-conformance <pfad/zum/manifest> [--endpoint URL] [--bundle DIR]"
+    );
     process.exit(2);
     return;
   }
   const endpointOverride = (() => {
     const i = argv.indexOf("--endpoint");
+    return i >= 0 ? argv[i + 1] : void 0;
+  })();
+  const bundleWurzel = (() => {
+    const i = argv.indexOf("--bundle");
     return i >= 0 ? argv[i + 1] : void 0;
   })();
   console.log("\n=== Plugin-Konformit\xE4t ===\n");
@@ -12788,12 +12871,27 @@ async function main() {
     return abschluss();
   }
   const datei = basename(manifestPfad);
+  const verzeichnis = basename(dirname(resolve(manifestPfad)));
+  const abgelegtRichtig = datei === "manifest.yaml" && verzeichnis === manifest.id;
   pruefe(
     "A2",
-    "Dateiname tr\xE4gt die Plugin-Kennung",
-    datei === `manifest.${manifest.id}.yaml`,
-    `erwartet 'manifest.${manifest.id}.yaml', gefunden '${datei}' \u2014 'manifest.yaml' ist Legacy`
+    "Ablage entspricht dem, was alle Hosts finden",
+    abgelegtRichtig,
+    abgelegtRichtig ? `${manifest.id}/manifest.yaml` : `gefunden '${verzeichnis}/${datei}'. Ausgeliefert werden muss '${manifest.id}/manifest.yaml' \u2014 TeamMind und FamilyMind finden NUR diese Form. Im Entwicklungs-Repo ist das nicht pr\xFCfbar (dein Verzeichnis heisst nach dem Repo); achte darauf, was dein Bundle ausliefert, und pr\xFCfe es mit --bundle`,
+    "hinweis"
   );
+  if (bundleWurzel !== void 0) {
+    const erwartet = join(resolve(bundleWurzel), manifest.id, "manifest.yaml");
+    const daneben = join(resolve(bundleWurzel), manifest.id, `manifest.${manifest.id}.yaml`);
+    const da = await fs.access(erwartet).then(() => true).catch(() => false);
+    const nurSuffix = !da && await fs.access(daneben).then(() => true).catch(() => false);
+    pruefe(
+      "A2b",
+      "Bundle liefert <plugin-id>/manifest.yaml",
+      da,
+      da ? erwartet : nurSuffix ? `dein Bundle enth\xE4lt nur '${manifest.id}/manifest.${manifest.id}.yaml'. myMind findet das, TeamMind und FamilyMind NICHT \u2014 das Plugin ist dort unsichtbar, ohne Fehlermeldung` : `erwartet '${erwartet}' \u2014 nicht gefunden`
+    );
+  }
   pruefe(
     "A3",
     "compatibility.apps enth\xE4lt 'theseus'",
@@ -12820,6 +12918,7 @@ async function main() {
     return abschluss();
   }
   pruefe("A6", "service_endpoint vorhanden", true, endpoint);
+  manifestQualitaet(manifest);
   const liveness = await (async () => {
     try {
       const res = await fetch(`${endpoint.replace(/\/$/, "")}/plugin-bridge/v1/health`, {
@@ -12839,21 +12938,32 @@ async function main() {
   if (!liveness.erreicht) return abschluss();
   const { privateKeyPem, publicKeyPem } = await generateBridgeKeypair();
   const scopes = effectivePluginScopes(manifest);
-  const registriert = await (async () => {
+  const registrierAufruf = async (koerper) => {
     try {
       const res = await fetch(`${endpoint.replace(/\/$/, "")}/plugin-bridge/v1/register-host`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          host_id: "theseus",
-          public_key_pem: publicKeyPem,
-          host_version: "1.0.0-rc.31"
-        }),
+        body: JSON.stringify(koerper),
         signal: AbortSignal.timeout(5e3)
       });
       const body = await res.json().catch(() => ({}));
       return { ok: res.ok, status: res.status, zustand: body.status ?? "" };
     } catch {
+      return { ok: false, status: 0, zustand: "" };
+    }
+  };
+  const registriert = await (async () => {
+    try {
+      const antwort = await bridgeRegisterHost(endpoint, {
+        host_id: "theseus",
+        public_key: publicKeyPem,
+        host_version: "1.0.0-rc.31"
+      });
+      return { ok: true, status: 200, zustand: antwort.status ?? "" };
+    } catch (err) {
+      if (err instanceof PluginBridgeError) {
+        return { ok: false, status: err.status, zustand: "" };
+      }
       return { ok: false, status: 0, zustand: "" };
     }
   })();
@@ -12863,6 +12973,28 @@ async function main() {
     registriert.ok,
     registriert.ok ? `status: ${registriert.zustand || "ok"}` + (registriert.zustand === "pending" ? " \u2014 wartet auf Best\xE4tigung; die Token-Pr\xFCfung unten kann deshalb abgelehnt werden" : "") : `HTTP ${registriert.status} \u2014 ohne register-host kann kein Host je einen Handshake f\xFChren`
   );
+  if (registriert.ok) {
+    for (const [abschnitt, feld] of [
+      ["C0b", "public_key"],
+      ["C0c", "public_key_pem"]
+    ]) {
+      const r = await registrierAufruf({
+        host_id: "theseus",
+        [feld]: publicKeyPem,
+        host_version: "1.0.0-rc.31"
+      });
+      pruefe(
+        abschnitt,
+        `register-host akzeptiert '${feld}' allein`,
+        r.ok,
+        r.ok ? "gelesen" : `HTTP ${r.status} \u2014 dein Plugin liest '${feld}' nicht. Der Wire-Vertrag verlangt, BEIDE Schreibweisen zu lesen; wir senden beide, andere Hosts nicht. Gegen ${feld === "public_key" ? "V8, MarkView und Kanban" : "Foundation-kanonische Hosts"} w\xE4re dein Plugin damit kaputt, ohne dass es hier auffiele`,
+        // Vorerst Hinweis, weil der ECHTE myMind-Pfad beide sendet und das
+        // Plugin bei UNS funktioniert. Wird für Gruppe 3 zur Pflicht — mitten
+        // in einer laufenden Gruppe ändere ich keine Schweregrade.
+        "hinweis"
+      );
+    }
+  }
   const positiv = await handshakeStatus(
     endpoint,
     manifest.id,
@@ -12871,13 +13003,22 @@ async function main() {
   const erstkontakt = !positiv.ok && (positiv.status === 401 || positiv.status === 403) && /host_unknown|host_not_registered|host_pending|not_registered/i.test(
     `${positiv.code} ${positiv.message}`
   );
-  if (erstkontakt) {
+  const wartetAufBestaetigung = registriert.zustand === "pending";
+  if (erstkontakt && wartetAufBestaetigung) {
     pruefe(
       "C1",
-      "Erstkontakt: Plugin verlangt register-host",
-      true,
-      `${positiv.code}/${positiv.status} \u2014 normal. F\xFCr den vollen Test den Host einmal registrieren oder das Plugin mit bekanntem Schl\xFCssel starten.`,
+      "akzeptiert ein vertragskonformes Token \u2014 NICHT GEPR\xDCFT",
+      false,
+      `${positiv.code}/${positiv.status} \u2014 register-host meldete 'pending': ein Mensch muss den Host erst best\xE4tigen. Der Claim-Vertrag konnte deshalb nicht gepr\xFCft werden. Best\xE4tige den Host und fahre die Pr\xFCfung erneut \u2014 gr\xFCn ist dieser Lauf NICHT.`,
       "hinweis"
+    );
+  } else if (erstkontakt) {
+    pruefe(
+      "C1",
+      "akzeptiert ein vertragskonformes Token",
+      false,
+      `${positiv.code}/${positiv.status}: ${positiv.message}
+      \u2192 C0 lief VOR diesem Aufruf und wurde mit ${registriert.zustand || "ok"} quittiert \u2014 dein Plugin hat den Schl\xFCssel also entgegengenommen und kennt den Host trotzdem nicht. Entweder wird er nicht gespeichert, oder er wird unter einer anderen host_id gesucht, oder du liest die andere Schreibweise des Schl\xFCsselfelds (siehe C0b/C0c).`
     );
   } else {
     const signaturProblem = /signature|verification failed|unknown key|kid/i.test(
@@ -12935,6 +13076,39 @@ async function main() {
     !abgelaufenErgebnis.ok && (abgelaufenErgebnis.status === 401 || abgelaufenErgebnis.status === 403),
     abgelaufenErgebnis.ok ? "AKZEPTIERT \u2014 `exp` wird nicht gepr\xFCft" : `${abgelaufenErgebnis.code}/${abgelaufenErgebnis.status} (korrekt)`
   );
+  abschluss();
+}
+var HOST_SCOPES = [
+  "host.contacts.manage",
+  "host.calendar.manage",
+  "host.notes.write",
+  "host.projects.write",
+  "host.attachments.write",
+  "host.image.generate"
+];
+function manifestQualitaet(manifest) {
+  const erklaert = manifest.requires?.scopes;
+  if (erklaert !== void 0) {
+    const unbekannt = erklaert.filter((s) => !HOST_SCOPES.includes(s));
+    const unbekannteHost = unbekannt.filter((s) => s.startsWith("host."));
+    if (unbekannteHost.length > 0) {
+      pruefe(
+        "E0",
+        "requires.scopes nennt nur bekannte host.*-Namen",
+        false,
+        `unbekannt: ${unbekannteHost.join(", ")} \u2014 ein Host l\xF6st nur Namen ein, die er kennt, und meldet den Rest dem Nutzer als \u201Egibt es hier nicht". Ein Tippfehler kostet dich damit still den Zugriff. G\xFCltig sind: ${HOST_SCOPES.join(", ")}`,
+        "hinweis"
+      );
+    } else if (erklaert.length === 0) {
+      pruefe(
+        "E0",
+        "requires.scopes nennt nur bekannte host.*-Namen",
+        true,
+        "ausdr\xFCcklich leer \u2014 das Plugin erkl\xE4rt, nichts nach aussen zu rufen",
+        "hinweis"
+      );
+    }
+  }
   const tools = manifest.provides.mcp_tools ?? [];
   const ohneSchema = tools.filter((t) => t.input_schema === void 0);
   const ohneBeschreibung = tools.filter(
@@ -12945,8 +13119,7 @@ async function main() {
       "E1",
       "Werkzeuge tragen ein input_schema",
       ohneSchema.length === 0,
-      ohneSchema.length === 0 ? `alle ${tools.length}` : `${ohneSchema.length} von ${tools.length} ohne Schema \u2014 das Modell sieht dort KEINE Argumente und ruft mit {} auf: ${ohneSchema.slice(0, 5).map((t) => t.name).join(", ")}`,
-      "hinweis"
+      ohneSchema.length === 0 ? `alle ${tools.length}` : `${ohneSchema.length} von ${tools.length} ohne Schema \u2014 das Modell sieht dort KEINE Argumente und ruft mit {} auf: ${ohneSchema.slice(0, 5).map((t) => t.name).join(", ")}. Nimmt ein Werkzeug wirklich keine Argumente, sag es ausdr\xFCcklich: input_schema: {"type":"object","properties":{}} \u2014 ein leeres Schema ist eine Aussage, gar keins eine Auslassung`
     );
     pruefe(
       "E2",
@@ -12997,7 +13170,6 @@ async function main() {
       "hinweis"
     );
   }
-  abschluss();
 }
 function abschluss() {
   const pflicht = befunde.filter((b) => b.schwere === "pflicht");

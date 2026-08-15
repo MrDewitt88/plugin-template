@@ -24,11 +24,9 @@ Er braucht nur **`node`** — kein Workspace, kein TypeScript, keine Installatio
 > Quelle  2e8bdfec
 > ```
 >
-> Von `agent` **frisch von der Datei gelesen** (nicht aus einer Nachricht kopiert), Selbsttest gefahren: Aufruf ohne Argumente ⇒ Exit 2.
+> ✅ **Gegengemessen, nicht übernommen auf Zuruf.** Die Datei liegt daneben, `sha256` und Bytezahl stimmen mit der Meldung überein, `shasum -c` bestätigt, und der Selbsttest ist gefahren: Aufruf ohne Argumente ⇒ **Exit 2**. Zusätzlich stichprobenhaft geprüft, dass `--bundle`/A2b und die `host.*`-Namen für E0 wirklich im Bündel stehen.
 >
-> ⚠️ **Die Datei liegt hier noch nicht.** Frühere Fassungen wurden erst nach eigener Prüfung von Hash, Bytes und Selbsttest übernommen — das steht für diese noch aus. Bis dahin ist der Wert oben die **Referenz**, nicht die Bestätigung: prüft eure Kopie dagegen, aber wisst, dass ich sie nicht gegengemessen habe.
->
-> *(Der Hash kam zuerst abgekürzt an und wurde deshalb zurückgewiesen. Ein abgekürzter Hash belegt nichts und lässt sich gegen keine Datei prüfen — Prüfen-vor-Ausführen ist der einzige Zweck der Angabe.)*
+> *(Der Hash kam zuerst abgekürzt an und wurde zurückgewiesen. Ein abgekürzter Hash belegt nichts und lässt sich gegen keine Datei prüfen — Prüfen-vor-Ausführen ist der einzige Zweck der Angabe. Und „gemeldet" bleibt „gemeldet", bis jemand misst: eine README, in der beides gleich aussieht, belegt nichts mehr.)*
 >
 > **Was die vierte Fassung ändert — A2 ist entschärft, A2b kommt dazu:**
 > - **A2 ist Hinweis**, kein Pflichtpunkt mehr. Grund: die Zielform `<plugin-id>/manifest.yaml` gilt am **Installationsort**, der Runner läuft aber im **Entwicklungs-Repo** — und dort heißt das Verzeichnis nach dem Repo (`Med-Mind/` bei `id: med-mind`). Gemessen: **20 von 20 Plugins** weichen ab. Eine Pflichtprüfung hätte alle rot gemacht für etwas, das am Zielort gar nicht mehr gilt.
