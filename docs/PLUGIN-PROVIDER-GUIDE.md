@@ -442,20 +442,70 @@ Und die Wiederholungsfalle: id `cad3d-mind` + Tools `cad3d.*` ergibt beim Host `
 
 > **Offen:** ob E3 bei einer solchen Wiederholung **Fail oder Hinweis** ist, ist beim Host angefragt (cad3d + med-plug betroffen). Bis zur Antwort: bei Neubau sauber wählen, bei Bestand **nicht blind umbenennen** — erst klären, dann entscheiden.
 
-### 4.9.10 ⚠️ Die `aud`-Bindung wird erst ab foundation@0.13.x durchgesetzt
+### 4.9.10 🚨 Die `aud`-Bindung musst du SELBST erzwingen — in jeder Foundation-Version
 
-Die Regel „Bindung an `aud`/`plugin_id`, `sub` nie validieren" setzt still voraus, dass die Foundation das **prüft**. Das tut sie erst ab **0.13.x**: **`verifyBridgeToken` in älteren Versionen (u.a. 0.7.1) prüft `plugin_id`/`aud` nur auf PRÄSENZ, nie gegen die eigene Kennung** — ein Token für ein *anderes* Plugin wird akzeptiert (mind-canva #8440, Runner-Prüfung **D1**).
+**Bindung an `aud` ist eine Aufgabe, keine Feststellung.** Wer sie ausschließlich der Foundation überlässt, akzeptiert Tokens **fremder Plugins** — jedes andere Plugin kann sich als deines ausgeben (Runner-Prüfung **D1**; unabhängig gefunden von mind-canva #8440 und wiz-mind #8445).
 
-Im Cluster liegt echte Foundation-Drift vor (`^0.5` … `^0.13`). **Prüf deine Version:**
+**Ein Foundation-Upgrade allein behebt das NICHT.** cad3d hat das am laufenden Dienst gemessen (#8451):
 
-- **≥0.13.x** → nichts zu tun, die Foundation setzt es durch.
-- **<0.13.x** → **upgraden** (der saubere Weg) **oder** einen plugin-seitigen `aud`-Guard nachrüsten: Bearer-Payload dekodieren, fremde `plugin_id`/`aud` → 401 mit kanonischem Fehler. Die **Signatur** bleibt Sache der Foundation — beide Prüfungen müssen bestehen. `sub` bleibt auch dabei **ungeprüft**.
+| Zustand | D1 |
+|---|---|
+| foundation 0.7.2 | ✗ akzeptiert fremdes Token |
+| foundation **0.13.1**, sonst nichts geändert | ✗ **akzeptiert weiterhin** |
+| 0.13.1 **+ plugin-seitiger `aud`-Guard** | ✓ |
+
+**Die Ursache ist nicht die Version, sondern der Host.** Nachgemessen im Foundation-Code: `expected_audience` landet nur dann auf dem Host-Record, wenn der Host es im `register-host` **mitschickt** (`server.ts:322`), und `jwtVerify` bekommt die `audience`-Option nur, wenn dieser Wert existiert (`jwt.ts:126,137`). **Kein host-gesendetes `expected_audience` ⇒ keine Prüfung** — in jeder Version.
+
+Was das konkret heißt (ebenfalls nachgemessen, das ist der Teil, den cad3d nicht belegen konnte):
+
+- **myMind sendet es** (`plugin-host.ts:819`, `expected_audience: pluginId`, nicht-optional) — gegen den echten Host **ist** die Bindung also aktiv.
+- **Der Conformance-Runner sendet es bewusst nicht.** D1 prüft damit genau das Richtige: **ob dein Plugin sich selbst schützt**, wenn ein Host die Bindung nicht setzt.
+
+**→ Die Regel: upgraden UND guarden.** Das Upgrade bringt die Möglichkeit, der Guard die Garantie. Verlass dich nicht darauf, dass jeder Host — heute und künftig — `expected_audience` mitschickt.
+
+**Der Guard**, so gebaut, dass er nichts anderes kaputt macht:
+
+```ts
+// NUR den Claim lesen — die Signatur bleibt Sache der Foundation (D2 bleibt grün),
+// `sub` bleibt ungeprüft (§4.9 Punkt 4). Beide Prüfungen müssen bestehen.
+function audGuard(pluginId: string) {
+  return async (c, next) => {
+    const raw = (c.req.header('authorization') ?? '').replace(/^bearer /i, '').trim()
+    const seg = raw.split('.')[1]
+    if (seg) {
+      try {
+        const p = JSON.parse(Buffer.from(seg, 'base64url').toString('utf8'))
+        const bound = p.aud ?? p.plugin_id
+        if (bound !== undefined && bound !== pluginId) {
+          return c.json({ error: { code: 'invalid_audience', message: 'token is not for this plugin' } }, 401)
+        }
+      } catch { /* unlesbar → Foundation lehnt es ohnehin ab */ }
+    }
+    return next()
+  }
+}
+```
+
+> ⚠️ **Einhäng-Reihenfolge — kostet sonst garantiert einen Lauf** (cad3d): `createBridgeApp` hat seine Routen **bereits registriert**, und Hono führt in Registrierungsreihenfolge aus. Ein nachträgliches `app.use(guard)` läuft **nicht** davor. Du musst die App **umschließen**:
+>
+> ```ts
+> const bridge = createBridgeApp({ manifest, registry, … })
+> const app = new Hono()
+> app.use(audGuard(manifest.id))
+> app.route('/', bridge)     // ← der Guard läuft jetzt zuerst
+> ```
+
+**Alternative auf Registry-Ebene** (wiz-mind): im Resolver `expected_audience ?? manifest.id` als Default setzen — ein explizit registrierter Host-Wert gewinnt weiter. Ein Plugin kennt seine eigene Kennung immer; „an alles gebunden" ist nie richtig. *(Ob die Foundation das künftig selbst als Default tut, ist beim Host angefragt — es würde Tokens **ohne** `aud` ablehnen und ist deshalb keine einseitige Entscheidung.)*
 
 ### 4.9.11 `min_app_version`: immer mit `-rc.1`-Suffix
 
 Die Regel ist strenger als „nimm nicht `1.0.0`": **jede reine Release-Angabe sperrt ihre eigene rc-Serie aus**, weil Prerelease vor Release rangiert. `0.5.0` schließt `0.5.0-rc.x` aus und failt A4 genauso wie `1.0.0` (mind-canva #8440).
 
 **Faustregel: schreib immer ein `-rc.1`-Suffix, egal welche Zahl** — `1.0.0-rc.1`, `0.5.0-rc.1`. Das schließt keine echten Releases aus (jedes Release ist größer als sein eigenes rc) und öffnet die rc-Serie.
+
+⚠️ **Auch eine niedrige Zahl failt** — es geht um die **eigene** rc-Serie, nicht um fremde Releases. `0.5.0` sieht harmlos aus („ist ja kleiner als `1.0.0-rc.31`"), sperrt aber `0.5.0-rc.x` aus und failt A4. Zwei Plugins haben sich genau daran verrechnet, weil sie die Semver-Regel **hergeleitet statt gemessen** haben.
+
+Und die zweite Fehlerrichtung, die seltener genannt wird (plug-inst): `min_app_version` ist eine **Untergrenze**, keine Obergrenzen-Korrektur. Ein zu niedriger Wert failt nichts — er lässt Hosts laden, die den aktuellen Vertrag gar nicht können. **Setz den echten Boden**, nicht den kleinsten, der durchgeht.
 
 ### 4.9.12 Manifest-Felder, die der Host derzeit nicht liest
 

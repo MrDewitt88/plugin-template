@@ -325,10 +325,49 @@ const PKG_BRIDGE_INDEX = `import {
   InMemoryHostKeyRepo,
   type ToolHandler,
 } from '@nexus-mindgarden/plugin-bridge-foundation'
+import { Hono, type Context, type Next } from 'hono'
 
 const documentsList: ToolHandler = async (_args, _ctx) => {
   // TODO: implement {{pluginName}} list
   return { items: [] }
+}
+
+/**
+ * 🚨 Bindet eingehende Tokens an DIESE Plugin-Kennung.
+ *
+ * Ohne das akzeptierst du Tokens **fremder Plugins** — jedes andere Plugin kann
+ * sich als deines ausgeben (Conformance-Prüfung **D1**). Die Foundation erzwingt
+ * „aud“ NUR, wenn der Host beim „register-host“ ein „expected_audience“
+ * mitschickt; tut er das nicht, ist die Bindung inaktiv — **in jeder Version,
+ * auch ≥0.13.x** (am laufenden Dienst gemessen, cad3d #8451).
+ *
+ * Es wird ausschließlich der CLAIM gelesen: die Signatur bleibt Sache der
+ * Foundation (Prüfung D2 bleibt grün), und „sub“ wird bewusst NIE geprüft —
+ * myMind signiert dort die user_id, nicht die Plugin-Kennung.
+ */
+export function audGuard(pluginId: string) {
+  return async (c: Context, next: Next) => {
+    const raw = (c.req.header('authorization') ?? '').replace(/^bearer /i, '').trim()
+    const seg = raw.split('.')[1]
+    if (seg !== undefined) {
+      try {
+        const payload = JSON.parse(Buffer.from(seg, 'base64url').toString('utf8')) as {
+          aud?: unknown
+          plugin_id?: unknown
+        }
+        const bound = payload.aud ?? payload.plugin_id
+        if (bound !== undefined && bound !== pluginId) {
+          return c.json(
+            { error: { code: 'invalid_audience', message: 'token is not for this plugin' } },
+            401,
+          )
+        }
+      } catch {
+        // unlesbarer Payload → die Foundation lehnt das Token ohnehin ab
+      }
+    }
+    return next()
+  }
 }
 
 export async function createApp() {
@@ -346,13 +385,21 @@ export async function createApp() {
     autoAccept:
       process.env.NODE_ENV === 'development' || process.env.PLUGIN_BRIDGE_PORT !== undefined,
   })
-  return createBridgeApp({
+  const bridge = createBridgeApp({
     manifest,
     registry,
     toolHandlers: {
       'documents.list': documentsList,
     },
   })
+
+  // ⚠️ UMSCHLIESSEN, nicht nachträglich \`bridge.use(...)\`: createBridgeApp hat
+  // seine Routen bereits registriert, und Hono führt in Registrierungsreihenfolge
+  // aus — ein spätes .use() liefe NACH dem Handler und damit zu spät (cad3d).
+  const app = new Hono()
+  app.use(audGuard(manifest.id))
+  app.route('/', bridge)
+  return app
 }
 
 // Env-first port: under a host the port is ASSIGNED via PLUGIN_BRIDGE_PORT; the

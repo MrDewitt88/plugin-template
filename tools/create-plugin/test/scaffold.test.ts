@@ -55,6 +55,12 @@ describe('scaffold', () => {
     // host-authoritative data dir — data outside the bundle survives updates
     expect(bridgeIndex).toContain('resolveDataDir')
     expect(bridgeIndex).toContain('PLUGIN_DATA_DIR')
+    // D1: bind tokens to our own plugin id. The foundation only enforces `aud`
+    // when the host registered an expected_audience — so the plugin must guard
+    // itself, and the guard must WRAP the bridge (Hono runs in registration order).
+    expect(bridgeIndex).toContain('audGuard')
+    expect(bridgeIndex).toContain("app.route('/', bridge)")
+    expect(bridgeIndex).not.toContain('bridge.use(audGuard')
   })
 
   it('renders {{pluginName}}-placeholders korrekt', () => {
