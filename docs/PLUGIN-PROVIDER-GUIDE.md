@@ -273,12 +273,36 @@ Das `host.`-Präfix ist die Richtungsanzeige: **`family.policy.read` kommt herei
 **Drei Regeln, die mit den Namen zusammen gelten:**
 
 1. **Fail closed bei neuen Bereichen.** Ein Werkzeug-Präfix **ohne** Vokabelnamen ist für ein *deklarierendes* Plugin **zu**, nicht offen. Sonst öffnet sich das Gate still, sobald ein Host Werkzeuge ergänzt — und zwar für genau die Plugins, die sich freiwillig beschränkt hatten. Schweigende Plugins behalten ihre bisherige Reichweite.
-2. **Unbekannter Name bei einem anderen Host: kein Fehler, aber sichtbar.** Kanban bedient zwei Hosts, Markview drei. Deklarierst du `host.contacts.manage` und der Host hat keine Kontakte, darf das dein Plugin nicht unbrauchbar machen — es darf aber auch nicht still verschwinden. Der Host meldet bei der Aktivierung: *„Dieses Plugin bittet um X — das gibt es hier nicht."* **Die Namensmenge ist gemeinsames Vokabular; welche Namen ein Host einlöst, ist Host-Sache.**
+2. **Unbekannter Name bei einem anderen Host: kein Fehler, aber sichtbar.** Kanban bedient zwei Hosts, Markview drei. Deklarierst du `host.contacts.manage` und der Host hat keine Kontakte, darf das dein Plugin nicht unbrauchbar machen — es darf aber auch nicht still verschwinden. **Die Namensmenge ist gemeinsames Vokabular; welche Namen ein Host einlöst, ist Host-Sache.**
+
+   **Verbindlicher Wortlaut** (agent, host-neutral — damit drei Hosts denselben Satz sagen):
+
+   > **Ohne Wirkung hier:** deine Kontakte — lesen, ändern und löschen
+   >
+   > Das Plugin bittet um Zugriff, den es in *&lt;Anwendung&gt;* nicht gibt. Die Bitte bleibt folgenlos — du musst nichts tun.
+
+   Die drei Entscheidungen darin sind kein Stil: **„Ohne Wirkung hier" steht zuerst**, sonst liest der Nutzer erst „darf deine Kontakte löschen" und erschrickt, bevor die Entwarnung kommt — die Reihenfolge ist die halbe Botschaft. **„du musst nichts tun" gehört hin**, weil ein Dialog, der einen Zustand meldet und offenlässt, ob er eine Handlung verlangt, genau das Wegklicken erzeugt, das wir vermeiden wollen. Und der **Bereichstext ist derselbe wie in der normalen Liste**, nicht der Scope-Name — niemand soll zwei Vokabulare lernen, nur weil ein Name hier nicht eingelöst wird.
+
+   Was der Satz **nicht** sagt, mit Absicht: er behauptet nicht, das Plugin sei für andere Anwendungen gebaut. Das wäre plausibel und unbelegbar — es könnte auch ein Tippfehler sein.
+
+   ⚠️ **Und ein unbekannter Name darf die Gewährung NICHT erweitern.** Deklarierst du `['host.calendar.manage']` und der Host hat keinen Kalender, bekommst du dort **nichts** — nicht „alles, weil wir es nicht deuten konnten". Das ist genau die Stelle, an der ein Host aus Bequemlichkeit einen Fallback einbaut.
 3. 🚨 **Eine Erklärung zu ENTFERNEN ist die größte Erweiterung, die es gibt.** Von `{scopes: ['host.contacts.manage']}` (nur Kontakte) auf *kein `requires`* (alles) ist der bequemste Weg, eine Selbstbeschränkung loszuwerden — und im Diff sieht es aus wie Aufräumen. Der Fingerabdruck fängt die Änderung, aber der Nutzer läse nur „hat sich geändert". Deshalb trägt sie eine **eigene Begründung**: *„nimmt seine Selbstbeschränkung zurück"*.
+
+> 🩺 **Der Nutzer bekommt die Tatsache, der Autor die Ursache** (agent). Der Satz oben ist für den Nutzer richtig und für den **Autor verheerend**: `host.contact.manage` statt `host.contacts.manage` ist am Host **kein Fehler** — der Host sagt völlig korrekt „gibt es hier nicht". Das Plugin verliert damit **still seinen Zugriff, an jedem Host**, und niemand sagt es dem Autor. Er sieht einen Satz, der nach Host-Eigenheit aussieht, und hat einen Tippfehler.
+>
+> **Deshalb liegt die Diagnose in der Prüfung, nicht an der Aktivierungsfläche.** Hinweis **E0** meldet unbekannte `host.*`-Namen samt gültiger Liste. Nur `host.*` — alles andere sind plugin-eigene Scopes fremder Dienste, über die der Runner nichts weiß und deshalb nichts behaupten darf.
 
 > 🧪 **Für alle, die selbst eine solche Tabelle pflegen — der Test muss die Werkzeuge SELBST erheben, nicht deiner Liste glauben.** agents Prüfung liest die registrierten Werkzeuge aus und vergleicht in beide Richtungen; ein neu hinzugefügtes `projects.delete` macht sie künftig rot, statt still den Zustimmungstext zu entwerten.
 >
-> **Und sie prüft, dass sie überhaupt etwas findet.** Die `notes.`-Familie liegt host-seitig statt in einem Werkzeug-Paket — ohne diesen Zweig hätte die Erhebung „keine Werkzeuge unter `notes.`" gemeldet und damit **das Gegenteil der Wahrheit**. Eine Inventur, die bei null Fundstellen grün ist, misst nichts.
+> **Und sie prüft, dass sie überhaupt etwas findet.** Die `notes.`-Familie liegt host-seitig statt in einem Werkzeug-Paket — ohne diesen Zweig hätte die Erhebung „keine Werkzeuge unter `notes.`" gemeldet und damit **das Gegenteil der Wahrheit**.
+>
+> **Die vollständige Regel, und die zweite Hälfte ist die wichtigere:**
+>
+> > Eine Inventur, die bei null Fundstellen **grün** ist, misst nichts — und eine, die bei null Fundstellen **rot** ist, misst immer noch nichts, wenn sie am falschen Ort sucht.
+>
+> agents Test war richtig gebaut und **wurde rot**. Die erste Reaktion war trotzdem falsch: `notes.` als obsoleten Bereich aus der Liste nehmen — also den Zustimmungstext kürzen, obwohl die Werkzeuge existieren. Erst der zweite Blick zeigte, dass die Erhebung nur `packages/tools-*` durchsuchte und die host-eigene Familie gar nicht sehen **konnte**.
+>
+> **Ein rotes Ergebnis ist eine Frage, keine Antwort.** Die Prüfung hat richtig angeschlagen und trotzdem das Falsche nahegelegt — frag bei jedem Rot zuerst, ob der Messpunkt stimmt, bevor du das Gemessene änderst.
 
 ### 4.7 Plugin-Rollout — Manifest-Dateiname, Release-Bundle, env-first Port
 

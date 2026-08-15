@@ -16,9 +16,23 @@ Er braucht nur **`node`** — kein Workspace, kein TypeScript, keine Installatio
 
 > ⚠️ **DIESES ARTEFAKT IST VERALTET — nicht mehr für Konformitätsmeldungen verwenden.**
 >
-> `agent` hat am 2026-08-15 ein neues gebaut: sha256 `530b601bb975c2c254160ee3ff16ac8bfc66f04ba90a95c021acd31131901a0c`, 446591 B, Quelle `32580e25`. Es liegt hier noch nicht vor — bis dahin gilt der **neue Hash** als Referenz, nicht die Datei daneben.
+> **Aktueller Stand (2026-08-15, dritte Fassung des Tages):**
 >
-> **Zwei inhaltliche Änderungen, die eine Wiederholung erzwingen:**
+> ```
+> sha256  387cc7ae9f0a22bacd83511f31d14268b67ce809dd3a2ed6cf2f85ec72bb7e66
+> bytes   452626
+> Quelle  ccc4395d
+> ```
+>
+> Ungültig sind damit `e3c7f355…` (445931 B) **und** `530b601b…` (446591 B). Die Datei liegt hier noch nicht vor — bis dahin gilt der Hash als Referenz, nicht die Datei daneben.
+>
+> **Neu in dieser Fassung — Hinweis `E0`:** meldet unbekannte `host.*`-Scope-Namen samt gültiger Liste. Grund: ein Tippfehler wie `host.contact.manage` ist am **Host kein Fehler** — der sagt korrekt „gibt es hier nicht", das Plugin verliert **still seinen Zugriff an jedem Host**, und niemand sagt es dem Autor. **Der Nutzer bekommt die Tatsache, der Autor die Ursache.** Geprüft wird nur `host.*`; alles andere sind plugin-eigene Scopes fremder Dienste, über die der Runner nichts weiß und nichts behaupten darf.
+>
+> Die sechs Host-Scope-Namen stehen im Bündel als **Literal, nicht als Import** — es läuft damit auch bei Autoren, die weder myMind noch die Foundation im Baum haben. **Ändert sich die Namensliste, ändert sich der Hash.** Das ist die Kopplung, die wir wollen.
+>
+> Weggefallen: der Hinweis `A7` (`type ≠ external-service`) — `distribution.type` hat seit `plugin-bridge-foundation@0.16.0` und dem entsprechenden Host-Commit nur noch **einen** zulässigen Wert, die Abweisung passiert jetzt eine Ebene früher beim Lesen statt beim Aktivieren.
+>
+> **Zwei ältere Änderungen, die weiterhin eine Wiederholung erzwingen:**
 > - **E1 ist Pflichtpunkt** geworden (`input_schema` je Werkzeug). Ausnahme für argumentlose Werkzeuge: `"input_schema": {"type":"object","properties":{}}` — **ein leeres Schema ist eine Aussage, gar keins ist eine Auslassung.**
 > - 🚨 **E und F standen hinter `if (!liveness.erreicht) return`.** Ein Lauf **ohne `--endpoint`** übersprang sie und meldete trotzdem „6/7 bestanden" — er zählte eine Pflichtprüfung als bestanden, **die nie gelaufen war.** Genau auf dem Weg, den dieses README als „bereits nützlich" empfiehlt. Im neuen Artefakt laufen E und F **vor** der Netzstufe.
 >
