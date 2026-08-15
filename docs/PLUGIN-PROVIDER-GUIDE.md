@@ -247,6 +247,39 @@ token.scopes = (requires.scopes ?? provides.scopes_required)   // plugin-wide Se
 
 **Migrationspfad (per Plugin):** reduziere `provides.scopes_required` auf den echten eingehenden Floor (oft `[]`), verschiebe Reverse-Call-Scopes nach `requires.scopes`. `enforceScopes` bleibt opt-in/default-off, bis der Split cluster-weit steht — kein Zwang, kein Bruch. Volle Begründung: `docs/RFC-REQUIRES-SCOPES.md`.
 
+#### 4.6.1 🔑 Die Host-Scopes — gemeinsames Vokabular für Rückrufe
+
+**Bis hierher beschrieben Scopes fast immer, was ein Aufrufer braucht, um in *dein* Plugin zu kommen** (`family.policy.read`, `mcp.read.unifieddb`). Für die Gegenrichtung — *was darfst du beim Nutzer anfassen* — gab es **keine Vokabel**. agent ist beim Bau des Rückruf-Gates genau daran stehengeblieben: das Gate arbeitet auf Werkzeug-Präfixen, `requires.scopes` trägt Scope-Zeichenketten, und dazwischen fehlte die Übersetzung.
+
+Sechs Namen, abgezählt an den tatsächlich registrierten Werkzeugen. Kein Schema, keine Hierarchie, **keine Wildcards.**
+
+| Scope | Was der Nutzer liest |
+|---|---|
+| `host.contacts.manage` | lesen, ändern und **löschen** |
+| `host.calendar.manage` | lesen, Termine anlegen, ändern und **löschen** |
+| `host.notes.write` | lesen, schreiben und ergänzen |
+| `host.projects.write` | lesen, anlegen und ändern |
+| `host.attachments.write` | Anhänge hochladen |
+| `host.image.generate` | Bilder erzeugen und bearbeiten |
+
+Das `host.`-Präfix ist die Richtungsanzeige: **`family.policy.read` kommt herein, `host.contacts.manage` geht hinaus.**
+
+> 🚨 **Warum `manage` und nicht `read` — der Fehler war live.** Der erste Entwurf hieß `host.contacts.read`, und der ausgelieferte Zustimmungstext sagte „deine Kontakte". Die Erhebung ergab: unter `contacts.` und `calendar.` liegen **Löschwerkzeuge**. Ein Nutzer las „Kontakte" und dachte an Lesen, während das Plugin sie **löschen** konnte.
+>
+> **Regel: das Verb muss die weiteste Fähigkeit des Bereichs beschreiben.** Ein Name, der schmaler klingt als die Gewährung, ist eine Falschaussage im Zustimmungsdialog — dort, wo der Nutzer die einzige Entscheidung trifft, die er überhaupt trifft.
+>
+> **Und das gilt in beide Richtungen.** `notes.` stand zuerst ebenfalls auf `manage`, weil `notes.delete` im Repo vorkam — nachgemessen lag es nur in Eval-Konfigurationen und Test-Fixtures, nicht als registriertes Werkzeug. **Ein Name, der mehr androht als er gewährt, ist genauso falsch:** er treibt zu einer Ablehnung ohne Sachgrund und entwertet den Dialog von der anderen Seite.
+
+**Drei Regeln, die mit den Namen zusammen gelten:**
+
+1. **Fail closed bei neuen Bereichen.** Ein Werkzeug-Präfix **ohne** Vokabelnamen ist für ein *deklarierendes* Plugin **zu**, nicht offen. Sonst öffnet sich das Gate still, sobald ein Host Werkzeuge ergänzt — und zwar für genau die Plugins, die sich freiwillig beschränkt hatten. Schweigende Plugins behalten ihre bisherige Reichweite.
+2. **Unbekannter Name bei einem anderen Host: kein Fehler, aber sichtbar.** Kanban bedient zwei Hosts, Markview drei. Deklarierst du `host.contacts.manage` und der Host hat keine Kontakte, darf das dein Plugin nicht unbrauchbar machen — es darf aber auch nicht still verschwinden. Der Host meldet bei der Aktivierung: *„Dieses Plugin bittet um X — das gibt es hier nicht."* **Die Namensmenge ist gemeinsames Vokabular; welche Namen ein Host einlöst, ist Host-Sache.**
+3. 🚨 **Eine Erklärung zu ENTFERNEN ist die größte Erweiterung, die es gibt.** Von `{scopes: ['host.contacts.manage']}` (nur Kontakte) auf *kein `requires`* (alles) ist der bequemste Weg, eine Selbstbeschränkung loszuwerden — und im Diff sieht es aus wie Aufräumen. Der Fingerabdruck fängt die Änderung, aber der Nutzer läse nur „hat sich geändert". Deshalb trägt sie eine **eigene Begründung**: *„nimmt seine Selbstbeschränkung zurück"*.
+
+> 🧪 **Für alle, die selbst eine solche Tabelle pflegen — der Test muss die Werkzeuge SELBST erheben, nicht deiner Liste glauben.** agents Prüfung liest die registrierten Werkzeuge aus und vergleicht in beide Richtungen; ein neu hinzugefügtes `projects.delete` macht sie künftig rot, statt still den Zustimmungstext zu entwerten.
+>
+> **Und sie prüft, dass sie überhaupt etwas findet.** Die `notes.`-Familie liegt host-seitig statt in einem Werkzeug-Paket — ohne diesen Zweig hätte die Erhebung „keine Werkzeuge unter `notes.`" gemeldet und damit **das Gegenteil der Wahrheit**. Eine Inventur, die bei null Fundstellen grün ist, misst nichts.
+
 ### 4.7 Plugin-Rollout — Manifest-Dateiname, Release-Bundle, env-first Port
 
 > **Ab `create-plugin` v0.7.0 / `plugin-bridge-foundation` v0.12.0** (Thread `plugin-rollout`, agent-Ruling #6044). Für die automatische Nexus-Katalog-Auslieferung ohne händisches Manifest-Pasten.
@@ -352,6 +385,22 @@ Programmatisch geht es auch direkt: `renderFeaturesNote(manifest, { manifestHash
 > **Verbindlich.** Bestätigt von `agent` (myMind-Host, Vertrags-Owner) für rc.31, #8428/#8429/#8430. Jeder Punkt hier hat mindestens ein Plugin einen Kundentermin gekostet — cad-2d 1.2.2 ist an **drei** davon gleichzeitig gestorben.
 >
 > **Rollenverteilung:** der **Host** besitzt den Vertrag und seine ausführbare Fassung (den Conformance-Runner). **plug-tmpl** besitzt die Basis (Scaffold, Packer, Guides, Wire-Spec) und hält sie aktuell. Ändert sich der Vertrag, wird erst die Basis nachgezogen, dann die Plugins.
+
+> ## 🧨 Die Fehlerklasse, die uns an einem Tag dreimal erwischt hat
+>
+> **Ein Feld, das validiert und nichts bewirkt, ist schlimmer als ein Feld, das fehlt** (agent). Fehlt es, merkt es der Autor sofort. Validiert es, hält er es für erledigt — und der Fehler taucht erst beim Kunden auf, wenn überhaupt.
+>
+> Die drei Fälle, alle am 2026-08-15, alle mit derselben Rückmeldung an den Autor („passt schon"):
+>
+> | | Was der Autor sah | Was tatsächlich geschah |
+> |---|---|---|
+> | `distribution.type: 'embedded'` | validierte gegen unsere Foundation | der Host **lehnte das Manifest ab** — er kannte den Wert gar nicht |
+> | `distribution.type: 'library'` | validiert bei beiden | **lädt nichts.** Nur als Negativ-Zweig gelesen |
+> | `requires.scopes` | Manifest **akzeptiert** | das Host-Schema kannte das Feld nicht, **Zod streifte es still ab** — `requires` war danach `undefined` |
+>
+> ⚠️ **Der Zusatz, der den dritten Fall überhaupt sichtbar gemacht hat:** es reicht nicht, zu prüfen, ob dein Schema ein Manifest **annimmt** — prüf, **was nach dem Parsen noch da ist.** `parseManifest` meldete `AKZEPTIERT` **und** lieferte `requires: undefined`, beides gleichzeitig. Ein Test, der nur auf „wirft nicht" prüft, ist an dieser Klasse blind.
+>
+> Praktisch für dich: nach jeder Manifest-Erweiterung einmal das **geparste Objekt** ansehen, nicht nur den Exit-Code. Und wenn du einen Wert deklarierst, von dem du annimmst, dass der Host ihn liest — **frag nach, ob er ihn liest.** Wir haben es dreimal nicht getan.
 
 ### 4.9.0 🧭 Zuerst: welche Betriebsart bist du?
 
