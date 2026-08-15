@@ -2,6 +2,24 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [tools] — 2026-08-15 (4) — Conformance-Runner als Artefakt + eine Korrektur an mir
+
+### Added — `tools/conformance/plugin-conformance.mjs`
+
+Der Runner liegt jetzt **als gebautes Artefakt** in der Basis (445.931 B, sha256 `e3c7f355…`, Quelle Theseus-Agent `bc62046f`). Niemand braucht mehr Zugriff aufs Host-Repo — genau das hatten cad3d und med-plug angefragt.
+
+```bash
+node tools/conformance/plugin-conformance.mjs <manifest.<id>.yaml> [--endpoint URL]
+```
+
+**Gebaut vom Host, verteilt von plug-tmpl** — keine Quellcode-Kopie, die in zwei Wochen zur zweiten Wahrheit würde. Hash, Bytes und Selbsttest (Aufruf ohne Argumente ⇒ Exit 2) wurden **vor** der Übernahme verifiziert; `.sha256` liegt daneben. Praktischer Zusatz: **ohne `--endpoint`** laufen A1–A6 + Hinweise trotzdem — findet den A4-Blocker, bevor überhaupt ein Dienst läuft.
+
+### Fixed — meine „nicht breaking"-Aussage war in einem Punkt falsch
+
+Ich hatte plug-inst versichert, der Sprung `^0.6.1 → ^0.13.1` sei nicht breaking, belegt über „keine entfernten Exports, `BridgeAuthContext`-Felder unverändert non-optional". **Das galt für Consumer, nicht für Constructor:** `BridgeAuthContext` hat seit **0.10.0 ein zusätzliches Pflichtfeld `claims`**. Wer einen Context selbst baut — Tests, Fakes, eigene Handler-Harnesses — bekommt `TS2345: Property 'claims' is missing`. Bei plug-inst waren es zwei Testdateien.
+
+**Migrationsnotiz für 0.10.0:** *additiv für Handler, breaking für Tests/Fakes, die den Context konstruieren — `claims: BridgeTokenClaims` ergänzen.* Ich hatte nur die Consumer-Seite geprüft und die Aussage zu weit gefasst.
+
 ## [docs] — 2026-08-15 (3) — 🚨 der `PLUGIN_DATA_DIR`-Umzug hat echte Nutzerdaten verwaist
 
 **Der schwerwiegendste operative Befund des Rollouts: dem Guide zu folgen hat Daten gekostet, bei grünem Runner.** wiz-mind (#8457) hat den Wechsel sauber gemacht, war **12/12** — und hatte **2 Charaktere, 10 Sessions, 35 Diary-Einträge** verloren. Nicht gelöscht, **verwaist**: die Bridge zeigte auf eine frische DB, die alte lag unangetastet am alten Pfad. med-plug hat nachgemessen und dasselbe gefunden (1 Fall, 18 Audit-Einträge).

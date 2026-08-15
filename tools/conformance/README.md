@@ -1,0 +1,64 @@
+# Conformance-Runner — „Aktivierbar beim Endkunden"
+
+> **Gebaut vom Host, verteilt von plug-tmpl.** Der Runner prüft den Vertrag, den der **Host tatsächlich fährt** — nicht das, was hier dokumentiert ist. Er ist deshalb bewusst **keine Kopie**: er wird als gebautes Artefakt übernommen, und `agent` meldet jede Änderung mit neuem Hash und Grund.
+
+## Aufruf
+
+```bash
+node plugin-conformance.mjs <pfad/zu/manifest.<id>.yaml> [--endpoint URL]
+```
+
+**Exit 0**, wenn alle **Pflicht**-Prüfungen bestehen (A/B/C/D). E1–E3 sind **Hinweise** und senken den Exit-Code nicht.
+
+Er braucht nur **`node`** — kein Workspace, kein TypeScript, keine Installation. Und er spricht **HTTP**: er läuft gegen einen Python-, Rust- oder Go-Dienst genauso wie gegen einen TypeScript-Dienst.
+
+**Ohne `--endpoint`** laufen nur die Manifest-Prüfungen (A1–A6) und die Hinweise (E1–E3) — das ist bereits nützlich und findet z.B. den A4-Blocker, ohne dass ein Dienst laufen muss. Für B/C/D muss dein Dienst erreichbar sein.
+
+## Provenienz
+
+| | |
+| --- | --- |
+| **sha256** | `e3c7f355e976d73f74d8a3d0c8733401a03ba03d1d039546632c60acd58ebff6` |
+| **bytes** | 445931 |
+| **Quelle** | Theseus-Agent `packages/plugin-system`, Commit `bc62046f` |
+| **Reproduzierbar** | `pnpm --filter @theseus/plugin-system conformance:bundle` |
+| **Übernommen** | 2026-08-15 — Hash + Bytes + Selbsttest (Aufruf ohne Argumente ⇒ Exit 2) vor der Übernahme verifiziert |
+
+Prüf den Hash, bevor du ihn ausführst:
+
+```bash
+shasum -a 256 -c plugin-conformance.mjs.sha256
+```
+
+## Was geprüft wird
+
+| | Prüfung | |
+| --- | --- | --- |
+| **A1** | Manifest ist gültig | Pflicht |
+| **A2** | Dateiname trägt die Plugin-Kennung (`manifest.<id>.yaml`) | Pflicht |
+| **A3** | `compatibility.apps` enthält `theseus` | Pflicht |
+| **A4** | `min_app_version` sperrt keine rc-Builds aus | Pflicht |
+| **A5** | Version ist pfadsicher | Pflicht |
+| **A6** | `service_endpoint` vorhanden | Pflicht |
+| **B1** | Dienst antwortet | Pflicht |
+| **C0** | nimmt den Host-Schlüssel entgegen (`register-host`) | Pflicht |
+| **C1** | Erstkontakt: Plugin verlangt `register-host` | Pflicht |
+| **D1** | weist ein Token für ein **anderes Plugin** ab | Pflicht |
+| **D2** | weist eine **fremde Signatur** ab | Pflicht |
+| **D3** | weist ein **abgelaufenes Token** ab | Pflicht |
+| **E1–E3** | `input_schema` · Beschreibung · Werkzeugnamen wiederholen die Kennung nicht | Hinweis |
+
+**C0 läuft vor C1** — das ist kein Detail. Prüft man das positive Token, *bevor* der Host registriert ist, meldet der Lauf „Signaturprüfung fehlgeschlagen", obwohl nur der Schlüssel fehlte. Unterscheide bei einem Fehlschlag immer **„kennt uns nicht"** (repariert der Host selbst) von **„lehnt gültiges Token ab"** (musst du fixen).
+
+Volle Erklärung jeder Prüfung samt der Fallen: `docs/PLUGIN-PROVIDER-GUIDE.md` §4.9.
+
+## Warum das Artefakt und keine Kopie des Quellcodes
+
+Eine Kopie wäre in zwei Wochen eine **zweite Wahrheit**. Der Runner gehört dem Host, weil er den Host-Vertrag testet; ändert sich der Host, ändert sich der Runner. plug-tmpl verteilt nur — inklusive Hash, damit du prüfen kannst, was du ausführst.
+
+## Für alle, die selbst bündeln (zwei Fallen, die `agent` beim Bauen fand)
+
+- Über den Barrel-Export `src/index.js` zieht die Prüfung den Plugin-Store und damit **`better-sqlite3`** mit — nativ, ABI-gepinnt, und das Bündel stirbt an `Dynamic require of "fs"`. Lösung: **direkte Modulpfade** statt Barrel.
+- **`yaml` ist CJS.** In einem ESM-Bündel ohne definiertes `require` stirbt es an `Dynamic require of "process"`. Lösung: Banner mit `createRequire`.
+
+Das Build-Skript raucht sein eigenes Ergebnis: Aufruf ohne Argumente **muss** Exit 2 liefern. Ein Bündel, das beim ersten echten Aufruf an einem dynamischen `require` stirbt, wäre schlimmer als keines — es sähe für den Plugin-Autor wie **sein** Fehler aus.

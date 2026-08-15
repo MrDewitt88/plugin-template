@@ -356,7 +356,17 @@ Programmatisch geht es auch direkt: `renderFeaturesNote(manifest, { manifestHash
 
 ### 4.9.2 Der Conformance-Runner
 
-`packages/plugin-system/scripts/plugin-conformance.ts` (myMind/Theseus-Agent) — **die maßgebliche Prüfung**, weil sie den Vertrag testet, den der Host *tatsächlich* fährt. Er spricht HTTP, läuft also gegen ein Python-Plugin genauso wie gegen ein TypeScript-Plugin. **Nicht kopieren** — eine Kopie wäre in zwei Wochen eine zweite Wahrheit.
+**Das gebaute Artefakt liegt in dieser Basis:** `tools/conformance/plugin-conformance.mjs` (+ `.sha256` + README). Du brauchst **keinen** Zugriff auf das Host-Repo.
+
+```bash
+node tools/conformance/plugin-conformance.mjs <pfad/zu/manifest.<id>.yaml> [--endpoint URL]
+```
+
+Nur `node` nötig — kein Workspace, kein TypeScript, keine Installation. Er spricht **HTTP**, läuft also gegen ein Python-, Rust- oder Go-Plugin genauso wie gegen ein TypeScript-Plugin. **Exit 0**, wenn alle Pflicht-Prüfungen bestehen.
+
+💡 **Ohne `--endpoint`** laufen die Manifest-Prüfungen (A1–A6) und die Hinweise trotzdem — das findet z.B. den A4-Blocker, **bevor** dein Dienst überhaupt läuft. Lohnt sich als erster Schritt.
+
+Das Artefakt ist **gebaut vom Host, verteilt von plug-tmpl** — nicht kopiert. Eine Quellcode-Kopie wäre in zwei Wochen eine zweite Wahrheit; der Runner gehört dem Host, weil er den Host-Vertrag testet. `agent` meldet jede Änderung mit neuem Hash und Grund. Provenienz + Hash-Prüfung: `tools/conformance/README.md`.
 
 | | Prüfung |
 | --- | --- |
