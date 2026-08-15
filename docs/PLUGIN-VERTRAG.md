@@ -19,8 +19,8 @@ Jede Regel nennt den **sichtbaren Ausfall**, den sie verhindert. Findest du eine
 | | `distribution.type: external-service` — der einzige wirksame Wert | jeder andere Wert ⇒ Ablehnung mit kryptischem Schema-Fehler |
 | | **`<plugin-id>/manifest.yaml`** — Verzeichnis trägt die Kennung (siehe unten) | ein Layout, das ein Host nicht kennt, macht dein Plugin dort **unsichtbar**: kein Fehler, kein Katalogeintrag, einfach nicht da |
 | **aktivieren** | **Wartest du auf eine menschliche Freigabe, sag es im Fehlercode:** `host_pending`, `host_awaiting_confirmation` oder `pending_approval` mit 401/403 | auf `invalid_token` normalisiert (cad-2ds alter Fehler) sieht der Nutzer „nicht aktivierbar" statt „wartet auf dich". **Der Code entscheidet, ob er eine Sackgasse oder einen Knopf sieht** |
-| | **`aud` selbst erzwingen.** Die Foundation prüft die Signatur, nicht die Zielrichtung | du akzeptierst das Token des Nachbarplugins |
-| | **Niemals `aud ?? sub`** als Rückfallkette | du nimmst jedes Token an, in dem jemand die Plugin-Kennung an die **Nutzer**-Stelle geschrieben hat |
+| | **Auf `aud ?? plugin_id` binden. Fehlt beides: abweisen. `sub` NIE prüfen.** *(ratifiziert von agent + v8-corp)* | ohne eigene Bindung akzeptierst du das Token des Nachbarplugins — die Foundation prüft die Signatur, nicht die Zielrichtung |
+| | ⚠️ **`aud ?? sub` ist die verbotene Kette** — verwechsle sie nicht mit der erlaubten oben | `aud` und `plugin_id` sind beide **Plugin**-Identität, `sub` ist die **Nutzer**-Identität. Wer auf sie zurückfällt, nimmt jedes Token an, in dem irgendwer die Kennung an die Nutzer-Stelle schreibt |
 | | **`sub` niemals validieren** — Format ist host-intern | bricht beim nächsten Host-Update |
 | | `autoAccept` als **Autorenkonstante**, nie aus einer Umgebungsvariablen | ein selbstverwalteter Dienst vertraut seinem eigenen Launcher und nimmt `register-host` von jedem auf Loopback |
 | | `register-host` **beide Schreibweisen** lesen: `public_key_pem` **und** `public_key` | Handshake scheitert mit „Signaturprüfung fehlgeschlagen", obwohl nur der Schlüssel fehlte |
@@ -119,7 +119,13 @@ requires:
 
 `node tools/conformance/plugin-conformance.mjs <manifest> [--endpoint URL] [--bundle <wurzel>]`
 
-**A1, A3–A6** Manifest · **B1** Dienst antwortet · **C0** nimmt den Host-Schlüssel entgegen · **C1** akzeptiert ein vertragskonformes Token — *außer der Host wartet noch auf Freigabe (`pending`), dann gilt der Lauf als **nicht geprüft**, nicht als bestanden* · **D1–D3** weist fremdes, falsch signiertes und abgelaufenes Token ab · **E1** `input_schema` je Werkzeug. Das übrige **E/F sind Hinweise**.
+**A1, A3–A6** Manifest · **B1** Dienst antwortet · **C0** nimmt den Host-Schlüssel entgegen · **C1** akzeptiert ein vertragskonformes Token — *außer der Host wartet noch auf Freigabe (`pending`), dann gilt der Lauf als **nicht geprüft**, nicht als bestanden* · **D1–D3** weist fremdes, falsch signiertes und abgelaufenes Token ab · **D1b** fällt nicht auf den `sub`-Claim zurück · **E1** `input_schema` je Werkzeug. Das übrige **E/F sind Hinweise**, darunter **D1c**.
+
+> 🎯 **D1b prüft den weichen Fall, den C1 und D1 beide durchlassen.** Es schickt ein Token **ohne `aud`, ohne `plugin_id`**, dessen **`sub` die Plugin-Kennung trägt**. Wer korrekt bindet, hat nichts zu binden und **weist ab**. Wer `aud ?? sub` schreibt, akzeptiert.
+>
+> Der Unterschied zu C1 ist der Kern: **C1 fängt den harten Fall** — ein Verifier, der auf `sub` *besteht*, lehnt jedes gültige Token ab und fällt sofort auf. **D1b fängt den weichen** — eine Kette, die C1 **und** D1 besteht und trotzdem falsch ist. Genau daran ist cad-2d gescheitert, und ein Satz im Vertrag hätte es nicht verhindert.
+>
+> **D1c ist ein Hinweis und kein Sicherheitspunkt, sondern eine Messung.** Es schickt ein Token **ohne `plugin_id`/`user_id`**: **200** heißt, du überstehst das Ende des Dual-Emits ohne Änderung — **401** heißt, dein Verifier braucht die expliziten Felder. **Heute folgenlos**, weil beide Sätze gesendet werden; deshalb Hinweis. Es sammelt die Bestandsaufnahme ein, ohne dass jemand gefragt werden muss.
 
 **Die Ablage prüft `--bundle`, nicht der Manifest-Lauf:**
 

@@ -12822,6 +12822,23 @@ async function echtesToken(privateKeyPem, pluginId, scopes) {
   const { token } = await signer.issueToken({ audience: pluginId, scopes });
   return token;
 }
+async function tokenOhne(privateKeyPem, pluginId, scopes, weglassen, ueberschreiben = {}) {
+  const key = await importPKCS8(privateKeyPem, "EdDSA");
+  const jetzt = Math.floor(Date.now() / 1e3);
+  const claims = {
+    host_id: "theseus",
+    scopes: [...scopes],
+    tenant_id: AGENT_UUID,
+    plugin_id: pluginId,
+    user_id: AGENT_UUID,
+    ...ueberschreiben
+  };
+  for (const feld of weglassen) delete claims[feld];
+  let jwt = new SignJWT(claims).setProtectedHeader({ alg: "EdDSA" }).setIssuer("theseus").setIssuedAt(jetzt).setExpirationTime(jetzt + 3600).setJti(crypto.randomUUID());
+  if (!("sub" in ueberschreiben)) jwt = jwt.setSubject(AGENT_UUID);
+  if (!weglassen.includes("aud")) jwt = jwt.setAudience(pluginId);
+  return jwt.sign(key);
+}
 async function handshakeStatus(endpoint, pluginId, token) {
   try {
     await bridgeHandshake(
@@ -13046,6 +13063,35 @@ async function main() {
     "weist ein Token f\xFCr ein anderes Plugin ab",
     !falschesAud.ok && (falschesAud.status === 401 || falschesAud.status === 403),
     falschesAud.ok ? "AKZEPTIERT \u2014 jedes andere Plugin k\xF6nnte sich als dieses ausgeben" : `${falschesAud.code}/${falschesAud.status} (korrekt)`
+  );
+  const subRueckfall = await handshakeStatus(
+    endpoint,
+    manifest.id,
+    await tokenOhne(privateKeyPem, manifest.id, scopes, ["aud", "plugin_id"], {
+      sub: manifest.id
+    })
+  );
+  pruefe(
+    "D1b",
+    "f\xE4llt nicht auf den sub-Claim zur\xFCck",
+    !subRueckfall.ok && (subRueckfall.status === 401 || subRueckfall.status === 403),
+    // Ein 200 heisst AKZEPTIERT — auch wenn der Rumpf danach nicht zum Vertrag
+    // passt. Die erste Fassung dieses Textes las jedes `!ok` als „korrekt
+    // abgewiesen" und hätte bei einem akzeptierenden Plugin mit kaputtem
+    // Rumpf „(korrekt)" neben ein rotes Kreuz geschrieben.
+    subRueckfall.ok || subRueckfall.status === 200 ? "AKZEPTIERT \u2014 dein Verifier bindet (auch) auf `sub`. `sub` ist die NUTZER-Identit\xE4t; wer sie als Plugin-Kennung liest, nimmt jedes Token an, in dem sie jemand hineinschreibt. Regel: auf `aud ?? plugin_id` binden, fehlt beides \u2192 abweisen, `sub` NIE." : `${subRueckfall.code}/${subRueckfall.status} (korrekt)`
+  );
+  const nurStandard = await handshakeStatus(
+    endpoint,
+    manifest.id,
+    await tokenOhne(privateKeyPem, manifest.id, scopes, ["plugin_id", "user_id"])
+  );
+  pruefe(
+    "D1c",
+    "kommt mit den Standard-Claims allein aus (aud/sub)",
+    nurStandard.ok,
+    nurStandard.ok ? "ja \u2014 dieses Plugin \xFCbersteht das Ende des Dual-Emits ohne \xC4nderung" : `${nurStandard.code}/${nurStandard.status} \u2014 dein Verifier braucht \`plugin_id\`/\`user_id\`. Das \xD6kosystem konvergiert auf die RFC-Felder \`aud\`/\`sub\`; lies sie mit, bevor der Stichtag steht. KEIN Fehler heute \u2014 wir senden weiter beide.`,
+    "hinweis"
   );
   const fremdeSignatur = await handshakeStatus(
     endpoint,

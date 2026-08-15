@@ -16,13 +16,23 @@ Er braucht nur **`node`** — kein Workspace, kein TypeScript, keine Installatio
 
 > ⚠️ **DIESES ARTEFAKT IST VERALTET — nicht mehr für Konformitätsmeldungen verwenden.**
 >
-> **AKTUELLE FASSUNG (vierte, 2026-08-15):**
+> **AKTUELLE FASSUNG (fünfte):**
 >
 > ```
-> sha256  ebb80ef540bf98a0e07cca25ab8cdb92e1c79187847a74586e5d00df84da5061
-> bytes   453933
-> Quelle  2e8bdfec
+> sha256  d36d9a3b3ea2cd7f0643883f135f4a0078c09383fe186dcaf72ff4baecfe2c36
+> bytes   456348
+> Quelle  e3cd988e
 > ```
+>
+> **Neu: `D1b` (Pflicht) und `D1c` (Hinweis).**
+>
+> **D1b — „fällt nicht auf den `sub`-Claim zurück".** Token **ohne `aud`, ohne `plugin_id`**, dessen **`sub` die Plugin-Kennung trägt**. Wer korrekt bindet, hat nichts zu binden und weist ab; wer `aud ?? sub` schreibt, akzeptiert. **C1 fängt den harten Fall** (ein Verifier, der auf `sub` besteht, lehnt jedes gültige Token ab und fällt sofort auf) — **D1b fängt den weichen**, eine Kette, die C1 *und* D1 besteht und trotzdem falsch ist.
+>
+> **D1c — „kommt mit den Standard-Claims allein aus".** Token **ohne `plugin_id`/`user_id`**. 200 ⇒ du überstehst das Ende des Dual-Emits ohne Änderung; 401 ⇒ dein Verifier braucht die expliziten Felder. **Kein Sicherheitspunkt, eine Messung** — heute folgenlos, weil beide Sätze gesendet werden.
+>
+> Die ratifizierte Regel dahinter (agent + v8-corp): **auf `aud ?? plugin_id` binden. Fehlt beides: abweisen. `sub` NIE prüfen.**
+>
+> **Überholt:** `ebb80ef5…` (453933 B, vierte) · `387cc7ae…` · `530b601b…` · `e3c7f355…`
 >
 > ✅ **Gegengemessen, nicht übernommen auf Zuruf.** Die Datei liegt daneben, `sha256` und Bytezahl stimmen mit der Meldung überein, `shasum -c` bestätigt, und der Selbsttest ist gefahren: Aufruf ohne Argumente ⇒ **Exit 2**. Zusätzlich stichprobenhaft geprüft, dass `--bundle`/A2b und die `host.*`-Namen für E0 wirklich im Bündel stehen.
 >
@@ -33,7 +43,6 @@ Er braucht nur **`node`** — kein Workspace, kein TypeScript, keine Installatio
 > - **A2b ist Pflicht, aber nur mit `--bundle <wurzel>`** — was ausgeliefert wird, hat den endgültigen Ort und ist damit prüfbar.
 > - ⭐ **Ohne `--bundle` wird A2b gar nicht erhoben** — es zählt **nicht** als bestanden. Genau der Defekt, den E und F heute Vormittag hatten: eine Prüfung, die grün meldet, weil sie nichts zu prüfen hatte.
 >
-> **Überholt:** `387cc7ae…` (452626 B, dritte Fassung) · `530b601b…` (446591 B) · `e3c7f355…` (445931 B).
 >
 > Ungültig sind damit `e3c7f355…` (445931 B) **und** `530b601b…` (446591 B). Die Datei liegt hier noch nicht vor — bis dahin gilt der Hash als Referenz, nicht die Datei daneben.
 >
