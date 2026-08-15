@@ -16,27 +16,26 @@ Er braucht nur **`node`** — kein Workspace, kein TypeScript, keine Installatio
 
 > ⚠️ **DIESES ARTEFAKT IST VERALTET — nicht mehr für Konformitätsmeldungen verwenden.**
 >
-> 🕳️ **VIERTE FASSUNG ANGEKÜNDIGT, HASH UNVOLLSTÄNDIG — noch nicht verwendbar.**
+> **AKTUELLE FASSUNG (vierte, 2026-08-15):**
 >
 > ```
-> sha256  ebb80ef5…        ⟵ ABGEKÜRZT ÜBERMITTELT, nicht prüfbar
+> sha256  ebb80ef540bf98a0e07cca25ab8cdb92e1c79187847a74586e5d00df84da5061
+> bytes   453933
 > Quelle  2e8bdfec
 > ```
 >
-> **Ein abgekürzter Hash ist kein Hash.** Er belegt nichts und lässt sich nicht gegen eine Datei prüfen — der Sinn der Angabe ist ja gerade, dass ihr vor dem Ausführen vergleichen könnt. Vollständiger Wert und Bytezahl sind bei `agent` angefragt; bis dahin gilt der Stand darunter, mit dem bekannten Vorbehalt.
+> Von `agent` **frisch von der Datei gelesen** (nicht aus einer Nachricht kopiert), Selbsttest gefahren: Aufruf ohne Argumente ⇒ Exit 2.
+>
+> ⚠️ **Die Datei liegt hier noch nicht.** Frühere Fassungen wurden erst nach eigener Prüfung von Hash, Bytes und Selbsttest übernommen — das steht für diese noch aus. Bis dahin ist der Wert oben die **Referenz**, nicht die Bestätigung: prüft eure Kopie dagegen, aber wisst, dass ich sie nicht gegengemessen habe.
+>
+> *(Der Hash kam zuerst abgekürzt an und wurde deshalb zurückgewiesen. Ein abgekürzter Hash belegt nichts und lässt sich gegen keine Datei prüfen — Prüfen-vor-Ausführen ist der einzige Zweck der Angabe.)*
 >
 > **Was die vierte Fassung ändert — A2 ist entschärft, A2b kommt dazu:**
 > - **A2 ist Hinweis**, kein Pflichtpunkt mehr. Grund: die Zielform `<plugin-id>/manifest.yaml` gilt am **Installationsort**, der Runner läuft aber im **Entwicklungs-Repo** — und dort heißt das Verzeichnis nach dem Repo (`Med-Mind/` bei `id: med-mind`). Gemessen: **20 von 20 Plugins** weichen ab. Eine Pflichtprüfung hätte alle rot gemacht für etwas, das am Zielort gar nicht mehr gilt.
 > - **A2b ist Pflicht, aber nur mit `--bundle <wurzel>`** — was ausgeliefert wird, hat den endgültigen Ort und ist damit prüfbar.
 > - ⭐ **Ohne `--bundle` wird A2b gar nicht erhoben** — es zählt **nicht** als bestanden. Genau der Defekt, den E und F heute Vormittag hatten: eine Prüfung, die grün meldet, weil sie nichts zu prüfen hatte.
 >
-> **Aktueller verwendbarer Stand (dritte Fassung):**
->
-> ```
-> sha256  387cc7ae9f0a22bacd83511f31d14268b67ce809dd3a2ed6cf2f85ec72bb7e66
-> bytes   452626
-> Quelle  ccc4395d
-> ```
+> **Überholt:** `387cc7ae…` (452626 B, dritte Fassung) · `530b601b…` (446591 B) · `e3c7f355…` (445931 B).
 >
 > Ungültig sind damit `e3c7f355…` (445931 B) **und** `530b601b…` (446591 B). Die Datei liegt hier noch nicht vor — bis dahin gilt der Hash als Referenz, nicht die Datei daneben.
 >

@@ -187,6 +187,10 @@ Die Form erzwingt die Semantik, statt sie zu verlangen: das Plugin meldet die Ze
 
 > **Wo ein Fehler zu „nichts" geglättet wird, sieht der Nutzer statt eines Problems eine Leere — und über Leere beschwert sich niemand.** An einem Tag dreimal gefunden: verwaiste Daten hinter einer leeren Liste · ein `EACCES`, das der Lesepfad zu `ENOENT` glättet, sodass ein leerer Katalog aussieht wie „nichts gekauft" · eine übersprungene Pflichtprüfung, die als bestanden mitgezählt wurde. **Ein lautes Scheitern ist ein Geschenk.**
 
+> **Eine Abhilfe, die einen Fehlschlag selten macht, kann ihn ausgerechnet auf die verlagern, die es richtig machen.** myMinds Aktivierung heilt den häufigsten `pending`-Fall selbst (neu registrieren, einmal wiederholen) — übrig bleibt genau der Fall, in dem ein Plugin **wirklich** auf eine menschliche Freigabe wartet, also das Plugin **mit** einer echten Freigabe-Oberfläche. *„Selten" beschreibt die Häufigkeit, nicht die Klasse* — und wer nur die Häufigkeit misst, hält den Rest für gelöst.
+
+> **Wir haben nichts gefunden, indem wir gesucht haben. Wir haben es gefunden, indem wir nachgemessen haben, was wir schon zu wissen glaubten** (agent). Kein Fund dieses Tages kam aus einem Review. Jeder kam aus einer Messung, die jemand nebenbei fuhr, während er etwas anderes baute: die Werkzeug-Erhebung fand die Löschrechte, das Gegenlesen fand den falschen Suspend-Grund, das Formulieren eines Nutzersatzes fand die Autor/Nutzer-Asymmetrie, der Bau des Nutzer-Kanals fand die fehlende Locale. **Die teuersten Irrtümer waren die, bei denen sich niemand unsicher fühlte.**
+
 ---
 
 ## Offene Schulden — mit Namen und Auslöser
@@ -196,7 +200,7 @@ Nicht „fehlt", sondern **„wird geöffnet, wenn X"**. Eine Lücke ohne Auslö
 | Schuld | Wer | Auslöser |
 |---|---|---|
 | **Locale im Handshake** | plug-tmpl + myMind | das erste Plugin mit **mehr als einer Sprache**. Vorher wäre es ein Feld, das validiert und nichts bewirkt |
-| **`host_pending` + Knopf** | TeamMind, FamilyMind (myMind prüft, ob es dieselbe Schuld hat) | sofort — die Aktivierung **wirft** dort, statt eine Zeile anzulegen, also gibt es keine Karte für den Knopf |
+| **`host_pending` + Knopf** | **alle drei Hosts** | sofort. Die Zeile entsteht erst **nach** erfolgreichem Handshake — wartet ein Plugin auf eine menschliche Freigabe, gibt es keine Karte, also keinen Knopf. Ein gekauftes Plugin auf `pending` ist überall ein **toter Kauf** |
 | **Dauerhafter signierter `once`-Nachweis** | Nexus | blockiert das beschlossene Lizenzmodell. Das 10-Minuten-JWT ist ausdrücklich **nicht** dieser Nachweis |
 | **Tenantweiten Kauf-Fan-out entfernen** | Nexus | bevor die Lizenzprüfung echt antwortet — sonst zahlt ein Kunde fünfmal für dasselbe Plugin |
 | **`exp` beim Minten** | myMind, TeamMind, FamilyMind | Phase 2 der Übergangsfrist. Der Stichtag wird gesetzt, **wenn die Minter gemeldet haben**, nicht vorher |
