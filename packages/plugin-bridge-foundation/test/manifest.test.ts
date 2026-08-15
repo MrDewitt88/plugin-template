@@ -112,10 +112,23 @@ describe('requires.scopes — outgoing-grant (RFC requires-scopes, PROPOSED)', (
     expect(grantOf(m)).toEqual(['legacy.grant']) // backward-compat: mints as today
   })
 
-  it('requires.scopes defaults to [] when block present but scopes omitted', () => {
-    const m = validateManifest({ ...VALID, requires: {} } as unknown as PluginManifest)
+  // v0.15.0 — Verhaltensumkehr, mit Absicht. Vorher machte `.default([])` aus
+  // `requires: {}` still `{scopes: []}` — also die SCHÄRFSTE Einstellung. Ein
+  // Autor, der das Feld halb hinschreibt, hätte damit unbemerkt sämtliche
+  // Rückrufe verloren, und zwar erst beim Kunden. Seit myMinds Rückruf-Gate
+  // sich aus der An-/Abwesenheit von `requires` ableitet (agent), ist der
+  // Unterschied zwischen „nicht deklariert" und „nichts gebraucht" bedeutungs-
+  // tragend und darf nicht durch einen Default eingeebnet werden.
+  it('requires: {} → Fehler (Auslassung darf nicht wie eine Aussage aussehen)', () => {
+    expect(() =>
+      validateManifest({ ...VALID, requires: {} } as unknown as PluginManifest),
+    ).toThrow(/requires\.scopes/)
+  })
+
+  it('requires.scopes: [] → gültig, ausdrückliches „ich brauche nichts"', () => {
+    const m = validateManifest({ ...VALID, requires: { scopes: [] } })
     expect(m.requires?.scopes).toEqual([])
-    expect(grantOf(m)).toEqual([]) // explicit empty grant overrides legacy floor-as-grant
+    expect(grantOf(m)).toEqual([]) // explizit leerer Grant schlägt den Legacy-Floor
   })
 
   it('migration: floor [] + requires grant decouples incoming from outgoing', () => {

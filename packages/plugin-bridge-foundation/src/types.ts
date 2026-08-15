@@ -112,9 +112,30 @@ export const PluginManifestSchema = z.object({
    * `consumes_scopes`/`grant.scopes`) — die `provides`↔`requires`-Symmetrie. Ab
    * bridge-foundation v0.11.0 npm-publiziert. RFC: docs/RFC-REQUIRES-SCOPES.md.
    */
+  /*
+   * v0.15.0 — `scopes` ist INNERHALB von `requires` verpflichtend (vorher
+   * `.default([])`). Damit sind drei Zustaende unterscheidbar statt zwei:
+   *
+   *   requires fehlt          → NICHT deklariert. Der Host laesst die Reichweite
+   *                             wie sie ist. Kein bestehendes Plugin bricht.
+   *   requires.scopes: []     → ausdrueckliche Aussage "ich brauche nichts".
+   *                             Der Host schliesst das Rueckruf-Gate ganz.
+   *   requires: {}            → FEHLER.
+   *
+   * Warum der Fehler: mit `.default([])` wurde `requires: {}` still zu
+   * `{scopes: []}` — also zur schaerfsten aller Einstellungen. Ein Autor, der
+   * das Feld halb hinschreibt, haette damit unbemerkt saemtliche Rueckrufe
+   * verloren, und zwar erst beim Kunden. Dieselbe Logik wie bei E1 im
+   * Conformance-Runner: ein leeres Schema ist eine Aussage, gar keins ist eine
+   * Auslassung — und beides darf nicht dasselbe bedeuten.
+   *
+   * myMinds Rueckruf-Gate leitet sich pro Plugin hieraus ab (agent): fehlt
+   * `requires`, bleibt die heutige Reichweite; ist es da, gilt genau das und
+   * nichts darueber hinaus. Freiwillige Selbstbeschraenkung, kein Zwang.
+   */
   requires: z
     .object({
-      scopes: z.array(z.string()).default([]),
+      scopes: z.array(z.string()),
     })
     .optional(),
   ui: z
