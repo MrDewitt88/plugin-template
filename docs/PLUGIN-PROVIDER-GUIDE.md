@@ -458,6 +458,12 @@ Im Scaffold: `resolveDataDir()` neben `resolvePort()`.
 > **Jeder Berechtigungszustand gehört deshalb ins `PLUGIN_DATA_DIR`** — wie Datenbank und Host-Keys, aus demselben Grund und mit höherem Einsatz.
 >
 > Zwei Dinge, die daraus **nicht** folgen und die du deshalb **nicht bauen sollst**: kein vorsorgliches Ablaufdatum, keine Neuvalidierung „alle 30 Tage", kein stiller Degradierungspfad. Ablauf und Widerruf existieren im aktuellen Modell **nicht** — das ist eine bewusste Entscheidung, keine Lücke. Kommen Abo-Modelle, kommen sie mit eigenen Regeln. Halb gebaute Ablauflogik ist unsichtbar, bis sie beim Kunden zuschlägt.
+>
+> **Verlorener Token ist wiederherstellbar, aber teuer.** Eine Lizenz lässt sich in Nexus deaktivieren und neu aktivieren — ein Rechnerwechsel sperrt niemanden aus, und die Freigabe braucht die alte Maschine nicht. Es ist also **keine Einbahnstraße**. Es kostet aber **Netz** genau dann, wenn der Kunde vielleicht keins hat (Update im Zug ⇒ Plugin weg bis zum nächsten Empfang), und es kostet **eine zusätzliche menschliche Entscheidung**. Damit reißt es den Maßstab, an dem wir das Ganze messen: *zwischen „gekauft" und „nutzbar" liegt genau **eine** bewusste Entscheidung eines Menschen.* Ein verlorener Token macht daraus zwei — bei jedem Update, ohne dass jemand versteht, warum.
+
+> ℹ️ **Was „Lizenz deaktivieren" nicht tut — sag es deinen Nutzern so.** Deaktivieren in Nexus **gibt den Platz frei; es schaltet eine laufende Installation nicht ab.** Das folgt zwingend: ohne Laufzeitprüfung gibt es nichts, was auf der alten Maschine je davon erführe. Kein Defekt, sondern die Kehrseite des Offline-Betriebs — „läuft für immer ohne Netz" und „lässt sich aus der Ferne abschalten" schließen einander aus.
+>
+> Formuliere entsprechend: **„Lizenz freigeben"** trifft es, **„Zugriff entziehen"** wäre eine Zusage, die niemand einlöst. Sonst entsteht die Support-Erwartung *„ich habe die Lizenz des ausgeschiedenen Mitarbeiters deaktiviert, warum kann er es noch benutzen?"* — Deaktivieren ist eine **Buchhaltungs-Handlung**, keine Fernabschaltung.
 
 > 🚨 **DER UMZUG SELBST IST DAS RISIKO — und kein Gate fängt ihn.** wiz-mind hat den Wechsel sauber gemacht, war **12/12 grün** — und hatte trotzdem **2 Charaktere, 10 Sessions, 35 Diary-Einträge verloren** (#8457). Nicht gelöscht: **verwaist**. Die Bridge zeigte auf eine frische DB, die alte lag unangetastet am alten Pfad. med-plug hat daraufhin nachgemessen: 1 Fall + 18 Audit-Einträge am Altpfad.
 >
