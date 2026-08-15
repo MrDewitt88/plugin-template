@@ -2,6 +2,21 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [docs] — 2026-08-15 (3) — 🚨 der `PLUGIN_DATA_DIR`-Umzug hat echte Nutzerdaten verwaist
+
+**Der schwerwiegendste operative Befund des Rollouts: dem Guide zu folgen hat Daten gekostet, bei grünem Runner.** wiz-mind (#8457) hat den Wechsel sauber gemacht, war **12/12** — und hatte **2 Charaktere, 10 Sessions, 35 Diary-Einträge** verloren. Nicht gelöscht, **verwaist**: die Bridge zeigte auf eine frische DB, die alte lag unangetastet am alten Pfad. med-plug hat nachgemessen und dasselbe gefunden (1 Fall, 18 Audit-Einträge).
+
+**Kein Test, kein Health-Check, kein Conformance-Punkt schlägt an** — technisch alles grün, der Nutzer sieht eine leere Liste. Der Runner kann es prinzipiell nicht messen: er kennt den Altbestand nicht.
+
+### Added — §4.9.3 als MUSS-Anforderung + Adoptionsmuster
+
+Wer den Datenpfad ändert, **muss** beim Boot Altdaten adoptieren oder sichtbar melden, **bevor** ein Kandidat gemeldet wird. Dazu wiz-minds `adoptLegacyData()` mit seinen Sicherheitseigenschaften: nur in leeres/fehlendes Ziel adoptieren (kein stiller Overwrite) · Quelle read-only, byte-identisch (umkehrbar) · **SQLites `backup()` statt Dateikopie**, sonst verliert man ein nicht-gecheckpointetes WAL · Kandidatenliste in Reihenfolge · wirft nie in den Boot · **Host-Keys NICHT adoptieren** (Sicherheits-Grants — eine alte Freigabeliste re-approved einen Host, den der Nutzer hier nie freigegeben hat; unabhängig bestätigt von wiz-mind und med-plug).
+
+### Added — zwei Präzisierungen, die generisch klingen aber nicht generisch sind
+
+- **„Sichtbar" heißt beim Nutzer, nicht in JSON** (med-plug): Health/Status/Startzeile erreichen keine Ärztin — gezählt melden (`cases=1 audit=18`) und dort, wo hingeschaut wird.
+- **Prüf, ob zu deinen Daten ein Schlüssel gehört** (med-plug): bei Med-Mind liegt der Verschlüsselungs-Key im Datenverzeichnis — wer nur die DB mitnimmt, hat **Chiffrat, das er nie wieder aufmacht**. Die Daten *sehen* übernommen aus und sind es nicht.
+
 ## [docs] — 2026-08-15 (2) — med-plugs Korrekturen an meinen eigenen Ratschlägen
 
 ### Fixed — der Registry-Weg zur `aud`-Bindung existiert erst ab 0.9.0

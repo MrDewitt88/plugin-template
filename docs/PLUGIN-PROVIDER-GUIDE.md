@@ -390,13 +390,32 @@ Im Scaffold: `resolveDataDir()` neben `resolvePort()`.
 - **„Host gewinnt" heißt auch: deine eigenen Env-Overrides verlieren.** Wenn `PLUGIN_DATA_DIR` gesetzt ist, muss ein plugin-eigenes `MY_DB_PATH`/`CAD_DATA_DIR` **ignoriert** werden — sonst zeigen zwei Installationen wieder auf denselben Ort.
 - **Host-Keys gehören ebenfalls hierhin** (§10.3) — `./data/host-keys.json` unter dem Bundle ist beim nächsten Update weg.
 
-**Bestehende Nutzerdaten — die Regel** (bestätigt von agent, #8444):
+> 🚨 **DER UMZUG SELBST IST DAS RISIKO — und kein Gate fängt ihn.** wiz-mind hat den Wechsel sauber gemacht, war **12/12 grün** — und hatte trotzdem **2 Charaktere, 10 Sessions, 35 Diary-Einträge verloren** (#8457). Nicht gelöscht: **verwaist**. Die Bridge zeigte auf eine frische DB, die alte lag unangetastet am alten Pfad. med-plug hat daraufhin nachgemessen: 1 Fall + 18 Audit-Einträge am Altpfad.
+>
+> **Kein Test, kein Health-Check und kein Conformance-Punkt schlägt hier an** — technisch ist alles grün, der Nutzer sieht eine leere Liste. Der Runner *kann* es nicht messen: er kennt deinen Altbestand nicht.
+>
+> **Deshalb als MUSS-Anforderung:** wer den Datenpfad ändert, **muss** beim Boot vorhandene Altdaten **adoptieren oder sichtbar melden** — bevor er einen Kandidaten meldet. Miss es nach, nimm es nicht an.
+
+**Die Regel** (agent #8444, verschärft durch #8457):
 
 1. **`PLUGIN_DATA_DIR` gewinnt**, deine eigene Variable bleibt **Fallback**.
-2. **Keine automatische Migration.** Begründung: sie müsste entscheiden, was passiert, wenn **zwei Installationen** auf dieselben Altdaten zeigen — das kann kein Plugin für den Nutzer entscheiden.
-3. **Neue Daten nur nach `PLUGIN_DATA_DIR` schreiben**, und dem Nutzer **sichtbar machen**, dass Altdaten noch am alten Ort liegen. Wer migrieren will, tut es bewusst.
+2. **Keine automatische Migration** im Sinne von „ungefragt kopieren und den Altpfad verwerfen": sie müsste entscheiden, was passiert, wenn **zwei Installationen** auf dieselben Altdaten zeigen — das kann kein Plugin für den Nutzer entscheiden.
+3. **Neue Daten nur nach `PLUGIN_DATA_DIR` schreiben**, und Altdaten **sichtbar machen**.
 
-> ⚠️ **Punkt 3 „beide Orte lesen" ist kein pauschales Rezept — entscheide es bewusst** (med-plug #8455). Bei **personenbezogenen Daten** heißt „beide Orte lesen" faktisch: dieselben Daten an zwei Stellen halten und im Zweifel duplizieren. Das ist eine **Betreiber**-Entscheidung, keine Plugin-Entscheidung. Med-Mind hat sich für Patientendaten bewusst **gegen** Dual-Read entschieden und macht den Altpfad stattdessen nur **sichtbar** (Health, Status, eine Startzeile) — kopiert nichts. Für Plugins mit personenbezogenen Daten ist das in der Regel die richtige Wahl.
+**Das Adoptionsmuster** (wiz-mind, `adoptLegacyData(target, [kandidaten])`, aufgerufen **vor** dem Öffnen der DB). Die Sicherheitseigenschaften sind der Punkt, nicht der Happy Path:
+
+- **Nur in ein leeres/fehlendes Ziel adoptieren.** Ein Ziel mit Zeilen wird nie angefasst → neuere Daten schlagen ältere, kein stiller Overwrite.
+- **Quelle read-only**, bleibt byte-identisch → eine falsche Vermutung ist **immer umkehrbar**.
+- **SQLites `backup()`-API statt Dateikopie** — eine Dateikopie verliert ein nicht-gecheckpointetes **WAL**. Subtil und teuer.
+- **Kandidatenliste in Reihenfolge** (alter Repo-Pfad, dann OS-Verzeichnis, …), das aktive Ziel wird übersprungen.
+- **Wirft nie in den Boot.** Korrupte Alt-Datei → „starte leer", also exakt der Status quo ohne Adoption.
+- **Host-Keys NICHT adoptieren.** Das sind Sicherheits-Grants: eine alte Freigabeliste in eine neue Installation zu tragen **re-approved einen Host, den der Nutzer hier nie freigegeben hat**. Der Host registriert sich neu — auch wenn das eine Freigabe kostet. *(Unabhängig bestätigt von wiz-mind und med-plug; bei letzterem hängt an dieser Freigabe der Zugriff auf Patientendaten.)*
+
+> ⚠️ **„Sichtbar" heißt: beim Nutzer, nicht in JSON** (med-plug). Health, Status und eine Startzeile erreichen keine Ärztin — die sieht eine leere Fallliste und sonst nichts. **Gezählt** melden (`cases=1 audit=18`) statt „da ist was", und dort, wo der Nutzer hinschaut (Banner in der Oberfläche).
+
+> 🔑 **Prüf, ob zu deinen Daten ein Schlüssel oder ein anderes Nebenartefakt gehört — und nenn es dem Nutzer beim Namen** (med-plug). Bei Med-Mind liegt der **Verschlüsselungs-Key im Datenverzeichnis**: wer dem Rat „kopier den Ordner" folgt und nur die DB mitnimmt, hat **Chiffrat, das er nie wieder aufmacht** — die Daten *sehen* übernommen aus und sind es nicht. Bei einem RPG ist das nichts, bei personenbezogenen Daten der Unterschied zwischen Übernahme und Totalverlust.
+
+**Und Punkt 3 „beide Orte lesen" ist kein pauschales Rezept — entscheide es bewusst** (med-plug). Bei **personenbezogenen Daten** heißt Dual-Read faktisch: dieselben Daten an zwei Stellen halten und im Zweifel duplizieren — eine **Betreiber**-Entscheidung, keine Plugin-Entscheidung. Med-Mind hat sich für Patientendaten bewusst **dagegen** entschieden und macht den Altpfad nur sichtbar, kopiert nichts. Für Plugins mit personenbezogenen Daten ist das in der Regel die richtige Wahl — für ein Spiel ist Adoption richtig.
 
 ### 4.9.4 Consent-Drift — breiter als „Scopes"
 
