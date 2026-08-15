@@ -17,7 +17,7 @@ Jede Regel nennt den **sichtbaren Ausfall**, den sie verhindert. Findest du eine
 |---|---|---|
 | **erscheint** | `min_app_version` **immer mit `-rc.1`**, egal welche Zahl | `1.0.0` sperrt jeden `1.0.0-rc.x` aus. Das Plugin ist **unsichtbar** |
 | | `distribution.type: external-service` — der einzige wirksame Wert | jeder andere Wert ⇒ Ablehnung mit kryptischem Schema-Fehler |
-| | Dateiname `manifest.<id>.yaml`, Suffix **ist** die Kennung | Legacy `manifest.yaml` wird von manchen Hosts noch **geduldet**, von der Prüfung aber abgelehnt (A2). Verlass dich nicht auf die Duldung |
+| | ⚠️ **Manifest-Ablage — ungeklärt, siehe unten** | ein Layout, das ein Host nicht kennt, macht dein Plugin dort **unsichtbar**: kein Fehler, kein Katalogeintrag, einfach nicht da |
 | **aktivieren** | **`aud` selbst erzwingen.** Die Foundation prüft die Signatur, nicht die Zielrichtung | du akzeptierst das Token des Nachbarplugins |
 | | **`sub` niemals validieren** — Format ist host-intern | bricht beim nächsten Host-Update |
 | | `autoAccept` als **Autorenkonstante**, nie aus einer Umgebungsvariablen | ein selbstverwalteter Dienst vertraut seinem eigenen Launcher und nimmt `register-host` von jedem auf Loopback |
@@ -26,6 +26,25 @@ Jede Regel nennt den **sichtbaren Ausfall**, den sie verhindert. Findest du eine
 | | Werkzeugnamen und Kennung sind **eingefroren** | jede Umbenennung ist ein Zustimmungs-Ereignis bei **jedem** bestehenden Nutzer |
 | **Update** | **alles Persistente** ins `PLUGIN_DATA_DIR` — DB, Assets, Host-Keys, Lizenz-Nachweis | ein Update ersetzt den Bundle-Pfad **komplett**. Alles dort ist weg |
 | | Datenpfad geändert? **Altbestand adoptieren oder gezählt melden** | 12/12 grün und trotzdem Nutzerdaten verwaist — kein Gate fängt das |
+
+---
+
+## 🚧 Offen: wo das Manifest liegt
+
+**Die drei Hosts suchen an drei verschiedenen Orten.** Gemessen, nicht vermutet:
+
+| | findet |
+|---|---|
+| **myMind** | `manifest.<id>.yaml` **und** bares `manifest.yaml` |
+| **TeamMind** | **ausschließlich** `<plugin-id>/manifest.yaml` — ein `manifest.<id>.yaml` sieht es **gar nicht** |
+| FamilyMind | noch nicht gemessen |
+| Konformitäts-Prüfung (A2) | verlangt `manifest.<id>.yaml` |
+
+**Der Ausfall ist stumm.** Wer der Prüfung folgt, ist bei TeamMind unsichtbar — kein Fehler in der Oberfläche, kein Katalogeintrag, das Plugin ist einfach nicht da. Bei so einem Bild verdächtigt jeder zuerst das Plugin.
+
+> **Bis das entschieden ist: `<plugin-id>/manifest.yaml`.** Das ist die einzige Form, die beide gemessenen Hosts finden — myMind liest sie mit, TeamMind nur sie. Die Prüfung (A2) verlangt heute noch die andere; **melde einen Konflikt, statt umzubauen**, solange das hier steht.
+
+**Was in jeder Auflösung erhalten bleiben muss:** die Kennung muss aus dem Ablageort **eindeutig ableitbar** sein. Ein bares `manifest.yaml` ohne Kontext hat keine Identität mehr — löst man das über das Verzeichnis, muss `manifest.id` **gleich dem Verzeichnisnamen** sein und der Host das erzwingen. TeamMind tut das bereits und lehnt Abweichungen mit Meldung ab; das ist die Eigenschaft, die den Verzeichnis-Weg tragfähig macht.
 
 ---
 
