@@ -70,6 +70,16 @@ export const PluginManifestSchema = z.object({
     // PLUGIN-PROVIDER-GUIDE §4.9.0.
     type: z.enum(['external-service', 'library']),
     service_endpoint: z.string().optional(),
+    // ⚠️ LEER LASSEN. Nexus konsumiert und emittiert dieses Feld derzeit weder
+    // noch (bestaetigt #8488). Falls es bleibt, bezeichnet es ausschliesslich
+    // eine MENSCHLICHE Kauf-/Detailseite — niemals einen Manifest-, Bundle-
+    // oder Update-Endpunkt. Discovery und Update laufen ueber Nexus-Registry/
+    // Entitlement (`plugin_details[]`) und direkte unveraenderliche URLs.
+    //
+    // Steht auf der Streichliste: ein optionales Feld, das kein Konsument
+    // liest, ist dieselbe Konstruktion, die uns mit `embedded` eingeholt hat.
+    // Nicht heute entfernt, weil mitten im Rollout eine brechende
+    // Schema-Aenderung fuer ein ungelesenes Feld mehr stoert als nuetzt.
     marketplace_url: z.string().optional(),
   }),
   compatibility: z.object({

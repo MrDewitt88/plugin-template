@@ -274,6 +274,18 @@ Der bare `manifest.yaml` bleibt für **≥2 Releases** als DEPRECATED-Fallback l
 - **sha256 ist der v1-Integritätsanker** (der Nexus-Katalog ist der Vertrauenskanal); Ed25519-Bundle-Signatur ist v2 (`signature: null` ist additiv reserviert).
 - **Zwei Katalog-Artefakte, beide hochladen** (agent-Ruling #6065): `bundle.tgz` (→ `bundle_url`) **und** `bundle.meta.json` (→ `bundle_meta_url`). Das `bundle.meta.json` ist ein **externes Sidecar** — es MUSS außerhalb des tgz liegen, weil seine `sha256`/`bytes` das tgz beschreiben (self-referential, nicht einbettbar). Der Host holt das Sidecar, prüft `id`/`version`/`sha256`/`bytes` gegen die Katalog-Spec (Abweichung = harter Reject), persistiert es **kanonisch** ins Installationsverzeichnis und liest `launch` daraus. Der Nexus-`plugin_details`-Eintrag trägt `{version, bundle_url, bundle_meta_url, sha256, bytes, min_app_version}`.
 
+> 🌍 **DEIN BUNDLE IST ÖFFENTLICH. Prüf, was du hineinlegst.** (Nexus, #8488)
+>
+> Die Plugin-Bits liegen heute unter einer **unveränderlichen, öffentlichen URL**. Die Berechtigung schützt **Discovery und Aktivierung** — **nicht** eine bereits bekannte URL. Wer den `bundle_url` kennt, lädt das Bundle, ohne irgendetwas gekauft zu haben.
+>
+> Damit ist alles im Bundle **veröffentlicht**: eingebackene Schlüssel, API-Token, Beispieldaten mit echten Kundennamen, proprietäre Tabellen, interne Kommentare in mitgelieferten Quellen. Ein `.env`, das versehentlich im `files`-Array landet, ist kein Konfigurationsfehler mehr, sondern eine Veröffentlichung.
+>
+> **Private Bits bräuchten einen separaten signierten Download-Wire — den es noch nicht gibt.** Bis dahin: was nicht öffentlich sein darf, gehört nicht ins Bundle. Zur Laufzeit nachladen und im `PLUGIN_DATA_DIR` halten, nicht mitliefern.
+>
+> Praktische Gegenprobe vor jedem Release: `tar tzf bundle.tgz` lesen und das `files`-Array im Sidecar durchgehen, Zeile für Zeile. Der deterministische Packer macht das leicht — die Liste ist sortiert und stabil, ein neuer Eintrag fällt im Diff auf.
+
+> 🔒 **Sicherheitsvorfall ≠ Lizenzwiderruf** (Nexus). Weiter unten steht, dass es **keinen** Laufzeit-Widerruf gibt (§4.9.3). Das gilt für **Lizenzen** — daraus folgt **nicht**, dass eine kompromittierte Version draußen bleibt. Quarantäne und Widerruf der **Bits** sind ein getrennter Weg und existieren. Wer eine verseuchte Version veröffentlicht hat, ist ihr nicht ausgeliefert; melde es und lass die Version zurückziehen.
+
 **3 · Env-first Port.** Unter einem Host wird der Port **zugewiesen** (`PLUGIN_BRIDGE_PORT`); der Manifest-Port ist nur Standalone-Dev-Default:
 
 ```ts
