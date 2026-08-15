@@ -17,7 +17,7 @@ Jede Regel nennt den **sichtbaren Ausfall**, den sie verhindert. Findest du eine
 |---|---|---|
 | **erscheint** | `min_app_version` **immer mit `-rc.1`**, egal welche Zahl | `1.0.0` sperrt jeden `1.0.0-rc.x` aus. Das Plugin ist **unsichtbar** |
 | | `distribution.type: external-service` — der einzige wirksame Wert | jeder andere Wert ⇒ Ablehnung mit kryptischem Schema-Fehler |
-| | Dateiname `manifest.<id>.yaml`, Suffix **ist** die Kennung | wird nicht gefunden |
+| | Dateiname `manifest.<id>.yaml`, Suffix **ist** die Kennung | Legacy `manifest.yaml` wird von manchen Hosts noch **geduldet**, von der Prüfung aber abgelehnt (A2). Verlass dich nicht auf die Duldung |
 | **aktivieren** | **`aud` selbst erzwingen.** Die Foundation prüft die Signatur, nicht die Zielrichtung | du akzeptierst das Token des Nachbarplugins |
 | | **`sub` niemals validieren** — Format ist host-intern | bricht beim nächsten Host-Update |
 | | `autoAccept` als **Autorenkonstante**, nie aus einer Umgebungsvariablen | ein selbstverwalteter Dienst vertraut seinem eigenen Launcher und nimmt `register-host` von jedem auf Loopback |
@@ -90,11 +90,11 @@ requires:
 
 ---
 
-## Die zwölf Pflichtprüfungen
+## Die dreizehn Pflichtprüfungen
 
 `node tools/conformance/plugin-conformance.mjs manifest.<id>.yaml [--endpoint URL]`
 
-**A1–A6** Manifest · **B1** Dienst antwortet · **C0** nimmt den Host-Schlüssel · **C1** verlangt Erstkontakt · **D1–D3** weist fremdes, falsch signiertes und abgelaufenes Token ab. **E/F sind Hinweise** — außer **E1** (`input_schema` je Werkzeug), das ist Pflicht.
+**A1–A6** Manifest · **B1** Dienst antwortet · **C0** nimmt den Host-Schlüssel entgegen · **C1** akzeptiert ein vertragskonformes Token — *außer der Host wartet noch auf Freigabe (`pending`), dann gilt der Lauf als **nicht geprüft**, nicht als bestanden* · **D1–D3** weist fremdes, falsch signiertes und abgelaufenes Token ab · **E1** `input_schema` je Werkzeug. Das übrige **E/F sind Hinweise**.
 
 - **Ohne `--endpoint`** laufen Manifest- und Hinweisprüfungen bereits — sie finden den häufigsten Blocker, bevor ein Dienst läuft.
 - **Melde einen Hash erst, wenn der Lauf grün ist.**
@@ -116,6 +116,10 @@ requires:
 | Scope, den es hier nicht gibt | „**Ohne Wirkung hier:** deine Kontakte — lesen, ändern und löschen. Das Plugin bittet um Zugriff, den es in *&lt;Anwendung&gt;* nicht gibt. Die Bitte bleibt folgenlos — **du musst nichts tun.**" |
 
 **Keine Sackgassen.** Ein gekauftes Plugin, das auf `pending` landet und nicht freigegeben werden kann, ist ein toter Kauf. Hat das Plugin keine Oberfläche, **schuldet der Host die Fläche** — es kann dem Nutzer sonst nichts zeigen.
+
+> ⏳ **Diese Fläche ist noch nirgends gebaut** (Stand 2026-08-15; myMind hat sie zugesagt, sie steht als nächstes an). Die Zeile darüber ist eine **Schuld, kein Zustand** — und solange sie offen ist, kann ein Plugin **ohne eigene Oberfläche** die Melde-Pflicht aus dem Datenpfad nicht erfüllen. Es gibt schlicht keinen Kanal.
+>
+> **Praktisch für dich, wenn dich das betrifft: verschieb deinen Datenpfad noch nicht.** Ein Umzug, dessen Verwaisungs-Meldung niemanden erreichen kann, ist genau der Fall, der 12/12 grün war und trotzdem Nutzerdaten gekostet hat.
 
 ---
 

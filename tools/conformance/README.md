@@ -66,7 +66,8 @@ shasum -a 256 -c plugin-conformance.mjs.sha256
 | **A6** | `service_endpoint` vorhanden | Pflicht |
 | **B1** | Dienst antwortet | Pflicht |
 | **C0** | nimmt den Host-Schlüssel entgegen (`register-host`) | Pflicht |
-| **C1** | Erstkontakt: Plugin verlangt `register-host` | Pflicht |
+| **C1** | akzeptiert ein vertragskonformes Token. C0 lief vorher — wer jetzt „kennt den Host nicht" sagt, hat **quittiert und nicht gespeichert**. Ausnahme `pending`: Hinweis **„NICHT GEPRÜFT"**, nicht „bestanden" | Pflicht |
+| **E1** | `input_schema` je Werkzeug. Argumentlos ⇒ `{"type":"object","properties":{}}` — **ein leeres Schema ist eine Aussage, gar keins eine Auslassung** | Pflicht |
 | **D1** | weist ein Token für ein **anderes Plugin** ab | Pflicht |
 | **D2** | weist eine **fremde Signatur** ab | Pflicht |
 | **D3** | weist ein **abgelaufenes Token** ab | Pflicht |

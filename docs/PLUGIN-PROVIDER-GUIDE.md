@@ -514,7 +514,7 @@ Das Artefakt ist **gebaut vom Host, verteilt von plug-tmpl** — nicht kopiert. 
 | **A6** | `service_endpoint` vorhanden |
 | **B1** | Dienst antwortet |
 | **C0** | nimmt den Host-Schlüssel entgegen (`register-host`) |
-| **C1** | Erstkontakt: Plugin verlangt `register-host` |
+| **C1** | akzeptiert ein vertragskonformes Token — C0 lief vorher, wer jetzt noch „kennt den Host nicht" sagt, hat **quittiert und nicht gespeichert**. Ausnahme: meldete `register-host` ein `pending`, ist es ein Hinweis mit **„NICHT GEPRÜFT"** — nicht „bestanden" |
 | **D1** | weist ein Token für ein **anderes Plugin** ab |
 | **D2** | weist eine **fremde Signatur** ab |
 | **D3** | weist ein **abgelaufenes Token** ab |
