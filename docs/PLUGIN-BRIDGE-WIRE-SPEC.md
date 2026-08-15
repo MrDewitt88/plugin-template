@@ -80,7 +80,9 @@ A new host defaults to **`pending`** (privacy-by-default), and *every* authentic
 
 Pick one, deliberately:
 
-- **Host-spawned bundled plugins** — the host *is* the trust root (it spawned you on loopback and passed `PLUGIN_BRIDGE_PORT`): auto-accept. The scaffold does exactly this (`autoAccept` when `PLUGIN_BRIDGE_PORT` is set).
+- **Host-spawned bundled plugins** — the host *is* the trust root: it spawned you on loopback and is your only caller. Auto-accept.
+
+> ⚠️ **Do not detect this from `PLUGIN_BRIDGE_PORT`.** Earlier revisions of this spec — and the scaffold — derived the trust root from that variable being set. That no longer holds: env-first port resolution is now an obligation for *every* plugin, and a self-managed service sets the variable **itself** (via launchd/systemd). A standalone service that copies the heuristic ends up trusting its own launcher and will accept `register-host` from anyone on loopback. **Decide it explicitly, as a constant in your source.** You know whether a host is your only starter; the runtime cannot tell you.
 - **Standalone services** (own app, own updater — Speak-Mind's case) — the trust-root argument is **weaker**, because `register-host` is unauthenticated and anyone on loopback can call it. Prefer a **configured allowlist** `{host_id → expected fingerprint}` over blanket auto-accept, and reject a rotation that does not match. If you genuinely have no approval UI, auto-accept is defensible — but make it an explicit, documented decision, not an accident.
 
 Whatever you choose, a `pending` record must be **reachable to fix**. Never ship a bridge whose only escape is deleting a database file.
@@ -127,7 +129,7 @@ iss   sub   jti   host_id   tenant_id
 | Claim | Reality |
 | --- | --- |
 | `plugin_id`, `user_id` | **optional** since 0.10.0 — the canonical V8 token omits them. Derive: `plugin_id = claims.plugin_id ?? claims.sub`, `user_id = claims.user_id ?? body.user_id`. |
-| `exp` | **not required.** A token with no `exp` **never expires** here. Only enforced when present. |
+| `exp` | **not required** (measured). A token with no `exp` **never expires** here; only enforced when present. ⚠️ On a deprecation path — log it now, reject from a later cutoff. See the ruling below. |
 | `iat`, `nbf` | not required; `nbf` only checked if present. |
 | `aud` | optional — see §4.2. |
 
@@ -136,6 +138,16 @@ iss   sub   jti   host_id   tenant_id
 - **No replay protection anywhere.** `jti` is required to be present and is passed through to handlers; there is **no** nonce store, seen-jti cache, or TTL bookkeeping. **Do not add a replay cache "for compatibility"** — V8 mints *one* long-lived per-activation token and reuses it for every call, so a cache would reject traffic the canonical implementation accepts.
 
 > ⚠️ **If your JWT library requires `exp` by default** (PyJWT `require=['exp']`, python-jose defaults), you will reject canonical tokens. Configure it off, or accept that you are deliberately stricter than the reference.
+
+> 🕐 **This is measured behaviour, and it is on a deprecation path. Operator ruling, 2026-08-15 — three phases:**
+>
+> 1. **Now — verifiers log, do not reject.** A token without `exp` is still accepted. Count it and record the `host_id`, somewhere a human will actually look. Silence here is what let this survive.
+> 2. **Minters add `exp`.** That is where the work is (myMind, V8/Family, any host that mints). Pure verifiers — most plugins — have nothing to change.
+> 3. **From a cutoff date — reject.** The date gets set once the minters report, **not before**. Nobody is locked out by a deadline they were never told about.
+>
+> **Independently of this, and available to you today:** enforce your own **maximum age via `iat`**. It needs no contract change and no coordination — a token with no `exp` but an `iat` from three months ago is one you may refuse right now. If `iat` is *also* absent, report it: that host is minting a credential with no temporal claim at all.
+>
+> Why the phased path rather than a flip: a verifier that hard-requires `exp` today locks out every host that mints without one, and the plugin gets blamed for the host's omission. Raised by markview, who found it as a verifier and explicitly declined to make it strict unilaterally.
 
 ### 4.2 `iss` / `aud` — per-host binding
 

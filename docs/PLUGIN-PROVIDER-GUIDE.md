@@ -343,25 +343,48 @@ Programmatisch geht es auch direkt: `renderFeaturesNote(manifest, { manifestHash
 
 ### 4.9.0 🧭 Zuerst: welche Betriebsart bist du?
 
-**Nicht alles unten gilt für dich.** Es gibt drei Betriebsarten, und sie unterscheiden sich in genau den Punkten, die diese Runde Geld gekostet haben — wer Ratschläge der falschen Art befolgt, baut an sich vorbei.
+**Ein Teil der Checkliste ist betriebsartabhängig — der größere Teil nicht.** Und die Betriebsart ist **kein Rang auf einer Skala**, sondern ein Kreuz aus zwei **unabhängigen** Achsen. Diese Seite hat das erst falsch beschrieben; ET-Mind und Markview sind genau in das Feld gelaufen, das die falsche Fassung nicht hatte.
 
-⚠️ **Der Host entscheidet die Betriebsart NICHT an `distribution.type`, sondern an der Bundle-Präsenz** (`plugin-service-manager.ts`: `bundleDir` + `launch`). Das Feld `type` beschreibt deine Absicht, es steuert nichts.
+**Achse 1 — Lebenszyklus: wer startet und stoppt deinen Prozess?**
 
-| | **A — Host-gespawntes Bundle** | **B — Eigenständiger Dienst** | **C — `embedded`** |
-|---|---|---|---|
-| **Erkennungsmerkmal** | Bundle liegt im Slot/Katalog; der Host startet deinen Prozess | Kein Bundle. Deine App läuft selbst, der Host prüft nur den Port | Schema-Wert |
-| **Lebenszyklus** | Host: spawn · health-poll · stop · Update-Swap · Rollback | **Du.** Eigener Updater (z.B. Sparkle), eigener Start | — |
-| **Port** | Host setzt **`PLUGIN_BRIDGE_PORT`** (Instanz-Offset!) — env-first ist Pflicht | Dein fester Port; im Manifest deklariert | — |
-| **Datenverzeichnis** | Host setzt **`PLUGIN_DATA_DIR`** — host-autoritativ, gewinnt | Deins. `PLUGIN_DATA_DIR` kommt nie | — |
-| **`autoAccept`** | **`true`** (erkannt an `PLUGIN_BRIDGE_PORT`) — der Host ist die Trust-Root | **Allowlist** `{host_id → Fingerprint}`; `register-host` ist unauthentifiziert und jeder auf Loopback kann es rufen | — |
-| **Rollback/SIGTERM** | §4.9.6 gilt voll | Deine Sache | — |
-| **Bundle-Packer** | ja (§4.7) | nur wenn du über den Katalog verteilst | — |
+| | **host-verwaltet** | **selbstverwaltet** |
+|---|---|---|
+| **Erkennungsmerkmal** | Bundle liegt im Slot/Katalog, der Host spawnt dich | Kein Bundle. launchd/systemd/Electron/dein Updater startet dich |
+| **Lebenszyklus** | Host: spawn · health-poll · stop · Update-Swap · Rollback (§4.9.6) | **Du.** Eigener Start, eigener Updater |
+| **Neustart nach Absturz** | Host versucht bis zu **dreimal**, dann gibt er auf und meldet es | **Niemand.** Das ist dein Supervisor, nicht der Host |
+| **`PLUGIN_BRIDGE_PORT` setzt** | der **Host** (mit Instanz-Offset) | **dein** Dienst-Manager |
+| **`PLUGIN_DATA_DIR` setzt** | der **Host** (nach `launch.env`, gewinnt immer) | in der Regel **niemand** — du brauchst einen definierten Fallback |
+| **Bundle-Packer (§4.7)** | ja | nur wenn du zusätzlich über den Katalog verteilst |
+| **stdout sparsam halten** | **ja** — der Host liest deine Pipe beim Spawn | irrelevant |
 
-**A+ — Bundle mit Oberfläche** (Navbar-Eintrag und/oder Routen, startet mit dem Host): technisch **A**, aber der **Consent-Fingerabdruck greift breiter** (§4.9.4) — Routen und Sidebar-Eintrag zählen mit, jede UI-Erweiterung ist ein Zustimmungs-Ereignis.
+**Achse 2 — Oberfläche: bringst du UI in den Host?** (`routes` und/oder `ui.sidebar_entry`)
 
-> 🚫 **`distribution.type: 'embedded'` nicht verwenden.** Der Wert steht im Manifest-Schema der Foundation, aber **myMind implementiert ihn nicht** (nachgemessen: null Treffer im Host). Ein Manifest damit validiert und tut dann nichts. Wenn du UI im Host willst, ist das **A+** — Bundle mit `routes`/`ui.sidebar_entry`.
+| | **ohne Oberfläche** | **mit Oberfläche** |
+|---|---|---|
+| **Consent-Fingerabdruck** | Endpunkt · Scopes · Werkzeug- und Skill-Namen | **zusätzlich Routen + Sidebar-Eintrag** — jede UI-Erweiterung ist ein Zustimmungs-Ereignis (§4.9.4) |
+| **`render-ui`** | — | §5.5 gilt, Assets werden gegen `distribution.service_endpoint` aufgelöst |
+| **Nutzer erreichen** | ⚠️ **du kannst es nicht.** Health-JSON und `/readyz` erreichen niemanden — für die Verwaisungs-Meldung (§4.9.3) fehlt dir die Fläche | über deine eigenen Routen |
 
-**Was für ALLE gilt**, unabhängig von der Betriebsart: `sub` nie validieren + `aud`-Bindung selbst erzwingen (§4.9.10) · `min_app_version` mit `-rc.1` (§4.9.11) · Werkzeugnamen (§4.9.9) · der Tenant-Check und die RBAC auf dem Tool-Pfad (§4.9.13) · Conformance-Runner vor dem Kandidaten (§4.9.2).
+**Die Achsen sind frei kombinierbar.** Alle vier Felder sind besetzt: host-verwaltete Bundles ohne UI, host-verwaltete Bundles mit Navbar-Eintrag, **selbstverwaltete Dienste mit voller Oberfläche** (ET-Mind: `external-service` per launchd, 29 Routen + Sidebar; Markview: signierte Electron-App mit Sidebar-Eintrag) und selbstverwaltete Dienste ohne UI.
+
+⚠️ **`distribution.type` steuert nichts.** Der Host entscheidet den Lebenszyklus an der **Bundle-Präsenz** (`plugin-service-manager.ts`: `bundleDir` + `launch`), und die Oberfläche am **Manifest-Inhalt**. Das Feld beschreibt deine Absicht.
+
+> 🚫 **`distribution.type: 'embedded'` nicht verwenden.** Der Wert steht im Foundation-Schema und ist in §10.1 als „Phase 4" geführt — **myMind implementiert ihn nicht** (nachgemessen: null Treffer im Host). Ein Manifest damit validiert und tut dann nichts. Willst du UI im Host, ist das die zweite Achse: `routes`/`ui.sidebar_entry` — **mit oder ohne Bundle.**
+
+---
+
+**Was für ALLE gilt, in jedem Feld des Kreuzes.** Diese Liste ist nicht abschließend, aber nichts darin ist betriebsartabhängig:
+
+- **Env-first Port** — `PLUGIN_BRIDGE_PORT` lesen, **niemals** den Manifest-Port hart verdrahten. Autorenpflicht für jedes Plugin ([[plugin-release-update]] #110). Nur *wer* die Variable setzt, hängt an Achse 1.
+- **`PLUGIN_DATA_DIR` lesen** — auch selbstverwaltet. Setzt sie jemand, **gewinnt sie**; sonst greift dein Fallback (§4.9.3).
+- **Die Datenpfad-Pflicht** (§4.9.3) — wer den Datenpfad ändert, **muss** Altbestände adoptieren oder sichtbar melden. Ein selbstverwalteter Dienst zieht sein Verzeichnis selbst um und ist damit **exponierter**, nicht geschützter.
+- **Consent-Drift** (§4.9.4) und die Regel **Consent-Fehlschlag ⇒ kein Rollback** (§4.9.6) — auch wenn dich sonst nichts an §4.9.6 betrifft.
+- **Health-Budget** (§4.9.5) — der Host pollt deine Bridge-Health identisch, egal wer dich gestartet hat.
+- **`sub` nie validieren + `aud`-Bindung selbst erzwingen** (§4.9.10) · **`min_app_version` mit `-rc.1`** (§4.9.11) · **Werkzeugnamen** (§4.9.9) · **Tenant-Check und RBAC auf dem Tool-Pfad** (§4.9.13) · **Favicon** (§8) · **Conformance-Runner vor dem Kandidaten** (§4.9.2).
+
+> 🔐 **`autoAccept` ist eine Autorenentscheidung, keine Detektion — und das ist eine Korrektur.**
+> Diese Seite hat empfohlen, den Vertrauensanker aus `PLUGIN_BRIDGE_PORT` abzuleiten („die Variable ist da ⇒ der Host hat mich gestartet ⇒ er ist die Trust-Root"). **Das trägt nicht mehr.** Seit #110 liest *jedes* Plugin die Variable, und ein selbstverwalteter Dienst **darf sie sich selbst setzen** — ET-Minds launchd-Agent tut genau das. Wer die Heuristik dort kopiert, vertraut in Wahrheit seinem **eigenen Launcher** und akzeptiert `register-host` von **jedem auf Loopback** — genau die Bedrohung, vor der §10.3 warnt.
+> **Du weißt, ob dich ausschließlich ein Host startet.** Entscheide es explizit und einmal, statt es zur Laufzeit zu raten. Sicherer Standard ist die Allowlist.
 
 ### 4.9.1 Die Reihenfolge
 
@@ -448,6 +471,28 @@ Im Scaffold: `resolveDataDir()` neben `resolvePort()`.
 > ⚠️ **„Sichtbar" heißt: beim Nutzer, nicht in JSON** (med-plug). Health, Status und eine Startzeile erreichen keine Ärztin — die sieht eine leere Fallliste und sonst nichts. **Gezählt** melden (`cases=1 audit=18`) statt „da ist was", und dort, wo der Nutzer hinschaut (Banner in der Oberfläche).
 
 > 🕳️ **„Sichtbar machen" heißt zuerst: überhaupt suchen** (wiz-mind). Die naheliegende Implementierung steigt bei `target_not_empty` **sofort aus** — verständlich, denn sie soll ja nichts überschreiben. Genau dann **schaut sie die Kandidatenpfade nie an** und meldet folglich auch keine Verwaisung. Das ist der Zustand, in dem wiz-mind grün war und trotzdem 2 Charaktere fehlten: das Ziel war nicht leer (frische DB **mit Schema**), also lief die Adoption gar nicht erst los. **Scanne die Kandidaten immer, auch wenn du nicht adoptierst** — und melde, was du findest. „Nicht adoptieren" und „nicht nachsehen" sind zwei verschiedene Entscheidungen; nur die erste ist sicher.
+
+> 🚨 **MUSS — wie du zählst, ohne den Altbestand zu zerstören.** Zweifach unabhängig nachgemessen (Mechanik von plug-elec, Messung im Prüflauf; Wahrheit im Test: **500** committete Zeilen):
+>
+> | Was du tust | Was du bekommst |
+> |---|---|
+> | `db` + `-wal` kopieren, Kopie read-only zählen | **500** ✅ |
+> | nur `db` kopieren | **0** ⚠️ still |
+> | `db` + `-shm` kopieren, `-wal` verloren | **0** ⚠️ still |
+> | `immutable=1` statt Kopie | **0** ⚠️ still |
+> | normale (read-write) Verbindung aufs Original | 500 — **aber `app.db` neu geschrieben und `app.db-wal` GELÖSCHT** |
+>
+> 1. **Erst kopieren, dann zählen.** Nie am Original. Diese Reihenfolge allein löst das gesamte Problem.
+> 2. **Kopiermenge ist `app.db` + `app.db-wal`.** Beide, immer. Fehlt das `-wal`, meldet SQLite **0 Zeilen ohne jeden Fehler** — so werden 500 vorhandene Datensätze zu „nichts zu migrieren".
+> 3. **`app.db-shm` NICHT mitkopieren**, aus der Wegwerfkopie löschen. Es trägt nichts bei und stiftet falsche Sicherheit.
+> 4. **`immutable=1` ist in Migrations- und Prüfwerkzeugen verboten.** Es ignoriert das `-wal` vollständig und liefert den Stand des letzten Checkpoints — still, ohne Fehler. Tückisch: eine frisch gecheckpointete **Test**-DB verrät den Fehler nicht, beim Kunden schlägt er zu.
+> 5. **Nie mit einer normalen Verbindung an den Altbestand.** SQLite checkpointet beim Schließen der letzten Verbindung — es schreibt `app.db` neu und **löscht `app.db-wal`**. Wer zum Zählen `new Database(altpfad)` schreibt, zerstört den Beweis, bevor er ihn gelesen hat.
+> 6. **`cp` einer laufenden DB ist nicht atomar.** Läuft der Alt-Prozess noch, nimm `backup()` oder `VACUUM INTO` statt einer Dateikopie.
+>
+> **Muss es in place und ohne jeden Schreibzugriff sein:** Dateisystem-seitig read-only setzen (Dateien **und** Verzeichnis), dann fällt SQLite auf einen Heap-Wal-Index zurück — korrekt und ohne jede Änderung. Setzt ein vorhandenes `-shm` voraus, sonst `SQLITE_CANTOPEN(14)`. **Das ist richtig so — fail closed.** Fang den Fehler ab, aber weich **nicht** auf `immutable=1` aus. (`readonly_shm=1` funktioniert, ist aber undokumentiert und unix-only — nicht darauf bauen.)
+
+> ℹ️ **Was hier NICHT das Problem ist, obwohl es alarmierend aussieht:** ein **Read-only**-Open schreibt das `-shm` neu (voller `walIndexRecover()` — 7 Bytes: `WalIndexHdr.iChange` + Prüfsummen in beiden Header-Kopien, plus `nBackfillAttempted`). Das `-shm` ist ein **rein abgeleiteter Cache**, beweisbar aus `db+wal` regenerierbar: mit `0xAB` zerstört, liefert das nächste Zählen trotzdem 500 und stellt denselben Hash wieder her.
+> ➡️ **Nimm `-shm` aus jedem Hash-Manifest und Backup-Vergleich heraus** — es unterscheidet sich nach jedem Öffnen, by design, und lässt sonst deine Integritätsprüfung auf **gesunden** Installationen anschlagen. Randfall: auf einem Verzeichnis mit **nur** `app.db` **erzeugt** ein Read-only-Zählen zwei neue Dateien (`-wal` 0 Byte, `-shm` 32 KB).
 
 > 🔑 **Prüf, ob zu deinen Daten ein Schlüssel oder ein anderes Nebenartefakt gehört — und nenn es dem Nutzer beim Namen** (med-plug). Bei Med-Mind liegt der **Verschlüsselungs-Key im Datenverzeichnis**: wer dem Rat „kopier den Ordner" folgt und nur die DB mitnimmt, hat **Chiffrat, das er nie wieder aufmacht** — die Daten *sehen* übernommen aus und sind es nicht. Bei einem RPG ist das nichts, bei personenbezogenen Daten der Unterschied zwischen Übernahme und Totalverlust.
 
@@ -611,14 +656,20 @@ import { serve } from '@hono/node-server'
 // Dual-read manifest.<id>.yaml (Fallback: deprecated manifest.yaml) — §4.7
 const { manifest } = await discoverManifest('.')
 
+// ⚠️ NICHT an NODE_ENV koppeln. Ein host-gespawntes Bundle läuft beim Kunden in
+// Produktion, landet damit auf `pending` — und danach 401't ALLES, auch /health,
+// ohne Ausweg (Aktivierungs-Deadlock beim Endkunden).
+//
+// ⚠️ Und NICHT aus PLUGIN_BRIDGE_PORT ableiten. Seit #110 liest JEDES Plugin
+// diese Variable, und ein selbstverwalteter Dienst setzt sie sich selbst
+// (launchd/systemd). Als Trust-Signal beweist sie nichts — wer sie dafür nimmt,
+// vertraut seinem eigenen Launcher und nimmt register-host von jedem auf
+// Loopback entgegen. Entscheide es EXPLIZIT, einmal, hier:
+const NUR_VOM_HOST_GESTARTET = true // ⇐ false, sobald dich auch etwas anderes startet
+
 const registry = new HostKeyRegistry(new InMemoryHostKeyRepo(), {
-  // ⚠️ NICHT an NODE_ENV koppeln. Ein host-gespawntes Bundle läuft in
-  // Produktion, landet damit auf `pending` — und danach 401't ALLES, auch
-  // /health, ohne Ausweg (Aktivierungs-Deadlock beim Endkunden).
-  // Host-Spawn erkennt man an PLUGIN_BRIDGE_PORT: dort IST der Host die
-  // Trust-Root (er hat den Prozess auf Loopback gestartet). Siehe §4.9.
-  autoAccept:
-    process.env.PLUGIN_BRIDGE_PORT !== undefined || process.env.NODE_ENV === 'development',
+  autoAccept: NUR_VOM_HOST_GESTARTET,
+  // false? → dann brauchst du eine Allowlist `{host_id → Fingerprint}` (§10.3)
 })
 
 // Bootstrap V8s public-key wenn vorhanden
@@ -651,8 +702,12 @@ const app = createBridgeApp({
   },
 })
 
-serve({ fetch: app.fetch, port: 3600 })
-console.log('Plugin-Bridge live on :3600')
+// env-first, IMMER — niemals den Manifest-Port hart verdrahten (#110).
+// Host-verwaltet setzt der Host die Variable (mit Instanz-Offset!),
+// selbstverwaltet dein launchd/systemd. Der Manifest-Port ist nur Dev-Fallback.
+const port = resolvePort()
+serve({ fetch: app.fetch, port })
+console.log(`Plugin-Bridge live on :${port}`)
 ```
 
 ---
@@ -925,7 +980,7 @@ Vor 1st-Release:
 | Type | Wann |
 |---|---|
 | `external-service` | Plugin ist standalone-Server (Bridge auf eigenem port) |
-| `embedded` | Phase-4 — Plugin wird in Host-Process geladen (kein eigener server) |
+| `embedded` | 🚫 **nicht verwenden** — als „Phase 4" gedacht (Plugin im Host-Prozess, kein eigener Server), aber **von keinem Host implementiert** (§4.9.0). Validiert und bewirkt nichts. |
 
 ### 10.2 Service-Discovery
 
@@ -937,11 +992,14 @@ Host-Side `service_endpoint` wird im Plugin-Manifest deklariert. Hosts lesen das
 
 > 🚨 **`autoAccept: false` ist NICHT der pauschale Production-Default** — diese Seite hat genau das früher behauptet und damit Aktivierungs-Deadlocks beim Endkunden verursacht (med-plug #8442, CHECK-Mind). **Es hängt davon ab, wer dich startet:**
 >
-> | Betriebsart | Richtig | Warum |
+> | Lebenszyklus (Achse 1) | Richtig | Warum |
 > |---|---|---|
-> | **Host-gespawntes Bundle** (Regelfall im Katalog-Rollout) | **`autoAccept: true`**, erkannt an `PLUGIN_BRIDGE_PORT` | Der Host hat deinen Prozess auf Loopback gestartet und ist die Trust-Root. Ohne das landet er auf `pending` → **alles** 401't, auch `/health`, **ohne Ausweg** |
-> | **Eigenständiger Dienst** (eigene App, eigener Updater) | Konfigurierte **Allowlist** `{host_id → erwarteter Fingerprint}`, sonst ablehnen | `register-host` ist unauthentifiziert; jeder auf Loopback kann es rufen |
-> | **Mit eigener Freigabe-UI** | `autoAccept: false` + Genehmigungsfläche | Nur sinnvoll, wenn ein `pending`-Zustand für den Nutzer auch **reparierbar** ist |
+> | **host-verwaltet** — nur ein Host startet dich, Bundle im Slot | **`autoAccept: true`** | Der Host hat deinen Prozess auf Loopback gestartet und ist die Trust-Root. Ohne das landet er auf `pending` → **alles** 401't, auch `/health`, **ohne Ausweg** |
+> | **selbstverwaltet** — eigene App, launchd/systemd, eigener Updater | **Allowlist** `{host_id → erwarteter Fingerprint}`, sonst ablehnen | `register-host` ist unauthentifiziert; jeder auf Loopback kann es rufen |
+>
+> 🔐 **Entscheide das explizit, leite es NICHT aus `PLUGIN_BRIDGE_PORT` ab.** Diese Seite hat die Variable früher als Host-Spawn-Detektor empfohlen. Seit #110 liest sie jedes Plugin, und ein selbstverwalteter Dienst **setzt sie sich selbst** — als Trust-Signal beweist sie nichts mehr. Du weißt, ob dich ausschließlich ein Host startet; schreib es als Konstante hin.
+>
+> **Und die Oberfläche (Achse 2) ist eine eigene, kombinierbare Frage:** hast du eine **Freigabe-Fläche** für den Nutzer, kannst du zusätzlich `autoAccept: false` fahren und unbekannte Hosts auf `pending` legen, statt sie hart abzulehnen. Das komponiert mit der Allowlist (bekannte Fingerprints automatisch, alles andere zur Freigabe) — es ersetzt sie nicht. **Ohne Fläche ist `pending` eine Sackgasse**, dann bleibt nur Allowlist-oder-ablehnen.
 >
 > **Niemals an `NODE_ENV` koppeln.** Ein Bundle läuft beim Kunden in Produktion — die Kopplung erzeugt genau dort den Deadlock. Volle Begründung: §4.9 und §3 der `PLUGIN-BRIDGE-WIRE-SPEC`.
 
@@ -958,7 +1016,7 @@ import { join } from 'node:path'
 // host-autoritativ, überlebt Updates — NICHT './data/…' unter dem Bundle
 const repo = new JsonFileHostKeyRepo({ path: join(resolveDataDir(), 'host-keys.json') })
 const registry = new HostKeyRegistry(repo, {
-  autoAccept: process.env.PLUGIN_BRIDGE_PORT !== undefined, // host-gespawnt ⇒ Host ist Trust-Root
+  autoAccept: NUR_VOM_HOST_GESTARTET, // explizite Autorenentscheidung, KEINE env-Detektion
 })
 ```
 
@@ -968,7 +1026,8 @@ const registry = new HostKeyRegistry(repo, {
 import Database from 'better-sqlite3'
 import { HostKeyRegistry, SqliteHostKeyRepo } from '@nexus-mindgarden/plugin-bridge-foundation'
 
-const db = new Database('./data/plugin-bridge.db')
+// NICHT './data/…' — das liegt unter dem Bundle und ist beim nächsten Update weg
+const db = new Database(join(resolveDataDir(), 'plugin-bridge.db'))
 const repo = new SqliteHostKeyRepo(db, { tableName: 'host_keys' })
 repo.ensureSchema()  // idempotent, no-op auf bestehenden Tabellen mit matching Spalten
 const registry = new HostKeyRegistry(repo)

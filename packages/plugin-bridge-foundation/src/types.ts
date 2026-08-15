@@ -270,9 +270,16 @@ export const RegisterHostRequestSchema = z
     expected_issuer: z.string().min(1).optional(),
     expected_audience: z.string().min(1).optional(),
   })
+  // path: [] (Root) ist Absicht. Frueher hing der Fehler an ['public_key_pem'],
+  // wodurch die Meldung als "public_key_pem: ... required" ausgeliefert wurde —
+  // das liest sich wie "nur public_key_pem wird akzeptiert" und hat genau diesen
+  // Irrtum in der Praxis erzeugt (plug-elec #8462: handgeschriebener Body-Reader
+  // nahm nur eine Schreibweise an). BEIDE Namen sind gleichwertig; der Fehler
+  // gehoert deshalb an keines der beiden Felder.
   .refine((data) => data.public_key_pem !== undefined || data.public_key !== undefined, {
-    message: 'either public_key_pem or public_key required',
-    path: ['public_key_pem'],
+    message:
+      'host public key missing: send it as `public_key_pem` (preferred) OR `public_key` (legacy) — both are accepted, at least one is required',
+    path: [],
   })
 export type RegisterHostRequest = z.infer<typeof RegisterHostRequestSchema>
 

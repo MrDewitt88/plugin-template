@@ -161,7 +161,9 @@ async function activateBundledPlugin(ctx, { pluginId }) {
 
 **Zwei Fallstricke:**
 
-1. **`host_pending` statt `active`.** register-host setzt einen neuen Host auf `pending` — außer das Plugin konfiguriert `new HostKeyRegistry(repo, { autoAccept: true })`. Für host-gespawnte Bundle-Plugins IST der Host die Trust-Root (er spawnt den Prozess, ist der einzige Loopback-Caller) → das Scaffold (`create-plugin` ≥0.9.1) setzt `autoAccept`, wenn `PLUGIN_BRIDGE_PORT` gesetzt ist. Prüfe bei bestehenden Plugins, dass sie das auch tun — sonst 401 `host_pending`.
+1. **`host_pending` statt `active`.** register-host setzt einen neuen Host auf `pending` — außer das Plugin konfiguriert `new HostKeyRegistry(repo, { autoAccept: true })`. Für host-gespawnte Bundle-Plugins IST der Host die Trust-Root (er spawnt den Prozess, ist der einzige Loopback-Caller) → das Scaffold setzt `autoAccept` als **explizite Konstante** (`NUR_VOM_HOST_GESTARTET`). Prüfe bei bestehenden Plugins, dass sie das auch tun — sonst 401 `host_pending`.
+
+   ⚠️ **Erwarte das nicht mehr an `PLUGIN_BRIDGE_PORT`.** Bis `create-plugin` 0.11.0 leitete das Scaffold `autoAccept` daraus ab. Das ist zurückgenommen: seit #110 liest **jedes** Plugin die Variable env-first, und selbstverwaltete Dienste setzen sie sich selbst — als Trust-Signal beweist sie nichts, und wer sie so verwendet, akzeptiert `register-host` von jedem auf Loopback. Wenn du host-seitig prüfst, ob ein Plugin korrekt konfiguriert ist, prüf das **Verhalten** (registriert es dich ohne `pending`?), nicht die Heuristik.
 2. **Kein Teardown bei `host_not_registered`/`host_unknown`/`host_pending`.** Behandle das im Handshake als „register-host + retry" (Analog zu `onHandshakeStale`), NICHT als fatalen Fehler mit Service-Teardown — sonst ist keine Reihenfolge mehr erfüllbar (Re-Register braucht den laufenden Dienst).
 
 ---

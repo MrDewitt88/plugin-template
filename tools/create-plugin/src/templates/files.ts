@@ -374,16 +374,30 @@ export async function createApp() {
   // Dual-read manifest.<id>.yaml (fallback: deprecated manifest.yaml) from the
   // plugin root — CODEX-REV §13.8.
   const { manifest } = await discoverManifest('.')
+  // ⚠️ VERTRAUENSANKER — eine bewusste Entscheidung, KEINE Laufzeit-Erkennung.
+  //
+  // true ist richtig fuer ein host-verwaltetes Bundle: myMind spawnt diesen
+  // Prozess, ist der einzige Loopback-Caller und damit die Trust-Root. Ohne das
+  // landet register-host auf 'pending', der Handshake wirft host_pending und die
+  // Aktivierung steckt beim Endkunden fest — ohne Ausweg, weil dann auch /health
+  // 401't. (Host-Sequenz: spawn → register-host, idempotent bei JEDEM Spawn →
+  // handshake → activate. HOST-INTEGRATION-GUIDE §2.4.)
+  //
+  // Setz es auf false, sobald dich auch etwas anderes startet als ein Host —
+  // launchd, systemd, Electron, ein eigener Updater. Dann brauchst du eine
+  // Allowlist {host_id → Fingerprint}, denn register-host ist unauthentifiziert
+  // und jeder Prozess auf Loopback kann es rufen. PLUGIN-PROVIDER-GUIDE §10.3.
+  //
+  // ⚠️ Frueher stand hier eine Ableitung aus PLUGIN_BRIDGE_PORT. Das
+  // traegt NICHT mehr: seit #110 liest jedes Plugin diese Variable env-first, und
+  // ein selbstverwalteter Dienst setzt sie sich selbst (ET-Minds launchd-Agent
+  // tut genau das). Als Trust-Signal beweist sie nichts — wer sie dafuer nimmt,
+  // vertraut seinem eigenen Launcher. Auch NICHT an NODE_ENV koppeln: ein Bundle
+  // laeuft beim Kunden in Produktion, das erzeugt exakt den Deadlock von oben.
+  const NUR_VOM_HOST_GESTARTET = true
+
   const registry = new HostKeyRegistry(new InMemoryHostKeyRepo(), {
-    // Host-managed bundled plugin: der Host (myMind) spawnt diesen Prozess und
-    // ist der einzige Loopback-Caller — er IST die Trust-Root. Deshalb seinen
-    // register-host automatisch akzeptieren (erkannt an PLUGIN_BRIDGE_PORT, das
-    // der Host beim Spawn setzt). Ohne das landet register-host auf 'pending'
-    // und der Handshake wirft host_pending → Aktivierungs-Deadlock.
-    // Aktivierungs-Sequenz host-seitig: spawn → register-host (idempotent, bei
-    // JEDEM Spawn) → handshake → activate. Siehe HOST-INTEGRATION-GUIDE §2.4.
-    autoAccept:
-      process.env.NODE_ENV === 'development' || process.env.PLUGIN_BRIDGE_PORT !== undefined,
+    autoAccept: NUR_VOM_HOST_GESTARTET,
   })
   const bridge = createBridgeApp({
     manifest,
