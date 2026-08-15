@@ -451,6 +451,14 @@ Im Scaffold: `resolveDataDir()` neben `resolvePort()`.
 - **„Host gewinnt" heißt auch: deine eigenen Env-Overrides verlieren.** Wenn `PLUGIN_DATA_DIR` gesetzt ist, muss ein plugin-eigenes `MY_DB_PATH`/`CAD_DATA_DIR` **ignoriert** werden — sonst zeigen zwei Installationen wieder auf denselben Ort.
 - **Host-Keys gehören ebenfalls hierhin** (§10.3) — `./data/host-keys.json` unter dem Bundle ist beim nächsten Update weg.
 
+> 💳 **Und seit der Lizenz-Entscheidung ist das keine Hygienefrage mehr, sondern eine Lizenzfrage.** Operator-Ruling 2026-08-15: **es wird genau zweimal ins Netz gegriffen** — bei der Erstaktivierung des Hosts und beim Bezug eines Plugins. Danach nie wieder; myMind, TeamMind und FamilyMind laufen ohne Nexus, sobald die erste Abfrage durch ist. Es gibt **keine** Laufzeit-Lizenzprüfung.
+>
+> Wenn aber nur **einmal** geprüft wird, ist der Ort des Ergebnisses kritisch. **Liegt ein Lizenz- oder Berechtigungstoken unter dem Bundle-Pfad, ist er beim nächsten Update weg** — und aus „einmal aktivieren" wird still **„bei jedem Update neu aktivieren"**. Beim Kunden. Möglicherweise offline. Er erlebt es als *„nach dem Update war mein gekauftes Plugin weg."*
+>
+> **Jeder Berechtigungszustand gehört deshalb ins `PLUGIN_DATA_DIR`** — wie Datenbank und Host-Keys, aus demselben Grund und mit höherem Einsatz.
+>
+> Zwei Dinge, die daraus **nicht** folgen und die du deshalb **nicht bauen sollst**: kein vorsorgliches Ablaufdatum, keine Neuvalidierung „alle 30 Tage", kein stiller Degradierungspfad. Ablauf und Widerruf existieren im aktuellen Modell **nicht** — das ist eine bewusste Entscheidung, keine Lücke. Kommen Abo-Modelle, kommen sie mit eigenen Regeln. Halb gebaute Ablauflogik ist unsichtbar, bis sie beim Kunden zuschlägt.
+
 > 🚨 **DER UMZUG SELBST IST DAS RISIKO — und kein Gate fängt ihn.** wiz-mind hat den Wechsel sauber gemacht, war **12/12 grün** — und hatte trotzdem **2 Charaktere, 10 Sessions, 35 Diary-Einträge verloren** (#8457). Nicht gelöscht: **verwaist**. Die Bridge zeigte auf eine frische DB, die alte lag unangetastet am alten Pfad. med-plug hat daraufhin nachgemessen: 1 Fall + 18 Audit-Einträge am Altpfad.
 >
 > **Kein Test, kein Health-Check und kein Conformance-Punkt schlägt hier an** — technisch ist alles grün, der Nutzer sieht eine leere Liste. Der Runner *kann* es nicht messen: er kennt deinen Altbestand nicht.
