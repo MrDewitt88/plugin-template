@@ -343,14 +343,16 @@ Programmatisch geht es auch direkt: `renderFeaturesNote(manifest, { manifestHash
 
 ### 4.9.1 Die Reihenfolge
 
-1. Scaffold ziehen, **Kennung produktspezifisch** wählen (`mail-mind`, nicht `mail`)
+1. Scaffold ziehen, **Kennung UND Werkzeugnamen** produktspezifisch wählen (`mail-mind`, nicht `mail`) — **beides ist später faktisch eingefroren** (§4.9.9)
 2. Port aus **`PLUGIN_BRIDGE_PORT`** lesen, niemals aus dem Manifest
 3. Daten in **`PLUGIN_DATA_DIR`** ablegen, nirgendwo sonst
-4. **`sub` niemals validieren** — Plugin-Bindung an `aud`/`plugin_id`
-5. **`min_app_version`** prüfen: `1.0.0` sperrt jeden rc-Build aus
+4. **`sub` niemals validieren** — Plugin-Bindung an `aud`/`plugin_id`, **und ab foundation@0.13.x prüfen** (§4.9.10)
+5. **`min_app_version` immer mit `-rc.1`-Suffix**, egal welche Zahl (§4.9.11)
 6. **Conformance-Runner lokal grün** — *dann erst* Kandidat melden
 
 **Punkt 6 ist der wichtigste.** Ein Kandidat, der die Prüfung nicht bestanden hat, kostet einen Kundentermin.
+
+> 📌 **Bestehendes Plugin statt Neubau?** Diese Checkliste ist für beide gedacht, aber zwei Dinge betreffen **nur** dich: der Umgang mit **bereits vorhandenen Nutzerdaten** beim Wechsel auf `PLUGIN_DATA_DIR` (§4.9.3) und die Tatsache, dass **Kennung und Werkzeugnamen nachträglich teuer sind** (§4.9.9). Du scaffoldest nicht neu — du liest dieses Dokument. Deshalb steht beides hier und nicht nur im Scaffold.
 
 ### 4.9.2 Der Conformance-Runner
 
@@ -382,6 +384,15 @@ Programmatisch geht es auch direkt: `renderFeaturesNote(manifest, { manifestHash
 
 Im Scaffold: `resolveDataDir()` neben `resolvePort()`.
 
+**Drei Präzisierungen aus Gruppe 1** (mind-canva #8440, cad3d #8441):
+
+- **Auch Binär-Assets und Uploads** gehören dorthin, nicht nur DB und Host-Keys. Wer nur die Datenbank umzieht, teilt sich die Assets zwischen zwei Installationen.
+- **„Host gewinnt" heißt auch: deine eigenen Env-Overrides verlieren.** Wenn `PLUGIN_DATA_DIR` gesetzt ist, muss ein plugin-eigenes `MY_DB_PATH`/`CAD_DATA_DIR` **ignoriert** werden — sonst zeigen zwei Installationen wieder auf denselben Ort.
+- **Host-Keys gehören ebenfalls hierhin** (§10.3) — `./data/host-keys.json` unter dem Bundle ist beim nächsten Update weg.
+
+> ⚠️ **Bestehende Nutzerdaten — offener Punkt, nicht raten.** Wer heute unter `~/Library/Application Support/<Produkt>/` liegende Nutzerdaten hat, steht beim Wechsel auf `PLUGIN_DATA_DIR` vor der Frage: migrieren, beide Orte lesen, oder erst ab Slot-Installation umschalten? **Das ist beim Host angefragt und noch nicht bestätigt** — ich schreibe hier bewusst keine Empfehlung hin, die dann 25-mal kopiert wird.
+> **Bis zur Antwort die konservative Arbeitsannahme** (so von cad3d gewählt): `PLUGIN_DATA_DIR` gewinnt, die eigene Variable bleibt **Fallback**, **keine automatische Migration** — kein Datenverlustrisiko. Sobald die Antwort da ist, steht sie hier.
+
 ### 4.9.4 Consent-Drift — breiter als „Scopes"
 
 Der Host bildet einen **Fingerabdruck** über das Manifest. Ändert er sich, wird die Aktivierung **suspendiert, bis der Nutzer zustimmt**. Enthalten sind:
@@ -394,7 +405,9 @@ Ein nachgeschobenes Werkzeug in Bare-String-Form trägt keine `scopes_required` 
 
 ### 4.9.5 Health — schnell, sonst Suspend
 
-`/health` läuft durch **dieselbe Warteschlange wie Nutzerklicks**, Budget **~5 s**. **Nicht** im Health-Handler Modelle laden, Netz aufrufen oder auf Locks warten — ein hängendes Plugin blockierte früher jeden Klick.
+**Gemeint ist `GET /plugin-bridge/v1/health`** — der Bridge-Endpunkt, den der Host pollt. **Nicht** ein eigenes `/api/health` für deine Standalone-UI: das darf langsam sein, der Host schaut da nie hin. (cad3d hätte beinahe den falschen umgebaut.) Nutzt du `createBridgeApp`, liefert die Foundation den Bridge-Health selbst — dann ist das Budget über deinen Code gar nicht gefährdet.
+
+Der Bridge-Health läuft durch **dieselbe Warteschlange wie Nutzerklicks**, Budget **~5 s**. **Nicht** im Health-Handler Modelle laden, Netz aufrufen oder auf Locks warten — ein hängendes Plugin blockierte früher jeden Klick. Ein ungetimeouteter Probe (LM Studio, Sidecar, Remote-API) ist der häufigste Weg, das Budget zu reißen.
 
 Ein fehlgeschlagener Health-Pass **suspendiert** das Plugin; seit rc.31 mit Begründung, die einen App-Neustart überlebt. `degraded`/`unhealthy` nur melden, wenn es stimmt.
 
@@ -418,6 +431,36 @@ Das Gate (`createNexusLicenseGate`) existiert, steht aber **per Default aus**, w
 
 **Du musst heute nichts tun.** Baue nur so, dass eine Ablehnung beim Aktivieren später **eine Meldung ist, kein Absturz**. Das Scharfschalten ist eine Host-Entscheidung und wird vorher angekündigt.
 
+### 4.9.9 Kennung und Werkzeugnamen sind faktisch eingefroren
+
+„Produktspezifisch wählen" ist richtig, aber unvollständig — **es gilt für die Werkzeugnamen genauso, und ein späterer Rename ist teuer** (cad3d #8441):
+
+1. **Werkzeugnamen stehen im Consent-Fingerabdruck** (§4.9.4) → ein Rename ist ein **Zustimmungs-Ereignis für jeden bestehenden Nutzer**.
+2. **Andere Plugins können darauf rufen.** cad3ds `cad3d.import` ist der vereinbarte Push-Endpunkt von cad2d („Send to 3D") — ein Rename bricht eine **Cross-Plugin-Integration**.
+
+Und die Wiederholungsfalle: id `cad3d-mind` + Tools `cad3d.*` ergibt beim Host `cad3d-mind.cad3d.list` — die Kennung steckt zweimal drin (E3). **Wähle das erste Segment als Domäne, nicht als Produktnamen:** `documents.list`, `render.export`, `deidentify.run` — nicht `<produkt>.list`.
+
+> **Offen:** ob E3 bei einer solchen Wiederholung **Fail oder Hinweis** ist, ist beim Host angefragt (cad3d + med-plug betroffen). Bis zur Antwort: bei Neubau sauber wählen, bei Bestand **nicht blind umbenennen** — erst klären, dann entscheiden.
+
+### 4.9.10 ⚠️ Die `aud`-Bindung wird erst ab foundation@0.13.x durchgesetzt
+
+Die Regel „Bindung an `aud`/`plugin_id`, `sub` nie validieren" setzt still voraus, dass die Foundation das **prüft**. Das tut sie erst ab **0.13.x**: **`verifyBridgeToken` in älteren Versionen (u.a. 0.7.1) prüft `plugin_id`/`aud` nur auf PRÄSENZ, nie gegen die eigene Kennung** — ein Token für ein *anderes* Plugin wird akzeptiert (mind-canva #8440, Runner-Prüfung **D1**).
+
+Im Cluster liegt echte Foundation-Drift vor (`^0.5` … `^0.13`). **Prüf deine Version:**
+
+- **≥0.13.x** → nichts zu tun, die Foundation setzt es durch.
+- **<0.13.x** → **upgraden** (der saubere Weg) **oder** einen plugin-seitigen `aud`-Guard nachrüsten: Bearer-Payload dekodieren, fremde `plugin_id`/`aud` → 401 mit kanonischem Fehler. Die **Signatur** bleibt Sache der Foundation — beide Prüfungen müssen bestehen. `sub` bleibt auch dabei **ungeprüft**.
+
+### 4.9.11 `min_app_version`: immer mit `-rc.1`-Suffix
+
+Die Regel ist strenger als „nimm nicht `1.0.0`": **jede reine Release-Angabe sperrt ihre eigene rc-Serie aus**, weil Prerelease vor Release rangiert. `0.5.0` schließt `0.5.0-rc.x` aus und failt A4 genauso wie `1.0.0` (mind-canva #8440).
+
+**Faustregel: schreib immer ein `-rc.1`-Suffix, egal welche Zahl** — `1.0.0-rc.1`, `0.5.0-rc.1`. Das schließt keine echten Releases aus (jedes Release ist größer als sein eigenes rc) und öffnet die rc-Serie.
+
+### 4.9.12 Manifest-Felder, die der Host derzeit nicht liest
+
+Ehrlichkeitshalber (Runner-Hinweis F2, mind-canva #8440): **`routes[].service_endpoint`, `mcp_tools[].output_schema` und `ui.sidebar_entry.label_key` wertet der Host aktuell nicht aus.** Sie schaden nicht und bleiben schema-gültig — aber verlass dich nicht auf eine Wirkung, die es heute nicht gibt.
+
 ---
 
 ## 5. Layer-3-Walkthrough — erste Bridge
@@ -426,18 +469,24 @@ Das Gate (`createNexusLicenseGate`) existiert, steht aber **per Default aus**, w
 // packages/my-plugin-bridge/src/server.ts
 import {
   createBridgeApp,
+  discoverManifest,
   HostKeyRegistry,
   InMemoryHostKeyRepo,
-  loadManifest,
   type ToolHandler,
 } from '@nexus-mindgarden/plugin-bridge-foundation'
 import { serve } from '@hono/node-server'
-import { resolve } from 'node:path'
 
-const manifest = await loadManifest(resolve('./manifest.yaml'))
+// Dual-read manifest.<id>.yaml (Fallback: deprecated manifest.yaml) — §4.7
+const { manifest } = await discoverManifest('.')
 
 const registry = new HostKeyRegistry(new InMemoryHostKeyRepo(), {
-  autoAccept: process.env.NODE_ENV === 'development',
+  // ⚠️ NICHT an NODE_ENV koppeln. Ein host-gespawntes Bundle läuft in
+  // Produktion, landet damit auf `pending` — und danach 401't ALLES, auch
+  // /health, ohne Ausweg (Aktivierungs-Deadlock beim Endkunden).
+  // Host-Spawn erkennt man an PLUGIN_BRIDGE_PORT: dort IST der Host die
+  // Trust-Root (er hat den Prozess auf Loopback gestartet). Siehe §4.9.
+  autoAccept:
+    process.env.PLUGIN_BRIDGE_PORT !== undefined || process.env.NODE_ENV === 'development',
 })
 
 // Bootstrap V8s public-key wenn vorhanden
@@ -754,17 +803,31 @@ Host-Side `service_endpoint` wird im Plugin-Manifest deklariert. Hosts lesen das
 
 ### 10.3 Multi-Host-Auth
 
-Plugin sollte `autoAccept: false` setzen (privacy-by-default). Hosts ruft `register-host` mit Public-Key + landed pending. User approved via Plugin-Settings-UI.
+> 🚨 **`autoAccept: false` ist NICHT der pauschale Production-Default** — diese Seite hat genau das früher behauptet und damit Aktivierungs-Deadlocks beim Endkunden verursacht (med-plug #8442, CHECK-Mind). **Es hängt davon ab, wer dich startet:**
+>
+> | Betriebsart | Richtig | Warum |
+> |---|---|---|
+> | **Host-gespawntes Bundle** (Regelfall im Katalog-Rollout) | **`autoAccept: true`**, erkannt an `PLUGIN_BRIDGE_PORT` | Der Host hat deinen Prozess auf Loopback gestartet und ist die Trust-Root. Ohne das landet er auf `pending` → **alles** 401't, auch `/health`, **ohne Ausweg** |
+> | **Eigenständiger Dienst** (eigene App, eigener Updater) | Konfigurierte **Allowlist** `{host_id → erwarteter Fingerprint}`, sonst ablehnen | `register-host` ist unauthentifiziert; jeder auf Loopback kann es rufen |
+> | **Mit eigener Freigabe-UI** | `autoAccept: false` + Genehmigungsfläche | Nur sinnvoll, wenn ein `pending`-Zustand für den Nutzer auch **reparierbar** ist |
+>
+> **Niemals an `NODE_ENV` koppeln.** Ein Bundle läuft beim Kunden in Produktion — die Kopplung erzeugt genau dort den Deadlock. Volle Begründung: §4.9 und §3 der `PLUGIN-BRIDGE-WIRE-SPEC`.
 
-**Persistent HostKeyRepo (Production)** — `InMemoryHostKeyRepo` aus `@nexus-mindgarden/plugin-bridge-foundation` ist nur für Dev/Tests. Production-Plugin-Provider wählen einen der zwei baked-in persistent Adapters:
+Der Host ruft `register-host` mit seinem Public-Key. Landet der Record auf `pending`, muss der Nutzer ihn freigeben können — hast du dafür keine Oberfläche, ist `pending` eine Sackgasse.
+
+**Persistent HostKeyRepo (Production)** — `InMemoryHostKeyRepo` aus `@nexus-mindgarden/plugin-bridge-foundation` ist nur für Dev/Tests. Production-Plugin-Provider wählen einen der zwei baked-in persistent Adapters. **Lege die Datei ins `PLUGIN_DATA_DIR`** (§4.9.3) — unter dem Bundle-Pfad ist sie beim nächsten Update weg.
 
 **JSON-File** (v0.1.1+) — single-process Plugin-Bridges mit niedrigem Write-Volume. Atomic `.tmp` + rename. Keine Native-Dependency.
 
 ```ts
 import { HostKeyRegistry, JsonFileHostKeyRepo } from '@nexus-mindgarden/plugin-bridge-foundation'
+import { join } from 'node:path'
 
-const repo = new JsonFileHostKeyRepo({ path: './data/host-keys.json' })
-const registry = new HostKeyRegistry(repo, { autoAccept: false })
+// host-autoritativ, überlebt Updates — NICHT './data/…' unter dem Bundle
+const repo = new JsonFileHostKeyRepo({ path: join(resolveDataDir(), 'host-keys.json') })
+const registry = new HostKeyRegistry(repo, {
+  autoAccept: process.env.PLUGIN_BRIDGE_PORT !== undefined, // host-gespawnt ⇒ Host ist Trust-Root
+})
 ```
 
 **SQLite** (v0.2.1+) — Plugin-Bridges mit existing SQLite-State (Electron-Apps, Desktop-Hosts mit `<userData>/...db`). Drop-in für bestehende Schemas via `CREATE TABLE IF NOT EXISTS`:

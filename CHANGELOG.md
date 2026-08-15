@@ -2,6 +2,39 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [docs] — 2026-08-15 — Gruppe-1-Rückmeldungen eingearbeitet (vor Gruppe 2)
+
+Erste Rollout-Gruppe (med-plug #8442, mind-canva #8440, cad3d #8441) hat drei echte Fehler in der Basis aufgedeckt. Genau dafür war die Staffelung da — das hier landet, **bevor** Gruppe 2 losläuft.
+
+### Fixed — 🚨 der Guide widersprach sich und verursachte Produktions-Deadlocks
+
+`PLUGIN-PROVIDER-GUIDE §4.9` sagte „autoAccept bei Host-Spawn", **§10.3 und das Bootstrap-Beispiel im selben Dokument** sagten `autoAccept: false` bzw. Kopplung an `NODE_ENV=development`. med-plugs Aktivierungs-Deadlock war die **wörtliche Vereinigung beider Stellen** — beide aus dem Guide. Laut Audit hängt mindestens CHECK-Mind im selben Muster.
+
+- **§10.3 ersetzt:** Tabelle statt Pauschalregel — host-gespawntes Bundle ⇒ `autoAccept: true` (erkannt an `PLUGIN_BRIDGE_PORT`); eigenständiger Dienst ⇒ konfigurierte Allowlist `{host_id → Fingerprint}`; eigene Freigabe-UI ⇒ `false`. **Niemals an `NODE_ENV` koppeln** — ein Bundle läuft beim Kunden in Produktion.
+- Bootstrap-Beispiel (§5) und `UPGRADE-v0.2.0.md` entsprechend korrigiert; beide legen die Host-Key-Datei jetzt ins `PLUGIN_DATA_DIR` statt unter das Bundle (dort wäre sie beim Update weg).
+
+**Das reparierte Scaffold half hier niemandem:** bestehende Plugins scaffolden nicht neu — sie lesen den Guide, und §10.3 ist genau der Abschnitt für den Wechsel auf persistente Repos.
+
+### Added — §4.9.10: die `aud`-Bindung greift erst ab foundation@0.13.x
+
+Die Regel „Bindung an `aud`/`plugin_id`" setzte still voraus, dass die Foundation sie durchsetzt. **Tut sie erst ab 0.13.x** — ältere (u.a. 0.7.1) prüfen `plugin_id`/`aud` nur auf *Präsenz*, akzeptieren also ein Token für ein **fremdes Plugin** (mind-canvas D1-Fail). Bei Cluster-Drift `^0.5`…`^0.13` betrifft das potenziell viele. Jetzt dokumentiert samt Interim-Guard für Consumer <0.13.x.
+
+### Fixed — §4.9.11: `min_app_version` ist strenger als beschrieben
+
+Nicht nur `1.0.0` ist die Falle: **jede reine Release-Angabe sperrt ihre eigene rc-Serie aus** (`0.5.0` failte A4 wegen `0.5.0-rc.x < 0.5.0`). Neue Faustregel: **immer `-rc.1`-Suffix, egal welche Zahl.** *(Ich hatte cad3d in #8437 fälschlich gesagt, ihr `0.5.0` sei unkritisch — korrigiert.)*
+
+### Added — was der Basis für **bestehende** Plugins fehlte (cad3d)
+
+- **§4.9.9 Kennung und Werkzeugnamen sind faktisch eingefroren:** Werkzeugnamen stehen im Consent-Fingerabdruck (Rename ⇒ Zustimmungs-Ereignis für jeden Nutzer) **und** können Cross-Plugin-Verträge sein (`cad3d.import` ist cad2ds „Send to 3D"-Endpunkt). Plus die Wiederholungsfalle `cad3d-mind.cad3d.list` → erstes Segment als **Domäne** wählen, nicht als Produktnamen.
+- **§4.9.3 Bestandsdaten:** der Wechsel auf `PLUGIN_DATA_DIR` wirft bei bestehenden Nutzern die Migrationsfrage auf — **beim Host angefragt, bewusst keine Empfehlung geraten**; bis dahin die konservative Arbeitsannahme (Host-Variable gewinnt, eigene als Fallback, keine automatische Migration).
+- **§4.9.5 klärt, welcher Health gemeint ist:** `GET /plugin-bridge/v1/health` (Host-gepollt), **nicht** ein eigenes `/api/health` für die Standalone-UI.
+- **§4.9.3 Präzisierungen** (mind-canva): auch Binär-Assets/Uploads dorthin; „Host gewinnt" heißt auch, dass **plugin-eigene Env-Overrides ignoriert werden müssen**, wenn `PLUGIN_DATA_DIR` gesetzt ist.
+- **§4.9.12:** `routes[].service_endpoint`, `mcp_tools[].output_schema` und `ui.sidebar_entry.label_key` liest der Host derzeit **nicht** — schema-gültig, aber ohne Wirkung.
+
+### Note
+
+Gruppe 1 enthielt **keinen echten Python-Fall**: Med-Minds Bridge ist Bun/hono auf der Foundation, Python sind nur Sidecars, die nie plugin-bridge sprechen. Die Sprachneutralität der Wire-Spec ist damit **ungetestet** — Speak-Mind wäre der Fall.
+
 ## [plugin-bridge-foundation/0.13.1] — 2026-08-03
 
 **Per-package security patch: `@nexus-mindgarden/plugin-bridge-foundation@0.13.1`** — handshake-token capture now commits only after JWT authentication and a successful 2xx handshake. Rejected or unsuccessful rotation attempts preserve the last known-good token and its timestamp, preventing an invalid candidate from poisoning outbound reverse calls. Other Foundation packages are unchanged.

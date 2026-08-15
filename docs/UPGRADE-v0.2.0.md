@@ -92,9 +92,13 @@ import {
 import { Logger, MetricsRegistry } from '@nexus-mindgarden/plugin-bridge-foundation/observability'
 
 const manifest = await loadManifest('./manifest.yaml', { drift203: 'strict' })
-const repo = new JsonFileHostKeyRepo({ path: './data/host-keys.json' })
+// ⚠️ Ins PLUGIN_DATA_DIR legen, nicht unter das Bundle (Update löscht es).
+const repo = new JsonFileHostKeyRepo({ path: join(resolveDataDir(), 'host-keys.json') })
 const registry = new HostKeyRegistry(repo, {
-  autoAccept: process.env.NODE_ENV === 'development',
+  // ⚠️ NICHT an NODE_ENV koppeln — ein host-gespawntes Bundle läuft in Produktion
+  // und landet damit auf `pending`: danach 401't alles, auch /health (Deadlock).
+  // Siehe PLUGIN-PROVIDER-GUIDE §4.9 / §10.3.
+  autoAccept: process.env.PLUGIN_BRIDGE_PORT !== undefined,
   optionalRegisterFields: ['host_version', 'relay_url', 'host_metadata'],
 })
 
