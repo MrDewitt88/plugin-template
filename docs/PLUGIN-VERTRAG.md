@@ -18,7 +18,8 @@ Jede Regel nennt den **sichtbaren Ausfall**, den sie verhindert. Findest du eine
 | **erscheint** | `min_app_version` **immer mit `-rc.1`**, egal welche Zahl | `1.0.0` sperrt jeden `1.0.0-rc.x` aus. Das Plugin ist **unsichtbar** |
 | | `distribution.type: external-service` — der einzige wirksame Wert | jeder andere Wert ⇒ Ablehnung mit kryptischem Schema-Fehler |
 | | **`<plugin-id>/manifest.yaml`** — Verzeichnis trägt die Kennung (siehe unten) | ein Layout, das ein Host nicht kennt, macht dein Plugin dort **unsichtbar**: kein Fehler, kein Katalogeintrag, einfach nicht da |
-| **aktivieren** | **`aud` selbst erzwingen.** Die Foundation prüft die Signatur, nicht die Zielrichtung | du akzeptierst das Token des Nachbarplugins |
+| **aktivieren** | **Wartest du auf eine menschliche Freigabe, sag es im Fehlercode:** `host_pending`, `host_awaiting_confirmation` oder `pending_approval` mit 401/403 | auf `invalid_token` normalisiert (cad-2ds alter Fehler) sieht der Nutzer „nicht aktivierbar" statt „wartet auf dich". **Der Code entscheidet, ob er eine Sackgasse oder einen Knopf sieht** |
+| | **`aud` selbst erzwingen.** Die Foundation prüft die Signatur, nicht die Zielrichtung | du akzeptierst das Token des Nachbarplugins |
 | | **`sub` niemals validieren** — Format ist host-intern | bricht beim nächsten Host-Update |
 | | `autoAccept` als **Autorenkonstante**, nie aus einer Umgebungsvariablen | ein selbstverwalteter Dienst vertraut seinem eigenen Launcher und nimmt `register-host` von jedem auf Loopback |
 | | `register-host` **beide Schreibweisen** lesen: `public_key_pem` **und** `public_key` | Handshake scheitert mit „Signaturprüfung fehlgeschlagen", obwohl nur der Schlüssel fehlte |
@@ -200,7 +201,7 @@ Nicht „fehlt", sondern **„wird geöffnet, wenn X"**. Eine Lücke ohne Auslö
 | Schuld | Wer | Auslöser |
 |---|---|---|
 | **Locale im Handshake** | plug-tmpl + myMind | das erste Plugin mit **mehr als einer Sprache**. Vorher wäre es ein Feld, das validiert und nichts bewirkt |
-| **`host_pending` + Knopf** | **alle drei Hosts** | sofort. Die Zeile entsteht erst **nach** erfolgreichem Handshake — wartet ein Plugin auf eine menschliche Freigabe, gibt es keine Karte, also keinen Knopf. Ein gekauftes Plugin auf `pending` ist überall ein **toter Kauf** |
+| **`host_pending` + Knopf** | ~~myMind~~ **gebaut** · TeamMind, FamilyMind offen | sofort. Die Zeile entsteht sonst erst **nach** erfolgreichem Handshake — wartet ein Plugin auf eine menschliche Freigabe, gibt es keine Karte, also keinen Knopf, also einen **toten Kauf** |
 | **Dauerhafter signierter `once`-Nachweis** | Nexus | blockiert das beschlossene Lizenzmodell. Das 10-Minuten-JWT ist ausdrücklich **nicht** dieser Nachweis |
 | **Tenantweiten Kauf-Fan-out entfernen** | Nexus | bevor die Lizenzprüfung echt antwortet — sonst zahlt ein Kunde fünfmal für dasselbe Plugin |
 | **`exp` beim Minten** | myMind, TeamMind, FamilyMind | Phase 2 der Übergangsfrist. Der Stichtag wird gesetzt, **wenn die Minter gemeldet haben**, nicht vorher |
