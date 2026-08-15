@@ -372,6 +372,45 @@ export const HealthResponseSchema = z.object({
   // Optional — Plugin-Provider die kein hash senden → Host macht kein
   // automatisches Re-Register (backward-compat).
   manifest_hash: z.string().min(1).optional(),
+  /**
+   * v0.18.0 — der Nutzer-Kanal (agent). EINE Zeile, die der Host beim Plugin
+   * in seiner Liste anzeigt. Für Plugins OHNE eigene Oberfläche ist das der
+   * einzige Weg, den Nutzer überhaupt zu erreichen — Health-JSON und
+   * `/readyz` erreichen niemanden.
+   *
+   * Warum auf der Health-Antwort und nicht als eigener Aufruf (agents
+   * Entwurf, und er ist besser als meine Fassung): die Regel lautet „Zustand,
+   * kein Ereignis". Hier ist sie **strukturell erzwungen** statt vereinbart —
+   * das Plugin meldet die Zeile bei JEDER Sonde, solange die Bedingung gilt;
+   * hört es auf, verschwindet sie ohne Rücknahme-Aufruf; und Wegklicken kann
+   * sie nicht dauerhaft unterdrücken, weil die nächste Sonde sie erneut
+   * liefert. Kein neuer Endpunkt, keine neue Auth, kein neuer Zustand.
+   *
+   * ⚠️ RECHNE SIE NICHT IN DER SONDE AUS. Das Health-Budget gilt unverändert
+   * (§4.9.5). Ein Verwaisungs-Scan gehört EINMAL in den Boot; die Sonde gibt
+   * nur das gespeicherte Ergebnis zurück. Wer hier scannt, macht aus einer
+   * Meldung über verlorene Daten einen Grund für `unhealthy`.
+   *
+   * ⚠️ Und sie ist EINZAHL, mit Absicht. Wer zwei Dinge zu sagen hat, sagt
+   * das wichtigere. Eine Liste wird ein Feed, und ein Feed wird ignoriert.
+   *
+   * Sprache: der Host reicht dem Plugin heute KEINE Locale durch (gemessen —
+   * weder Handshake noch Manifest tragen eine). Das Plugin wählt die Sprache
+   * also selbst; formuliere in der Sprache deiner Oberfläche. Das ist eine
+   * bekannte Lücke, kein Versehen — sie wird geschlossen, wenn eine Locale
+   * durchgereicht wird, und bis dahin ist eine verständliche Meldung in einer
+   * Sprache besser als gar keine.
+   *
+   * `text` ist bewusst kurz gehalten: was der Nutzer in einer Zeile liest.
+   * **Gezählt melden** („18 Einträge liegen noch am alten Ort"), nicht „da ist
+   * etwas" — eine Warnung ohne Zahl ist nicht nachprüfbar.
+   */
+  notice: z
+    .object({
+      level: z.enum(['info', 'warning']),
+      text: z.string().min(1).max(200),
+    })
+    .optional(),
 })
 export type HealthResponse = z.infer<typeof HealthResponseSchema>
 
