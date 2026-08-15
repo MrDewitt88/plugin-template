@@ -473,6 +473,21 @@ Im Scaffold: `resolveDataDir()` neben `resolvePort()`.
 >
 > **Verlorener Token ist wiederherstellbar, aber teuer.** Eine Lizenz lässt sich in Nexus deaktivieren und neu aktivieren — ein Rechnerwechsel sperrt niemanden aus, und die Freigabe braucht die alte Maschine nicht. Es ist also **keine Einbahnstraße**. Es kostet aber **Netz** genau dann, wenn der Kunde vielleicht keins hat (Update im Zug ⇒ Plugin weg bis zum nächsten Empfang), und es kostet **eine zusätzliche menschliche Entscheidung**. Damit reißt es den Maßstab, an dem wir das Ganze messen: *zwischen „gekauft" und „nutzbar" liegt genau **eine** bewusste Entscheidung eines Menschen.* Ein verlorener Token macht daraus zwei — bei jedem Update, ohne dass jemand versteht, warum.
 
+> 🧬 **„Überlebt Updates" und „wird beim Restore nicht mitkopiert" sind ZWEI Anforderungen — und für Identität willst du die zweite** (v8-fam).
+>
+> Meine Regel oben adressiert den Bundle-Pfad: was dort liegt, ist beim Update weg. v8-fam hat gemessen, dass das die Frage nur halb stellt. Bei ihnen liegt der Berechtigungs-Token in der **Datenbank** — Updates übersteht er mühelos. Aber `pg_dump` nimmt ihn vollständig mit, zusammen mit dem privaten Host-Schlüssel aus dem Key-Archiv. **Ein Restore auf einer zweiten Maschine reproduziert damit Berechtigung *und* Identität.** Der Sitzplatz-Zähler ist dann ein Vorschlag.
+>
+> Die Unterscheidung, die daraus folgt:
+>
+> | | soll Updates überleben | soll beim Restore mitkommen |
+> |---|---|---|
+> | **Nutzerdaten** (DB, Assets, Uploads) | ja | **ja** — genau dafür macht man Backups |
+> | **Identität und Berechtigung** (Installations-Kennung, Lizenz-Nachweis, Host-Schlüssel) | ja | **nein** |
+>
+> **Daten willst du wiederhaben. Identität nicht.** Eine Installations-Kennung gehört deshalb **maschinen-abgeleitet und beim Restore neu berechnet**, nicht gespeichert. Das ist dieselbe Regel wie „**Host-Keys nicht adoptieren**" weiter oben, nur an einem anderen Artefakt: eine alte Freigabe in eine neue Installation zu tragen, re-approved einen Host, den der Nutzer dort nie freigegeben hat — und einen Lizenzplatz mitzukopieren, vervielfältigt ihn.
+>
+> Praktisch für dich: prüf nicht nur, was ein **Update** mit deinem Verzeichnis macht, sondern auch, was ein **Backup** davon mitnimmt. Wenn deine Sicherung Identitätsartefakte enthält, ist jede Wiederherstellung ein Klon.
+
 > ℹ️ **Was „Lizenz deaktivieren" nicht tut — sag es deinen Nutzern so.** Deaktivieren in Nexus **gibt den Platz frei; es schaltet eine laufende Installation nicht ab.** Das folgt zwingend: ohne Laufzeitprüfung gibt es nichts, was auf der alten Maschine je davon erführe. Kein Defekt, sondern die Kehrseite des Offline-Betriebs — „läuft für immer ohne Netz" und „lässt sich aus der Ferne abschalten" schließen einander aus.
 >
 > Formuliere entsprechend: **„Lizenz freigeben"** trifft es, **„Zugriff entziehen"** wäre eine Zusage, die niemand einlöst. Sonst entsteht die Support-Erwartung *„ich habe die Lizenz des ausgeschiedenen Mitarbeiters deaktiviert, warum kann er es noch benutzen?"* — Deaktivieren ist eine **Buchhaltungs-Handlung**, keine Fernabschaltung.

@@ -68,7 +68,18 @@ export const PluginManifestSchema = z.object({
     // Die Betriebsart steuert dieses Feld ohnehin nicht — der Host entscheidet sie
     // an der Bundle-Praesenz (`plugin-service-manager.ts`, `bundleDir`). Siehe
     // PLUGIN-PROVIDER-GUIDE §4.9.0.
-    type: z.enum(['external-service', 'library']),
+    // v0.16.0 — genau EIN zulaessiger Wert. Vorher standen hier nacheinander
+    // `embedded` (kannte kein Host) und `library` (kennt der Host, tut nichts).
+    // Beide raus, nachgemessen statt vermutet: agent hat alle 20 lokalen
+    // Plugin-Manifeste geprueft — 19 tragen `external-service`, NULL tragen
+    // `library` oder `embedded`. Der Host nimmt `library` am selben Tag raus.
+    //
+    // Ein Feld mit einem einzigen zulaessigen Wert ist Komplexitaet ohne
+    // Gegenwert; es steht deshalb auf der Streichliste. Es bleibt vorerst, weil
+    // eine dritte Schema-Aenderung mitten im Rollout mehr stoert als sie nuetzt
+    // — und weil es der Ort waere, an dem ein zweiter Verteilweg andocken
+    // wuerde, falls je einer kommt. Kommt keiner, faellt das Feld.
+    type: z.enum(['external-service']),
     service_endpoint: z.string().optional(),
     // ⚠️ LEER LASSEN. Nexus konsumiert und emittiert dieses Feld derzeit weder
     // noch (bestaetigt #8488). Falls es bleibt, bezeichnet es ausschliesslich
