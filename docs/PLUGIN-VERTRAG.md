@@ -140,9 +140,21 @@ requires:
 
 **Keine Sackgassen.** Ein gekauftes Plugin, das auf `pending` landet und nicht freigegeben werden kann, ist ein toter Kauf. Hat das Plugin keine Oberfläche, **schuldet der Host die Fläche** — es kann dem Nutzer sonst nichts zeigen.
 
-> ⏳ **Diese Fläche ist noch nirgends gebaut** (Stand 2026-08-15; myMind hat sie zugesagt, sie steht als nächstes an). Die Zeile darüber ist eine **Schuld, kein Zustand** — und solange sie offen ist, kann ein Plugin **ohne eigene Oberfläche** die Melde-Pflicht aus dem Datenpfad nicht erfüllen. Es gibt schlicht keinen Kanal.
+**Der Kanal dafür ist `notice` auf der Health-Antwort** (ab `plugin-bridge-foundation@0.18.0`) — **eine** Zeile, die der Host beim Plugin in seiner Liste zeigt:
+
+```ts
+notice?: { level: 'info' | 'warning', text: string /* max 200 */ }
+```
+
+Die Form erzwingt die Semantik, statt sie zu verlangen: das Plugin meldet die Zeile bei **jeder** Sonde, solange die Bedingung gilt; hört es auf, verschwindet sie ohne Rücknahme-Aufruf; und **Wegklicken kann sie nicht dauerhaft unterdrücken**, weil die nächste Sonde sie erneut liefert.
+
+> ⚠️ **Rechne sie nicht in der Sonde aus.** Das Health-Budget gilt unverändert — der Verwaisungs-Scan gehört **einmal** in den Boot, die Sonde gibt nur das gespeicherte Ergebnis zurück. Wer hier scannt, macht aus einer Meldung über verlorene Daten einen Grund für `unhealthy`, und dann verschwindet das Plugin, statt zu erklären.
 >
-> **Praktisch für dich, wenn dich das betrifft: verschieb deinen Datenpfad noch nicht.** Ein Umzug, dessen Verwaisungs-Meldung niemanden erreichen kann, ist genau der Fall, der 12/12 grün war und trotzdem Nutzerdaten gekostet hat.
+> ⚠️ **Einzahl, mit Absicht.** Wer zwei Dinge zu sagen hat, sagt das wichtigere. Eine Liste wird ein Feed, und ein Feed wird ignoriert.
+>
+> **Sprache:** es gibt heute **keine Locale** — weder Handshake noch Manifest tragen eine, der Host reicht dir nichts durch. Formuliere in der Sprache deiner Oberfläche. Bekannte Lücke, kein Design.
+
+> ⏳ **Die Host-Seite ist noch nirgends gebaut** (Stand 2026-08-15; myMind hat sie zugesagt). Bis dahin bleibt die Zeile oben eine **Schuld, kein Zustand**, und ein Plugin **ohne eigene Oberfläche** erreicht den Nutzer nicht. **Verschieb deinen Datenpfad noch nicht** — ein Umzug, dessen Verwaisungs-Meldung niemanden erreichen kann, ist genau der Fall, der 12/12 grün war und trotzdem Nutzerdaten gekostet hat.
 
 ---
 
@@ -154,6 +166,8 @@ requires:
 > **Ein Name darf nicht weniger versprechen, als er gewährt — und nicht mehr androhen.** Das eine ist eine Falschaussage im Zustimmungsdialog, das andere treibt zu einer Ablehnung ohne Sachgrund.
 
 > **Ein rotes Ergebnis ist eine Frage, keine Antwort.** Frag bei jedem Rot zuerst, ob der Messpunkt stimmt, bevor du das Gemessene änderst.
+
+> **Wo ein Fehler zu „nichts" geglättet wird, sieht der Nutzer statt eines Problems eine Leere — und über Leere beschwert sich niemand.** An einem Tag dreimal gefunden: verwaiste Daten hinter einer leeren Liste · ein `EACCES`, das der Lesepfad zu `ENOENT` glättet, sodass ein leerer Katalog aussieht wie „nichts gekauft" · eine übersprungene Pflichtprüfung, die als bestanden mitgezählt wurde. **Ein lautes Scheitern ist ein Geschenk.**
 
 ---
 
