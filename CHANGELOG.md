@@ -2,6 +2,39 @@
 
 All notable changes to `@nexus-mindgarden/plugin-template` and its foundation packages are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [bridge-foundation 0.14.0] — 2026-08-15 (5) — 🚨 Enum-Abweichung zum Host + `autoAccept` war unsicher
+
+### BREAKING — `distribution.type`: `embedded` → `library`
+
+**Mein Schema kannte einen Wert, den kein Host kennt.** Es stand `z.enum(['external-service', 'embedded'])`, das Host-Schema sagt `z.enum(['external-service', 'library'])`. Ein Autor, der meiner Foundation folgte, baute damit ein Manifest, das der Host bei der Installation **ablehnt** (A1) — der Fehlschlag landete beim Endkunden statt beim Build.
+
+Ich hatte das zuerst als „`embedded` validiert und tut nichts" gemeldet. Auch das war falsch: agent hat gegengeprüft (#8474), es validiert bei ihm gar nicht. **Substanz richtig, Bezeichner falsch** — die Aussage „validiert und lädt nichts" gilt für **`library`**.
+
+Verbindlich, wörtlich: **für Theseus ist `external-service` der einzige wirksame Wert; `embedded` wird abgelehnt, `library` validiert und lädt nichts.** Neuer Runner-Hinweis **A7** meldet jedes `type ≠ external-service`.
+
+Blast Radius vor der Änderung nachgemessen: **null** — kein Plugin verwendet `embedded`, es stand nur im generierten `dist`. Die Änderung verschiebt einen bestehenden Fehlschlag nach vorn, sie erzeugt keinen neuen.
+
+Was **unverändert** gilt und von agent unabhängig bestätigt wurde: die **Betriebsart entscheidet die Bundle-Präsenz**, nicht `distribution.type` (`plugin-service-manager.ts` durchgehend an `bundleDir`). Das Feld beschreibt Absicht.
+
+### Fixed — `autoAccept` aus `PLUGIN_BRIDGE_PORT` abzuleiten war unsicher
+
+An **sechs Stellen** — Scaffold, Provider-Guide (3×), Wire-Spec, Host-Guide — stand `autoAccept: process.env.PLUGIN_BRIDGE_PORT !== undefined` mit der Begründung „host-gespawnt ⇒ Host ist Trust-Root".
+
+Seit Ratifizierung von #110 liest **jedes** Plugin diese Variable env-first, und ein **selbstverwalteter** Dienst setzt sie sich selbst (ET-Minds launchd-Agent tut genau das). Als Trust-Signal beweist sie damit nichts: wer die Heuristik dort kopiert, vertraut seinem **eigenen Launcher** und nimmt `register-host` von jedem Prozess auf Loopback entgegen — exakt die Bedrohung, vor der §10.3 warnt.
+
+Ersetzt durch eine explizite Konstante `NUR_VOM_HOST_GESTARTET`. **Detektion war die falsche Kategorie** — der Autor weiß, ob ihn nur ein Host startet; die Laufzeit kann es nicht wissen.
+
+### Fixed — irreführende `register-host`-Fehlermeldung
+
+`RegisterHostRequestSchema.refine()` hängte seinen Fehler an `path: ['public_key_pem']`, wurde also als `public_key_pem: … required` ausgeliefert — **liest sich wie „nur dieses Feld wird akzeptiert"**, obwohl beide Schreibweisen seit v0.3.1 gleichwertig sind. Vermutlich der Ursprung von plug-elecs handgeschriebenem Ein-Feld-Reader. Jetzt Root-Pfad mit beiden Namen im Text.
+
+### Docs
+
+- **§4.9.0 auf zwei Achsen umgebaut.** A/A+/B presste Lebenszyklus und UI-Fläche in eine dreistufige Liste. ET-Mind (`external-service` ohne Bundle, 29 Routen + Sidebar) und markview (signierte Electron-App mit Sidebar) landeten beide im Feld, das es nicht gab. **Der Consent-Fingerabdruck hängt an der UI-Achse, nicht am Lebenszyklus.** Die „gilt für ALLE"-Liste war zu kurz und las sich abschließend — Consent, Health, Favicon, Datenpfad-Pflicht und env-first Port ergänzt.
+- **§4.9.3 — MUSS-Regeln zum Zählen von Altbeständen.** Gemessen gegen 500 committete Zeilen: nur `db` kopieren → **0**, `db`+`-shm` ohne `-wal` → **0**, `immutable=1` → **0**. Alle drei still, ohne Fehler. Eine normale read-write-Verbindung checkpointet beim Schließen, schreibt `app.db` neu und **löscht `app.db-wal`**. Kopiermenge ist `db` + `-wal`; `-shm` nie mitkopieren und aus Integritätsprüfungen ausschließen (ändert sich by design). Mechanik von plug-elec, deren Fassung auf das harmlose `-shm` zeigte.
+- **`exp`-Deprecation-Pfad** in die Wire-Spec (Operator-Ruling): jetzt loggen, Minter ziehen nach, Stichtag erst wenn sie gemeldet haben. Aufgeworfen von markview, das die Lücke als Verifier fand und sie ausdrücklich nicht einseitig hart machen wollte.
+- Hartkodierter Port im Haupt-Walkthrough auf `resolvePort()`; SQLite-Beispiel auf `resolveDataDir()` (es schrieb in genau den Pfad, den 20 Zeilen darüber verboten wird).
+
 ## [tools] — 2026-08-15 (4) — Conformance-Runner als Artefakt + eine Korrektur an mir
 
 ### Added — `tools/conformance/plugin-conformance.mjs`

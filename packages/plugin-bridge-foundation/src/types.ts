@@ -50,7 +50,25 @@ export const PluginManifestSchema = z.object({
   description: PluginI18nStringSchema,
   version: z.string().min(1),
   distribution: z.object({
-    type: z.enum(['external-service', 'embedded']),
+    // Angeglichen an das Host-Schema (Theseus `packages/plugin-system/src/schema.ts:38`).
+    //
+    // Vorher stand hier `embedded` — ein Wert, den KEIN Host kennt. Ein Autor, der
+    // diesem Schema folgte, baute damit ein Manifest, das der Host bei der
+    // Installation mit einem Schema-Fehler ABLEHNT. Die Abweichung fiel erst im
+    // Rollout auf (agent #8474). Sie hier zu spiegeln verschiebt den Fehlschlag
+    // vom Endkunden zurueck an den Build — dort gehoert er hin.
+    //
+    // Wirksam ist NUR `external-service`. `library` ist im Host-Schema als
+    // "future" reserviert, nirgends implementiert und wird ausschliesslich als
+    // Negativ-Zweig gelesen (`!== 'external-service'`) — ein Plugin, das es
+    // deklariert, validiert und laedt dann nichts. Ob reservierter Name oder
+    // Altlast, entscheidet der Gruender; bis dahin bleibt der Wert zulaessig,
+    // damit unsere Schemata deckungsgleich sind.
+    //
+    // Die Betriebsart steuert dieses Feld ohnehin nicht — der Host entscheidet sie
+    // an der Bundle-Praesenz (`plugin-service-manager.ts`, `bundleDir`). Siehe
+    // PLUGIN-PROVIDER-GUIDE §4.9.0.
+    type: z.enum(['external-service', 'library']),
     service_endpoint: z.string().optional(),
     marketplace_url: z.string().optional(),
   }),

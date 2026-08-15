@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CHATBUS_ROLE=plug-tmpl uv run --directory /Users/theseus/Desktop/Oracle chatbus-mcp session-start"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CHATBUS_ROLE=plug-tmpl uv run --directory /Users/theseus/Desktop/Oracle chatbus-mcp inbox"
+          }
+        ]
+      }
+    ]
+  }
+}

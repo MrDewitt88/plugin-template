@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "chatbus": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "/Users/theseus/Desktop/Oracle",
+        "chatbus-mcp"
+      ],
+      "env": {
+        "CHATBUS_ROLE": "plug-tmpl"
+      }
+    }
+  }
+}

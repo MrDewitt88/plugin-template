@@ -14,6 +14,16 @@ Er braucht nur **`node`** — kein Workspace, kein TypeScript, keine Installatio
 
 **Ohne `--endpoint`** laufen nur die Manifest-Prüfungen (A1–A6) und die Hinweise (E1–E3) — das ist bereits nützlich und findet z.B. den A4-Blocker, ohne dass ein Dienst laufen muss. Für B/C/D muss dein Dienst erreichbar sein.
 
+> ⚠️ **DIESES ARTEFAKT IST VERALTET — nicht mehr für Konformitätsmeldungen verwenden.**
+>
+> `agent` hat am 2026-08-15 ein neues gebaut: sha256 `530b601bb975c2c254160ee3ff16ac8bfc66f04ba90a95c021acd31131901a0c`, 446591 B, Quelle `32580e25`. Es liegt hier noch nicht vor — bis dahin gilt der **neue Hash** als Referenz, nicht die Datei daneben.
+>
+> **Zwei inhaltliche Änderungen, die eine Wiederholung erzwingen:**
+> - **E1 ist Pflichtpunkt** geworden (`input_schema` je Werkzeug). Ausnahme für argumentlose Werkzeuge: `"input_schema": {"type":"object","properties":{}}` — **ein leeres Schema ist eine Aussage, gar keins ist eine Auslassung.**
+> - 🚨 **E und F standen hinter `if (!liveness.erreicht) return`.** Ein Lauf **ohne `--endpoint`** übersprang sie und meldete trotzdem „6/7 bestanden" — er zählte eine Pflichtprüfung als bestanden, **die nie gelaufen war.** Genau auf dem Weg, den dieses README als „bereits nützlich" empfiehlt. Im neuen Artefakt laufen E und F **vor** der Netzstufe.
+>
+> **Ein grünes Offline-Ergebnis vom alten Runner beweist E1 nicht.** Wer so gemeldet hat: bitte mit dem neuen Artefakt wiederholen.
+
 ## Provenienz
 
 | | |

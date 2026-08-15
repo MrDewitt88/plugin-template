@@ -1,0 +1,6 @@
+[mcp_servers.chatbus]
+command = "/Users/theseus/.local/bin/cb-mcp"
+args = []
+
+[mcp_servers.chatbus.env]
+CHATBUS_ROLE = "plug-tmpl"

@@ -369,7 +369,11 @@ Programmatisch geht es auch direkt: `renderFeaturesNote(manifest, { manifestHash
 
 ⚠️ **`distribution.type` steuert nichts.** Der Host entscheidet den Lebenszyklus an der **Bundle-Präsenz** (`plugin-service-manager.ts`: `bundleDir` + `launch`), und die Oberfläche am **Manifest-Inhalt**. Das Feld beschreibt deine Absicht.
 
-> 🚫 **`distribution.type: 'embedded'` nicht verwenden.** Der Wert steht im Foundation-Schema und ist in §10.1 als „Phase 4" geführt — **myMind implementiert ihn nicht** (nachgemessen: null Treffer im Host). Ein Manifest damit validiert und tut dann nichts. Willst du UI im Host, ist das die zweite Achse: `routes`/`ui.sidebar_entry` — **mit oder ohne Bundle.**
+> 🚫 **Für Theseus ist `external-service` der einzige wirksame Wert. `embedded` wird abgelehnt, `library` validiert und lädt nichts.**
+>
+> Zur Herkunft, weil die Unterscheidung teuer war: diese Seite behauptete zuerst, `embedded` „validiert und tut dann nichts". **Falsch** — das Host-Schema ist `z.enum(['external-service', 'library'])` und kennt `embedded` überhaupt nicht, ein Manifest damit **fällt an A1 durch** (agent #8474). Meine Foundation hatte den Wert trotzdem, also baute ein Autor, der ihr folgte, ein Manifest, das der Host **ablehnt**. Seit `plugin-bridge-foundation@0.14.0` sind beide Schemata deckungsgleich — der Fehlschlag passiert jetzt beim Build statt beim Endkunden. Der Hinweis **A7** meldet dir jeden `type ≠ external-service`.
+>
+> Willst du UI im Host, ist das die **zweite Achse**: `routes`/`ui.sidebar_entry` — **mit oder ohne Bundle**, unabhängig von `distribution.type`.
 
 ---
 
@@ -980,7 +984,8 @@ Vor 1st-Release:
 | Type | Wann |
 |---|---|
 | `external-service` | Plugin ist standalone-Server (Bridge auf eigenem port) |
-| `embedded` | 🚫 **nicht verwenden** — als „Phase 4" gedacht (Plugin im Host-Prozess, kein eigener Server), aber **von keinem Host implementiert** (§4.9.0). Validiert und bewirkt nichts. |
+| `library` | 🚫 **nicht verwenden** — im Host-Schema als „future" reserviert (Plugin im Host-Prozess, kein eigener Server), **nirgends implementiert**. Validiert und lädt dann nichts; wird nur als Negativ-Zweig gelesen (`!== 'external-service'`). Hinweis **A7** meldet es. |
+| ~~`embedded`~~ | 🚫 **existiert nicht.** Kein Host kennt den Wert — ein Manifest damit wird **abgelehnt** (A1). Bis `plugin-bridge-foundation@0.14.0` stand er faelschlich in unserem Schema. |
 
 ### 10.2 Service-Discovery
 
