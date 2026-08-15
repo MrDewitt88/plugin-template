@@ -404,6 +404,23 @@ export const HealthResponseSchema = z.object({
    * `text` ist bewusst kurz gehalten: was der Nutzer in einer Zeile liest.
    * **Gezählt melden** („18 Einträge liegen noch am alten Ort"), nicht „da ist
    * etwas" — eine Warnung ohne Zahl ist nicht nachprüfbar.
+   *
+   * DER HOST NORMALISIERT DEN TEXT an seiner Grenze (`sanitizeHealthNotice`),
+   * weil er direkt auf dem Bildschirm des Nutzers landet und von einem fremden
+   * Autor stammt. Verlass dich nicht auf die Form:
+   *   - Steuerzeichen inkl. Zeilenumbruch fliegen raus. Nicht wegen Skripten
+   *     (die Oberfläche escaped ohnehin), sondern weil Umbrüche und
+   *     Rücksetzzeichen EINE Meldung wie MEHRERE aussehen lassen. Die
+   *     Einzahl-Regel oben trägt ohne diese Bereinigung nicht: eine
+   *     Mengenbeschränkung lässt sich durch den INHALT eines einzelnen
+   *     Elements umgehen, wenn dessen Form nicht mitbeschränkt ist.
+   *   - über 200 Zeichen wird GEKÜRZT, nicht abgewiesen
+   *   - eine unbekannte Stufe wird ABGEWIESEN, nicht auf 'info' abgerundet
+   *
+   * Die Asymmetrie der letzten beiden ist Absicht: weise ab, wo Stillschweigen
+   * die Bedeutung verfälscht (ein 'error', das still zu 'info' würde, verlöre
+   * die Dringlichkeit unbemerkt) — kürze, wo Abweisen die Nachricht ganz
+   * verschwinden ließe und der Autor es nie erführe.
    */
   notice: z
     .object({

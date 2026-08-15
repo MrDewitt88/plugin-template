@@ -148,13 +148,22 @@ notice?: { level: 'info' | 'warning', text: string /* max 200 */ }
 
 Die Form erzwingt die Semantik, statt sie zu verlangen: das Plugin meldet die Zeile bei **jeder** Sonde, solange die Bedingung gilt; hört es auf, verschwindet sie ohne Rücknahme-Aufruf; und **Wegklicken kann sie nicht dauerhaft unterdrücken**, weil die nächste Sonde sie erneut liefert.
 
+**Es gibt kein Wegklicken.** Was verschwinden soll, nimmt das Plugin zurück. Ein Wegklicken hätte nur bis zur nächsten Sonde gehalten und dabei **so ausgesehen, als hätte es Wirkung** — schlechter als keins.
+
 > ⚠️ **Rechne sie nicht in der Sonde aus.** Das Health-Budget gilt unverändert — der Verwaisungs-Scan gehört **einmal** in den Boot, die Sonde gibt nur das gespeicherte Ergebnis zurück. Wer hier scannt, macht aus einer Meldung über verlorene Daten einen Grund für `unhealthy`, und dann verschwindet das Plugin, statt zu erklären.
 >
 > ⚠️ **Einzahl, mit Absicht.** Wer zwei Dinge zu sagen hat, sagt das wichtigere. Eine Liste wird ein Feed, und ein Feed wird ignoriert.
 >
-> **Sprache:** es gibt heute **keine Locale** — weder Handshake noch Manifest tragen eine, der Host reicht dir nichts durch. Formuliere in der Sprache deiner Oberfläche. Bekannte Lücke, kein Design.
+> **Sprache:** es gibt heute **keine Locale** — weder Handshake noch Manifest tragen eine. Formuliere in der Sprache deiner Oberfläche. Bekannte Lücke, kein Design; sie wird geöffnet, wenn ein Plugin sie braucht.
 
-> ⏳ **Die Host-Seite ist noch nirgends gebaut** (Stand 2026-08-15; myMind hat sie zugesagt). Bis dahin bleibt die Zeile oben eine **Schuld, kein Zustand**, und ein Plugin **ohne eigene Oberfläche** erreicht den Nutzer nicht. **Verschieb deinen Datenpfad noch nicht** — ein Umzug, dessen Verwaisungs-Meldung niemanden erreichen kann, ist genau der Fall, der 12/12 grün war und trotzdem Nutzerdaten gekostet hat.
+> 🧼 **Dein Text wird normalisiert — verlass dich nicht auf seine Form.** Der Host prüft und bereinigt ihn an der Grenze, weil er **direkt auf dem Bildschirm des Nutzers landet** und von einem fremden Autor stammt:
+> - **Steuerzeichen fliegen raus**, Zeilenumbrüche eingeschlossen. Nicht wegen Skripten — die Oberfläche escaped ohnehin —, sondern weil Umbrüche und Rücksetzzeichen **eine** Meldung wie **mehrere** aussehen lassen oder Text überschreiben.
+> - **Über 200 Zeichen wird gekürzt**, nicht abgewiesen.
+> - **Eine unbekannte Stufe wird abgewiesen**, nicht auf `info` abgerundet.
+>
+> Die Asymmetrie der letzten beiden ist Absicht, und sie ist eine allgemeine Regel wert: **weise ab, wo Stillschweigen die Bedeutung verfälscht — kürze, wo Abweisen die Nachricht ganz verschwinden ließe.** Ein `level: 'error'`, das still zu `info` würde, verlöre die Dringlichkeit, ohne dass es jemand merkt. Ein zu langer Text, der abgewiesen würde, verschwände ganz, und der Autor erführe es nie.
+>
+> 🔓 **Und der Grund, warum die Einzahl-Regel ohne diese Bereinigung nicht trägt:** eine Meldung, die Umbrüche enthalten darf, kann sich als **mehrere** ausgeben — oder als Systemmeldung. **Eine Mengenbeschränkung lässt sich durch den Inhalt eines einzelnen Elements umgehen**, wenn dessen Form nicht mitbeschränkt ist.
 
 ---
 
