@@ -352,6 +352,8 @@ Programmatisch geht es auch direkt: `renderFeaturesNote(manifest, { manifestHash
 
 **Punkt 6 ist der wichtigste.** Ein Kandidat, der die Prüfung nicht bestanden hat, kostet einen Kundentermin.
 
+> 📌 **Melde Hash und Bytes deines Bundles erst, wenn der Runner grün ist** (med-plug). Vorher ändert sich das Artefakt fast sicher noch — ein A4-Fix allein ist eine neue Version. Zwei überholte Hashes sind in dieser Rollout-Runde durch die Kette gelaufen, bevor jemand den Lauf fahren konnte.
+
 > 📌 **Bestehendes Plugin statt Neubau?** Diese Checkliste ist für beide gedacht, aber zwei Dinge betreffen **nur** dich: der Umgang mit **bereits vorhandenen Nutzerdaten** beim Wechsel auf `PLUGIN_DATA_DIR` (§4.9.3) und die Tatsache, dass **Kennung und Werkzeugnamen nachträglich teuer sind** (§4.9.9). Du scaffoldest nicht neu — du liest dieses Dokument. Deshalb steht beides hier und nicht nur im Scaffold.
 
 ### 4.9.2 Der Conformance-Runner
