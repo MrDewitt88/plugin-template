@@ -64,16 +64,37 @@ describe('discoverManifest — dual-read manifest.<id>.yaml (CODEX-REV §13.8)',
     })
   })
 
-  it('falls back to bare manifest.yaml with a deprecation warning (deprecated=true)', async () => {
+  // v0.17.0 — Verhaltensumkehr, mit Absicht. Hier wurde eine Deprecation-Warnung
+  // festgeschrieben, die zum Umbenennen auf `manifest.<id>.yaml` aufforderte.
+  // Gemessen an allen drei Hosts war das falsch herum: myMind liest beide Formen,
+  // TeamMind und FamilyMind lesen AUSSCHLIESSLICH `<plugin-id>/manifest.yaml`.
+  // Wer der Warnung folgte, machte sein Plugin bei zwei von drei Hosts
+  // unsichtbar — ohne Fehler, ohne Katalogeintrag.
+  it('bare manifest.yaml ist kanonisch — keine Warnung, deprecated=false', async () => {
     await writeFile(join(dir, 'manifest.yaml'), manifestYaml('legacy-plugin'))
     const warn = vi.fn()
     const got = await discoverManifest(dir, { warn })
     expect(got.manifest.id).toBe('legacy-plugin')
     expect(got.filename).toBe('manifest.yaml')
-    expect(got.deprecated).toBe(true)
-    expect(warn).toHaveBeenCalledTimes(1)
-    expect(warn.mock.calls[0]![0]).toContain('DEPRECATED')
-    expect(warn.mock.calls[0]![0]).toContain('manifest.legacy-plugin.yaml')
+    expect(got.deprecated).toBe(false)
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  it('expectDirId: Verzeichnisname ungleich manifest.id → Fehler (Host-Modus)', async () => {
+    // `dir` ist ein tmp-Verzeichnis mit Zufallsnamen, also nie gleich der id.
+    await writeFile(join(dir, 'manifest.yaml'), manifestYaml('right-id'))
+    await expect(discoverManifest(dir, { expectDirId: true })).rejects.toMatchObject({
+      name: 'ManifestError',
+      code: 'validation_error',
+    })
+  })
+
+  it('expectDirId bleibt aus für Plugins, die ihr eigenes Manifest lesen', async () => {
+    // Ein Plugin liest aus seinem Repo-Root; das Verzeichnis heisst dort nach dem
+    // Repo, nicht nach der Kennung. Ohne die Option darf das nicht stoeren.
+    await writeFile(join(dir, 'manifest.yaml'), manifestYaml('right-id'))
+    const got = await discoverManifest(dir)
+    expect(got.manifest.id).toBe('right-id')
   })
 
   it('migration state: suffixed + bare with the SAME id → prefers suffixed, no error', async () => {

@@ -17,7 +17,7 @@ Jede Regel nennt den **sichtbaren Ausfall**, den sie verhindert. Findest du eine
 |---|---|---|
 | **erscheint** | `min_app_version` **immer mit `-rc.1`**, egal welche Zahl | `1.0.0` sperrt jeden `1.0.0-rc.x` aus. Das Plugin ist **unsichtbar** |
 | | `distribution.type: external-service` — der einzige wirksame Wert | jeder andere Wert ⇒ Ablehnung mit kryptischem Schema-Fehler |
-| | ⚠️ **Manifest-Ablage — ungeklärt, siehe unten** | ein Layout, das ein Host nicht kennt, macht dein Plugin dort **unsichtbar**: kein Fehler, kein Katalogeintrag, einfach nicht da |
+| | **`<plugin-id>/manifest.yaml`** — Verzeichnis trägt die Kennung (siehe unten) | ein Layout, das ein Host nicht kennt, macht dein Plugin dort **unsichtbar**: kein Fehler, kein Katalogeintrag, einfach nicht da |
 | **aktivieren** | **`aud` selbst erzwingen.** Die Foundation prüft die Signatur, nicht die Zielrichtung | du akzeptierst das Token des Nachbarplugins |
 | | **`sub` niemals validieren** — Format ist host-intern | bricht beim nächsten Host-Update |
 | | `autoAccept` als **Autorenkonstante**, nie aus einer Umgebungsvariablen | ein selbstverwalteter Dienst vertraut seinem eigenen Launcher und nimmt `register-host` von jedem auf Loopback |
@@ -29,20 +29,24 @@ Jede Regel nennt den **sichtbaren Ausfall**, den sie verhindert. Findest du eine
 
 ---
 
-## 🚧 Offen: wo das Manifest liegt
+## 📁 Wo das Manifest liegt
 
-**Die drei Hosts suchen an drei verschiedenen Orten.** Gemessen, nicht vermutet:
+**`<plugin-id>/manifest.yaml`** — das Verzeichnis heißt wie die Kennung, die Datei schlicht `manifest.yaml`. Alle drei Hosts gemessen:
 
 | | findet |
 |---|---|
-| **myMind** | `manifest.<id>.yaml` **und** bares `manifest.yaml` |
-| **TeamMind** | **ausschließlich** `<plugin-id>/manifest.yaml` — ein `manifest.<id>.yaml` sieht es **gar nicht** |
-| FamilyMind | noch nicht gemessen |
-| Konformitäts-Prüfung (A2) | verlangt `manifest.<id>.yaml` |
+| **myMind** | beide Formen |
+| **TeamMind** | **nur** `<plugin-id>/manifest.yaml` |
+| **FamilyMind** | **nur** `<plugin-id>/manifest.yaml` (schreibt und liest dort) |
 
-**Der Ausfall ist stumm.** Wer der Prüfung folgt, ist bei TeamMind unsichtbar — kein Fehler in der Oberfläche, kein Katalogeintrag, das Plugin ist einfach nicht da. Bei so einem Bild verdächtigt jeder zuerst das Plugin.
+> ⚠️ **`manifest.<id>.yaml` findet genau EIN Host von dreien.** Diese Seite hat es verlangt und die Foundation hat zum Umbenennen gewarnt — beides war falsch herum. Wer dem folgte, war bei zwei Hosts **unsichtbar**: kein Fehler, kein Katalogeintrag, das Plugin einfach nicht da. Zurückgenommen in `plugin-bridge-foundation@0.17.0`; die angekündigte Entfernung des baren Manifests ist **abgesagt**.
 
-> **Bis das entschieden ist: `<plugin-id>/manifest.yaml`.** Das ist die einzige Form, die beide gemessenen Hosts finden — myMind liest sie mit, TeamMind nur sie. Die Prüfung (A2) verlangt heute noch die andere; **melde einen Konflikt, statt umzubauen**, solange das hier steht.
+**Die Kennung muss aus dem Ablageort ableitbar bleiben** — sie trägt jetzt das Verzeichnis statt des Dateinamens. Eine `manifest.yaml` ohne ihren Pfad hat keine Identität mehr, also **prüft der Host `manifest.id` gegen den Verzeichnisnamen** (`discoverManifest(dir, { expectDirId: true })`; TeamMind tut es bereits). Ohne diese Gegenprobe tauscht man eine sichere Kopplung gegen eine Konvention.
+
+> 🔑 **Und die Ablage muss dem Host gehören** (v8-fam). Liegt sie dort, wo nur ein Betreiber schreiben darf — `/etc/…`, root-eigen —, ist der Bezugsweg **kein Bezugsweg, sondern eine Anleitung für einen Serveradmin.** Nachgemessen: FamilyMinds Self-Register scheitert auf der Appliance an `EACCES`, und der Lesepfad schluckt es (`ENOENT` ⇒ leeres Ergebnis) — **ein leerer Katalog sieht exakt aus wie „nichts gekauft".**
+> Die Unterscheidung: was der Host **von sich aus laufend überschreibt**, ist Laufzeit-Zustand und gehört nach `data`. `/etc` ist root-eigen, weil dort der *Operator* entscheidet.
+
+> 🚫 **Ein Default, der auf ein fremdes Produkt zeigt, ist schlimmer als kein Default** (v8-fam). Gemessen: FamilyMinds Fallback war `/etc/teammind/plugins`, und die eigene `.env.example` lieferte die Variable leer aus — ein frischer Klon nach eigener Anleitung las **die Manifeste des Nachbarprodukts**, das auf derselben Maschine läuft. Ein `ENOENT` hätte laut gescheppert. Zeig auf einen Pfad, der garantiert nicht existiert, und lass den Lesepfad es melden.
 
 **Was in jeder Auflösung erhalten bleiben muss:** die Kennung muss aus dem Ablageort **eindeutig ableitbar** sein. Ein bares `manifest.yaml` ohne Kontext hat keine Identität mehr — löst man das über das Verzeichnis, muss `manifest.id` **gleich dem Verzeichnisnamen** sein und der Host das erzwingen. TeamMind tut das bereits und lehnt Abweichungen mit Meldung ab; das ist die Eigenschaft, die den Verzeichnis-Weg tragfähig macht.
 

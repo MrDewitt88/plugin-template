@@ -3,7 +3,7 @@
 // Start.
 
 import { readFile, readdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import { PluginManifestSchema, type PluginManifest } from '../types.js'
 
@@ -33,6 +33,21 @@ export interface ManifestValidationOptions {
   drift203?: Drift203Mode
   /** Override stderr-sink (für tests). */
   warn?: (msg: string) => void
+  /**
+   * v0.17.0 — für HOSTS, die aus einem Katalogverzeichnis lesen.
+   *
+   * Erzwingt bei einem baren `manifest.yaml`, dass das enthaltende Verzeichnis
+   * exakt `manifest.id` heißt. Das ist die Gegenprobe, die den Verzeichnisweg
+   * überhaupt tragfähig macht: ohne sie hat eine `manifest.yaml` keine
+   * Identität mehr, sobald sie von ihrem Pfad getrennt wird. TeamMind erzwingt
+   * das bereits und lehnt Abweichungen mit Meldung ab — die Absicht dort ist,
+   * dass ein Betreiber nicht versehentlich das falsche Plugin lädt.
+   *
+   * Default `false`, weil ein PLUGIN sein eigenes Manifest aus dem Repo-Root
+   * liest und das Verzeichnis dort nach dem Repo heißt, nicht nach der Kennung.
+   * Hosts schalten es ein, Plugins nicht.
+   */
+  expectDirId?: boolean
 }
 
 // v0.2.1 — three loopback-Varianten gleichbehandelt (plug-elec msg #303).
@@ -223,17 +238,39 @@ export async function discoverManifest(
   if (entries.includes(BARE_MANIFEST)) {
     const path = join(dir, BARE_MANIFEST)
     const manifest = await loadManifest(path, opts)
-    const warn = opts.warn ?? defaultWarn
-    warn(
-      `manifest discovered as bare '${BARE_MANIFEST}' in '${dir}' — DEPRECATED (CODEX-REV §13.8). ` +
-        `Rename to '${manifestFilename(manifest.id)}' (filename suffix = manifest.id); ` +
-        `bare-manifest support is removed after the transition window.`,
-    )
-    return { manifest, path, filename: BARE_MANIFEST, deprecated: true }
+
+    // v0.17.0 — DEPRECATION ZURUECKGENOMMEN. Hier stand eine Warnung, die zum
+    // Umbenennen auf `manifest.<id>.yaml` aufforderte, plus die Ankuendigung,
+    // Bare-Support zu entfernen. Beides war falsch, und zwar gemessen:
+    //
+    //   myMind      liest beide Formen
+    //   TeamMind    liest AUSSCHLIESSLICH <plugin-id>/manifest.yaml
+    //   FamilyMind  schreibt und liest AUSSCHLIESSLICH <plugin-id>/manifest.yaml
+    //
+    // `manifest.<id>.yaml` wird also von genau EINEM der drei Hosts gefunden.
+    // Wer unserer Warnung folgte, machte sein Plugin bei zwei Hosts unsichtbar
+    // — ohne Fehler, ohne Katalogeintrag, einfach nicht da. Und die angekuendigte
+    // Entfernung haette zwei Hosts vollstaendig gebrochen.
+    //
+    // Kanonisch ist `<plugin-id>/manifest.yaml`. Die Kennung traegt das
+    // VERZEICHNIS statt des Dateinamens — dieselbe Garantie, anderer Ort, siehe
+    // `expectDirId` unten.
+    if (opts.expectDirId) {
+      const dirName = basename(resolve(dir))
+      if (dirName !== manifest.id) {
+        throw new ManifestError(
+          'validation_error',
+          `manifest directory/id mismatch in '${dir}': directory is named '${dirName}' but manifest.id is '${manifest.id}' — ` +
+            `for a bare '${BARE_MANIFEST}' the containing directory MUST be named exactly manifest.id, ` +
+            `otherwise the file has no identity once detached from its path`,
+        )
+      }
+    }
+    return { manifest, path, filename: BARE_MANIFEST, deprecated: false }
   }
 
   throw new ManifestError(
     'not_found',
-    `no manifest found in '${dir}' (expected 'manifest.<id>.yaml' or, deprecated, 'manifest.yaml')`,
+    `no manifest found in '${dir}' (expected '${BARE_MANIFEST}' in a directory named after the plugin id, or 'manifest.<id>.yaml')`,
   )
 }
