@@ -117,6 +117,31 @@ requires:
 
 ---
 
+## Rückrufe, die etwas ändern: der Host fragt den Nutzer
+
+Für **schreibende und zerstörende** Rückrufe in den Host bestätigt der **Nutzer** jeden Aufruf — nicht dein Plugin, nicht ein Feld im Token. **Der Beweis ist ein Ort, kein Feld:** alles, was du mitschickst, ist eine Behauptung, und ein Anwesenheits-Token wäre zusätzlich weiterreichbar. Lesende Rückrufe bleiben beim Aktivierungs-Consent.
+
+| | |
+|---|---|
+| `confirmation_timeout_s` | **120** — Vertragskonstante. Setz deinen Client-Timeout auf **≥ 150 s**, sonst gibst du auf, während der Nutzer noch liest |
+| `confirmation_denied` | **endgültig**, nicht transient |
+| `confirmation_timeout` | **endgültig.** Keine Antwort heißt: niemand am Gerät. Bildschirm gesperrt ⇒ Dialog unsichtbar ⇒ Abwesenheit lehnt **ehrlich ab** |
+| `purpose` (optional) | **eine** Zeile Prosa für den Dialog, host-seitig normalisiert wie `notice`. **Ändert nie das Gate** |
+
+> 🔁 **Kein Retry-Loop auf `confirmation_timeout`.** Wer es versucht, empfängt den heimkommenden Nutzer mit N Dialogen — und trainiert ihn darauf, sie wegzuklicken. **Liegen lassen und beim nächsten nutzer-initiierten Moment neu anbieten.**
+
+> 🔌 **Reißt die Verbindung, bevor die Antwort dich erreicht, wird der Dialog zurückgezogen und der Aufruf gilt als abgebrochen.** Es darf **nie** passieren, dass der Nutzer bestätigt, die Aktion läuft — und dein Plugin hat längst aufgegeben und erfährt es nie.
+>
+> Allgemein, und weit über diesen Fall hinaus: **eine Bestätigung, deren Ergebnis den Fragenden nicht mehr erreicht, darf keine Wirkung haben.** Wer die Antwort nicht empfangen kann, bekommt keine Wirkung.
+
+> ⏳ **„Sitzung" ist definiert, nicht gefühlt.** Ein Merken je (Plugin, Werkzeug) erlischt beim **frühesten** von: Bildschirmsperre/Abmeldung · **4 Stunden** · App-Ende. Nur im Speicher; ein Neustart beginnt bei null. **Der Stapel-Fall ist genau das** — 200 Visitenkarten zeigen einen Dialog, die Checkbox deckt den Rest, und der Dialogtext sagt es. Keine eigene Stapel-Form.
+
+> 💬 **Die Argumente sind die Wahrheit des Aufrufs, `purpose` ist nur die Prosa dazu.** Der Dialog zeigt immer die Argument-Zusammenfassung — *„Med-Mind will den Kontakt ‚Max Mustermann' ändern"*, nie *„ein Plugin möchte deine Kontakte ändern"*. Deshalb bleibt `purpose` ehrlich optional: ohne es ist der Dialog **konkreter**, nicht vager.
+
+⚠️ **`user_initiated` ist ausdrücklich KEIN Gate-Signal** und steht nicht im Wire. Ein Gate, das auf eine Selbstauskunft des Aufrufers hört, ist kein Gate. Als Dialog-Zeile erlaubt, mehr nicht.
+
+---
+
 ## Die Pflichtprüfungen
 
 `node tools/conformance/plugin-conformance.mjs <manifest> [--endpoint URL] [--bundle <wurzel>]`
