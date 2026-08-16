@@ -25,7 +25,8 @@ const PACKAGE_JSON_ROOT = `{
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "build": "pnpm -r build",
-    "bundle": "node scripts/pack-bundle.mjs"
+    "bundle": "node scripts/pack-bundle.mjs",
+    "check": "node scripts/check.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
@@ -234,9 +235,48 @@ compatibility:
   min_app_version: 1.0.0-rc.1
 provides:
   routes: []
-  mcp_tools: []
+  # ⚠️ JEDES Werkzeug braucht ein input_schema — Pflichtprüfung E1.
+  # Ohne Schema sieht das Modell KEINE Argumente und ruft mit {} auf: eine Suche
+  # ohne Suchbegriff, ein Anlegen ohne Titel. Beim Endkunden sieht das aus wie
+  # ein defektes Plugin, nicht wie fehlende Metadaten. In der ersten
+  # Bestandsaufnahme traf es fünf Plugins — und immer ALLE ihre Werkzeuge, nie
+  # einzelne: 52 von 52, 35 von 35, 28 von 28. Wer eins vergisst, vergisst alle.
+  #
+  # ⚠️ Und NICHT die Kennung voranstellen: der Host stellt '{{pluginName}}.'
+  # bereits voran. Aus '{{pluginName}}.items.list' würde
+  # '{{pluginName}}.{{pluginName}}.items.list' (Hinweis E3).
+  mcp_tools:
+    - name: items.list
+      description: Listet die Einträge dieses Plugins.
+      # Werkzeug OHNE Argumente: leeres Objekt, NICHT weglassen.
+      # Ein leeres Schema ist eine Aussage, gar keins ist eine Auslassung.
+      input_schema:
+        type: object
+        properties: {}
+      scopes_required: []
+    - name: items.get
+      description: Liest einen Eintrag anhand seiner Kennung.
+      input_schema:
+        type: object
+        properties:
+          id:
+            type: string
+            description: Kennung des Eintrags.
+        required: [id]
+      scopes_required: []
   module_extensions: []
   scopes_required: []
+# requires:            # optional — der AUSGEHENDE Grant für Rückrufe in den Host
+#   scopes:            # Namen: host.contacts.manage · host.calendar.manage
+#     - host.notes.write   #        host.notes.write · host.projects.write
+#                          #        host.attachments.write · host.image.generate
+#
+# Drei unterscheidbare Zustände, und der dritte ist ein FEHLER:
+#   requires fehlt        → nicht deklariert, heutige Reichweite bleibt
+#   requires.scopes: []   → Aussage „ich rufe nichts nach aussen"
+#   requires: {}          → Fehler (ab bridge-foundation 0.15.0)
+# Deklarieren ist freiwillig und schadet nie: wer wenig verlangt, steht im
+# Zustimmungsdialog besser da als wer schweigt.
 `
 
 const ARCHITECTURE_MD = `# {{pluginNamePascal}} — Architecture
@@ -349,22 +389,53 @@ export function audGuard(pluginId: string) {
   return async (c: Context, next: Next) => {
     const raw = (c.req.header('authorization') ?? '').replace(/^bearer /i, '').trim()
     const seg = raw.split('.')[1]
-    if (seg !== undefined) {
-      try {
-        const payload = JSON.parse(Buffer.from(seg, 'base64url').toString('utf8')) as {
-          aud?: unknown
-          plugin_id?: unknown
-        }
-        const bound = payload.aud ?? payload.plugin_id
-        if (bound !== undefined && bound !== pluginId) {
-          return c.json(
-            { error: { code: 'invalid_audience', message: 'token is not for this plugin' } },
-            401,
-          )
-        }
-      } catch {
-        // unlesbarer Payload → die Foundation lehnt das Token ohnehin ab
+
+    // KEIN Token ⇒ durchlassen. Das ist Absicht und keine Lücke: /health muss
+    // tokenfrei erreichbar sein, weil der Host sie pollt, BEVOR er ein Token
+    // hat. Ein Guard, der hier abweist, erzeugt den Aktivierungs-Deadlock —
+    // der Dienst läuft, und kein Host erkennt ihn je als bereit (Prüfung B1).
+    if (seg === undefined) return next()
+
+    try {
+      const payload = JSON.parse(Buffer.from(seg, 'base64url').toString('utf8')) as {
+        aud?: unknown
+        plugin_id?: unknown
       }
+
+      // Die ratifizierte Regel (agent + v8-corp), beide Hälften:
+      //   „Auf aud ?? plugin_id binden. FEHLT BEIDES: ABWEISEN. sub NIE prüfen."
+      const bound = payload.aud ?? payload.plugin_id
+
+      // ⚠️ Diese Zeile fehlte bis create-plugin 0.12.0, und der Scaffold fiel
+      // damit Prüfung D1b. Ohne sie passiert ein Token OHNE aud und OHNE
+      // plugin_id den Guard — und die Foundation prüft danach nur die Signatur.
+      // Wer dann irgendwo „?? sub" ergänzt (naheliegend, weil dort bei manchen
+      // Hosts etwas steht), akzeptiert jedes Token, in dem jemand die
+      // Plugin-Kennung an die NUTZER-Stelle geschrieben hat.
+      //
+      // „sub" ist die Nutzer-Identität. Der Name führt in die Irre — „Subject"
+      // liest sich wie „worum es in diesem Token geht", ist aber WER es
+      // ausgelöst hat. Genau daran ist cad-2d gescheitert. NIE auf sub binden.
+      if (bound === undefined) {
+        return c.json(
+          {
+            error: {
+              code: 'invalid_audience',
+              message: 'token carries neither aud nor plugin_id — cannot be bound to this plugin',
+            },
+          },
+          401,
+        )
+      }
+
+      if (bound !== pluginId) {
+        return c.json(
+          { error: { code: 'invalid_audience', message: 'token is not for this plugin' } },
+          401,
+        )
+      }
+    } catch {
+      // unlesbarer Payload → die Foundation lehnt das Token ohnehin ab
     }
     return next()
   }

@@ -14,6 +14,11 @@ import { buildContext, render, type TemplateContext } from '../templates/render.
 const STATIC_DIR = fileURLToPath(new URL('../../templates-static/', import.meta.url))
 const STATIC_FILES: ReadonlyArray<{ src: string; dest: string }> = [
   { src: 'pack-bundle.mjs', dest: 'scripts/pack-bundle.mjs' },
+  // `pnpm check` — findet Manifest + Endpunkt selbst und ruft den Runner auf.
+  // Existiert, weil Reibung entscheidet, ob gemessen wird: bei der ersten
+  // Bestandsaufnahme hatten 20 Plugins den Runner und ZWEI hatten ihn laufen
+  // lassen. Ebenfalls plugin-agnostisch, also statisch statt Template.
+  { src: 'check.mjs', dest: 'scripts/check.mjs' },
 ]
 
 export class ScaffoldError extends Error {
