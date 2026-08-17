@@ -118,6 +118,18 @@ requires:
 
 ---
 
+## Der Handshake ist **nicht** einmalig
+
+> Ein Host darf ihn **jederzeit erneut senden**, um ein ersetztes `bridge_token` zuzustellen. Das Plugin **muss** das im Body gelieferte Token übernehmen und das vorherige verwerfen. Nebenwirkungen, die nur zur **Erstaktivierung** gehören, hängen an `is_first_register` — nicht am Handshake.
+
+**Das normiert kein Wunschverhalten, sondern das Ist-Verhalten von zwei Hosts**: myMind stellt erneuerte Tokens seit jeher per Handshake zu (*„handshake before replacing the stored bearer"*), FamilyMind hat es unabhängig ebenso gebaut, v8-corp rotiert mit 6 h Vorlauf. Ein **gescheiterter** Handshake lässt das alte Token und die Aktivierung unangetastet.
+
+Ein eigener `rotate-token`-Endpunkt wurde erwogen und **zurückgezogen** — er wäre ein Bruch für alle bestehenden Plugins, für ein Verhalten, das der Handshake bereits trägt.
+
+> ⏳ **Und der Preis, den das hat, gehört benannt: Scopes sind praktisch unsterblich.** Eine Erneuerung übernimmt die Scopes aus dem **alten** Token. Eine *Kürzung* wirkt damit nie durch bloße Erneuerung — sie braucht einen Menschen. Bei myMind existiert dieser Pfad (`manifest_hash`-Wechsel → Zustimmungs-Gate → Neu-Ableitung); wo er fehlt, ersetzt der Health-Monitor die Berechtigungen still und die Autorisierung liest nur das Token. **Wer erneuert, muss sagen können, wie eine Kürzung je ankommt.**
+
+---
+
 ## Rückrufe, die etwas ändern: der Host fragt den Nutzer
 
 Für **schreibende und zerstörende** Rückrufe in den Host bestätigt der **Nutzer** jeden Aufruf — nicht dein Plugin, nicht ein Feld im Token. **Der Beweis ist ein Ort, kein Feld:** alles, was du mitschickst, ist eine Behauptung, und ein Anwesenheits-Token wäre zusätzlich weiterreichbar. Lesende Rückrufe bleiben beim Aktivierungs-Consent.
@@ -234,6 +246,10 @@ Die Form erzwingt die Semantik, statt sie zu verlangen: das Plugin meldet die Ze
 > > **Ein Knopf, der die Ursache nicht beheben kann, wird nicht angeboten.** „Fortsetzen" ruft dort den Health-Check mit **genau dem abgelaufenen Token** — der Kommentar daneben behauptet „bestehender Token bleibt valid". Ein Knopf, der nichts bewirkt und so aussieht, als bewirke er etwas, ist schlechter als kein Knopf.
 >
 > **`/health` tokenfrei ist eine Anforderung an beide Seiten.** Ein Host darf sie nicht tokengeschützt *erwarten* — sonst gilt dasselbe Plugin bei einem Host als gesund und beim anderen als tot.
+>
+> 🚧 **Aber schneidet nicht hart.** Bis `plugin-bridge-foundation@0.18.x` lag `/health` **in der Foundation selbst** hinter `auth()` — **jedes** Plugin auf 0.13.x–0.18.x antwortet mit 401, ohne eine Zeile eigenen Code (wiz-mind, `dist/server.js:208`). Ein Host, der ohne Rückfall umstellt, suspendiert **eine ganze Foundation-Generation**.
+>
+> **Und der Rückfall darf nicht an 401/403 hängen** (v8-fam): erst ohne Ausweis fragen — ist die Antwort **nicht verwertbar** (nicht 2xx **oder** Schema reißt), einmal mit Ausweis nachfassen. Der 401/403-Zuschnitt sperrt alle aus, die stattdessen **404** liefern oder hinter einem Gateway auf eine Login-Seite umleiten. **„Auth fehlt" ist kein zuverlässig erkennbarer Statuscode.**
 >
 > **Und das ist der eigentliche Grund** (v8-fam), stärker als alles andere, was dafür vorgebracht wurde:
 >
