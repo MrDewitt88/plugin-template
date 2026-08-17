@@ -24,8 +24,9 @@ Jede Regel nennt den **sichtbaren Ausfall**, den sie verhindert. Findest du eine
 | | **`sub` niemals validieren** — Format ist host-intern | bricht beim nächsten Host-Update |
 | | `autoAccept` als **Autorenkonstante**, nie aus einer Umgebungsvariablen | ein selbstverwalteter Dienst vertraut seinem eigenen Launcher und nimmt `register-host` von jedem auf Loopback |
 | | `register-host` **beide Schreibweisen** lesen: `public_key_pem` **und** `public_key` | Handshake scheitert mit „Signaturprüfung fehlgeschlagen", obwohl nur der Schlüssel fehlte |
-| **arbeitet** | **`/health` ohne Authentifizierung** — und **kein Host darf sie tokengeschützt erwarten** | 401 auf Health ⇒ myMind schließt „nicht bereit". Dein Dienst **läuft** und wird nie als gesund erkannt — kein Absturz, kein Log-Eintrag, nur „nicht bereit". ⚠️ **TeamMind sendet heute immer einen Bearer mit**, also läuft dasselbe Plugin dort und ist bei myMind unsichtbar: **ein Plugin, zwei Hosts, zwei Urteile** |
-| | `service_endpoint` **immer `127.0.0.1`, nie `localhost`** | `localhost` löst je nach System auf `::1` **oder** `127.0.0.1` auf. Bindest du auf das eine und der Host verbindet zum anderen, ist die Verbindung **weg** — maschinenabhängig, nicht nachstellbar, sieht aus wie ein Netzwerkproblem |
+| **arbeitet** | **`/health` ohne Authentifizierung** — und **kein Host darf sie tokengeschützt erwarten** | 401 auf Health ⇒ myMind schließt „nicht bereit". Dein Dienst **läuft** und wird nie als gesund erkannt. ⚠️ **TeamMind sendet heute immer einen Bearer mit**, also läuft dasselbe Plugin dort und ist bei myMind unsichtbar: **ein Plugin, zwei Hosts, zwei Urteile** |
+| | **Health-Antwort trägt `status` UND `version`** — beides Pflicht | `status` **entscheidet** die Gesundheit (nur `'ok'` zählt), `version` **muss da sein** (Schema-Pflicht). Das sind zwei verschiedene Aussagen: eine `{"status":"ok"}` ohne `version` wird vom Schema **abgelehnt** und suspendiert bei FamilyMind. Ich hatte „nur `status` zählt" geschrieben und damit „was entscheidet" mit „was drin sein muss" verwechselt |
+| | **Binde dual-stack** — `serve({ port })` ohne `hostname`. Und `service_endpoint`: `127.0.0.1` (Prüfung **A8**) | ⚠️ **Der Grund, den ich zuerst genannt habe, ist hier nicht reproduzierbar.** Gemessen: an `127.0.0.1` gebunden ⇒ über **beide** Schreibweisen erreichbar; an `::1` gebunden ⇒ über `localhost` erreichbar, über `127.0.0.1` **ECONNREFUSED**. Der einzige messbare Ausfall geht also **gegen** A8. Was wirklich schützt, ist die **Bindeseite**: Nodes Default ohne `hostname` ist dual-stack und über `127.0.0.1`, `localhost` **und** `[::1]` erreichbar |
 | | Tenant-Check und RBAC **auch auf dem Tool-Pfad**, nicht nur auf HTTP | der Tool-Pfad umgeht deine Rechteprüfung |
 | | Werkzeugnamen und Kennung sind **eingefroren** | jede Umbenennung ist ein Zustimmungs-Ereignis bei **jedem** bestehenden Nutzer |
 | **Update** | **alles Persistente** ins `PLUGIN_DATA_DIR` — DB, Assets, Host-Keys, Lizenz-Nachweis | ein Update ersetzt den Bundle-Pfad **komplett**. Alles dort ist weg |
@@ -229,6 +230,14 @@ Die Form erzwingt die Semantik, statt sie zu verlangen: das Plugin meldet die Ze
 > > **Ein Knopf, der die Ursache nicht beheben kann, wird nicht angeboten.** „Fortsetzen" ruft dort den Health-Check mit **genau dem abgelaufenen Token** — der Kommentar daneben behauptet „bestehender Token bleibt valid". Ein Knopf, der nichts bewirkt und so aussieht, als bewirke er etwas, ist schlechter als kein Knopf.
 >
 > **`/health` tokenfrei ist eine Anforderung an beide Seiten.** Ein Host darf sie nicht tokengeschützt *erwarten* — sonst gilt dasselbe Plugin bei einem Host als gesund und beim anderen als tot.
+>
+> **Und das ist der eigentliche Grund** (v8-fam), stärker als alles andere, was dafür vorgebracht wurde:
+>
+> > **Eine Liveness-Probe, die von einem Ausweis mit kürzerer Lebensdauer als der geprüfte Dienst abhängt, meldet den Dienst irgendwann zwangsläufig als tot.**
+>
+> Ein tokenfreies `/health` macht den Rotations-Defekt oben nicht nur behebbar, sondern **unmöglich**. Gemessen: 24-h-Token, 5-Minuten-Takt, Rotation nur bei „Fortsetzen" — der Monitor schickt ab Tag zwei ein abgelaufenes Token, das Plugin antwortet vertragsgemäß 401, und die Karte sagt „Antwortet gerade nicht" über einen Dienst, der einwandfrei geantwortet hat.
+>
+> Unsichtbar blieb es, weil **der eigene Mock den Authorization-Header auf `/health` nie prüfte** — kein Smoke lief je durch den Fall, den die Produktion an Tag zwei erreicht. Wieder die Klasse: eine Prüfung, die strukturell nicht fallen kann.
 
 > ## 🟢 Und die Klasse, die alles hiervon verbindet
 >
