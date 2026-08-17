@@ -376,7 +376,24 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
   const auth = () => authMiddleware(opts.registry, verifyOptions, trackHostLastUsed)
   app.use('/plugin-bridge/v1/handshake', auth())
   app.use('/plugin-bridge/v1/manifest', auth())
-  app.use('/plugin-bridge/v1/health', auth())
+  // ⚠️ /health steht BEWUSST NICHT hier. Bis v0.18.x lag es hinter auth() — und
+  // damit hatte JEDES Plugin auf dieser Foundation den Aktivierungs-Deadlock
+  // eingebaut, den wir anderen angestrichen haben:
+  //
+  //   Der Host pollt /health, um Bereitschaft festzustellen — BEVOR er ein
+  //   Token hat und unabhaengig davon, ob eine Registrierung geklappt hat.
+  //   Ein 401 heisst fuer ihn "nicht bereit". Der Dienst laeuft, antwortet,
+  //   funktioniert — und wird nie als gesund erkannt. Kein Absturz, kein
+  //   Log-Eintrag, nur eine Karte mit "antwortet gerade nicht".
+  //
+  // Gemessen an einem echten Plugin (Helix-Mind): dessen 401-Antwort war
+  // byte-identisch mit dem, was diese Zeile erzeugt hat. Wir haben dem Team
+  // geschrieben, seine Middleware decke "zu viel ab" — es war unser Default.
+  //
+  // Und v8-fams Satz ist der Grund, warum es nicht anders geht: eine
+  // Liveness-Probe, die von einem Ausweis mit KUERZERER Lebensdauer als der
+  // gepruefte Dienst abhaengt, meldet den Dienst irgendwann zwangslaeufig als
+  // tot. Bei 24-h-Tokens ohne Rotation ist "irgendwann" der zweite Tag.
   app.use('/plugin-bridge/v1/execute-tool', auth())
   app.use('/plugin-bridge/v1/render-ui', auth())
   app.use('/plugin-bridge/v1/invoke-hook', auth())

@@ -239,3 +239,35 @@ describe('handshake host_record_status — v0.7.2 reads actual provided fields, 
     expect(body.host_record_status.reregister_recommended).toBe(false)
   })
 })
+
+// ── /health muss tokenfrei sein ──────────────────────────────────────────────
+// Bis v0.18.x stand `/health` hinter auth(). Damit hatte JEDES Plugin auf dieser
+// Foundation den Aktivierungs-Deadlock eingebaut: der Host pollt Health, um
+// Bereitschaft festzustellen, BEVOR er ein Token hat — ein 401 heisst fuer ihn
+// "nicht bereit", und der laufende Dienst wird nie als gesund erkannt.
+//
+// 350 Tests liefen gruen, waehrend das der Default war. Keiner hat je Health
+// OHNE Token gefragt — die Luecke war nicht falsch getestet, sie war ungetestet.
+describe('createBridgeApp — /health ist tokenfrei (Aktivierungs-Deadlock)', () => {
+  it('antwortet OHNE Authorization-Header mit 200 und status/version', async () => {
+    const { registry } = await buildTestRegistry({ hostId: 'teammind' })
+    const app = createBridgeApp({ manifest: MANIFEST, registry, toolHandlers: {} })
+
+    const res = await app.fetch(new Request('http://x/plugin-bridge/v1/health'))
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { status?: string; version?: string }
+    expect(body.status).toBe('ok')
+    expect(body.version).toBe('0.1.0')
+  })
+
+  it('die geschuetzten Endpunkte bleiben geschuetzt (Gegenprobe)', async () => {
+    const { registry } = await buildTestRegistry({ hostId: 'teammind' })
+    const app = createBridgeApp({ manifest: MANIFEST, registry, toolHandlers: {} })
+
+    for (const path of ['handshake', 'manifest', 'execute-tool']) {
+      const res = await app.fetch(new Request(`http://x/plugin-bridge/v1/${path}`))
+      expect(res.status, `${path} muss ohne Token abweisen`).toBe(401)
+    }
+  })
+})
