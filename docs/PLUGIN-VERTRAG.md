@@ -24,7 +24,7 @@ Jede Regel nennt den **sichtbaren Ausfall**, den sie verhindert. Findest du eine
 | | **`sub` niemals validieren** — Format ist host-intern | bricht beim nächsten Host-Update |
 | | `autoAccept` als **Autorenkonstante**, nie aus einer Umgebungsvariablen | ein selbstverwalteter Dienst vertraut seinem eigenen Launcher und nimmt `register-host` von jedem auf Loopback |
 | | `register-host` **beide Schreibweisen** lesen: `public_key_pem` **und** `public_key` | Handshake scheitert mit „Signaturprüfung fehlgeschlagen", obwohl nur der Schlüssel fehlte |
-| **arbeitet** | **`/health` ohne Authentifizierung.** Der Host pollt sie, *bevor* er ein Token hat | 401 auf Health ⇒ der Host schließt „nicht bereit". Dein Dienst **läuft** und wird nie als gesund erkannt — kein Absturz, kein Log-Eintrag, nur „nicht bereit" |
+| **arbeitet** | **`/health` ohne Authentifizierung** — und **kein Host darf sie tokengeschützt erwarten** | 401 auf Health ⇒ myMind schließt „nicht bereit". Dein Dienst **läuft** und wird nie als gesund erkannt — kein Absturz, kein Log-Eintrag, nur „nicht bereit". ⚠️ **TeamMind sendet heute immer einen Bearer mit**, also läuft dasselbe Plugin dort und ist bei myMind unsichtbar: **ein Plugin, zwei Hosts, zwei Urteile** |
 | | `service_endpoint` **immer `127.0.0.1`, nie `localhost`** | `localhost` löst je nach System auf `::1` **oder** `127.0.0.1` auf. Bindest du auf das eine und der Host verbindet zum anderen, ist die Verbindung **weg** — maschinenabhängig, nicht nachstellbar, sieht aus wie ein Netzwerkproblem |
 | | Tenant-Check und RBAC **auch auf dem Tool-Pfad**, nicht nur auf HTTP | der Tool-Pfad umgeht deine Rechteprüfung |
 | | Werkzeugnamen und Kennung sind **eingefroren** | jede Umbenennung ist ein Zustimmungs-Ereignis bei **jedem** bestehenden Nutzer |
@@ -219,6 +219,25 @@ Die Form erzwingt die Semantik, statt sie zu verlangen: das Plugin meldet die Ze
 > **Ein Name darf nicht weniger versprechen, als er gewährt — und nicht mehr androhen.** Das eine ist eine Falschaussage im Zustimmungsdialog, das andere treibt zu einer Ablehnung ohne Sachgrund.
 
 > **Ein rotes Ergebnis ist eine Frage, keine Antwort.** Frag bei jedem Rot zuerst, ob der Messpunkt stimmt, bevor du das Gemessene änderst.
+
+> ## 🔁 Was für **Hosts** gilt, nicht für Plugins
+>
+> **Wer `exp` setzt, muss vor Ablauf rotieren** (v8-corp, v8-fam — an zwei unabhängigen Hosts derselbe Defekt, also eine fehlende Regel und nicht zweimal Schlamperei).
+>
+> Gemessen: Token-Laufzeit 24 h, Health-Monitor pollt alle 5 Minuten mit dem **gespeicherten** Token, **nichts rotiert ihn**. Nach Ablauf weist das Plugin ab ⇒ `suspended`. **Jedes Plugin in jedem Mandanten suspendiert sich einmal täglich selbst.** Und alle Routing-Lookups filtern auf `bridge_token_expires_at > now` — nach 24 h ist das Plugin auch für Tool-Dispatch und UI-Routing weg. **Der Ausfall ist total, nicht partiell.**
+>
+> > **Ein Knopf, der die Ursache nicht beheben kann, wird nicht angeboten.** „Fortsetzen" ruft dort den Health-Check mit **genau dem abgelaufenen Token** — der Kommentar daneben behauptet „bestehender Token bleibt valid". Ein Knopf, der nichts bewirkt und so aussieht, als bewirke er etwas, ist schlechter als kein Knopf.
+>
+> **`/health` tokenfrei ist eine Anforderung an beide Seiten.** Ein Host darf sie nicht tokengeschützt *erwarten* — sonst gilt dasselbe Plugin bei einem Host als gesund und beim anderen als tot.
+
+> ## 🟢 Und die Klasse, die alles hiervon verbindet
+>
+> **Eine Prüfung, die strukturell nicht fallen kann, ist keine Prüfung — sie ist eine Beruhigung.** Drei Fälle in einer Woche, alle grün, alle unfähig zu scheitern:
+> - eine B1, die **jede** HTTP-Antwort als bestanden stempelte — sie hätte einen Aktivierungs-Deadlock **als korrekt beschriftet**
+> - eine Sonde, die nichts zu prüfen hatte und trotzdem mitzählte
+> - ein Test, der auf einem case-insensitiven Dateisystem **zwei Namen für dieselbe Datei** verglich
+>
+> Frag bei jedem Grün: **unter welcher Bedingung wäre das rot geworden?** Findest du keine, misst du nichts.
 
 > **Wo ein Fehler zu „nichts" geglättet wird, sieht der Nutzer statt eines Problems eine Leere — und über Leere beschwert sich niemand.** An einem Tag dreimal gefunden: verwaiste Daten hinter einer leeren Liste · ein `EACCES`, das der Lesepfad zu `ENOENT` glättet, sodass ein leerer Katalog aussieht wie „nichts gekauft" · eine übersprungene Pflichtprüfung, die als bestanden mitgezählt wurde. **Ein lautes Scheitern ist ein Geschenk.**
 

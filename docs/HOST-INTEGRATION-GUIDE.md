@@ -2,6 +2,19 @@
 
 > Für Plugin-**Hosts** (V8/Theseus/FamilyMind/Future) die Plugin-Provider integrieren wollen. Gegenüberliegende Perspektive zu `PLUGIN-PROVIDER-GUIDE.md`.
 
+> ## ⚖️ Was auch für dich gilt, obwohl du Host bist
+>
+> Der verbindliche Vertrag ist **[`PLUGIN-VERTRAG.md`](PLUGIN-VERTRAG.md)** (eine Seite). Er beschreibt vor allem Plugin-Pflichten — **vier Punkte darin sind aber Host-Pflichten**, und sie sind an drei Hosts gemessen worden, nicht behauptet:
+>
+> | | |
+> |---|---|
+> | **`/health` nicht tokengeschützt *erwarten*** | TeamMind sendet heute immer einen Bearer mit, myMind nie. Dasselbe Plugin ist dort gesund und hier tot — **ein Plugin, zwei Hosts, zwei Urteile** |
+> | **Wer `exp` setzt, muss vor Ablauf rotieren** | an **zwei** Hosts derselbe Defekt: 24-h-Token, nichts rotiert, jedes Plugin suspendiert sich täglich selbst — und die Routing-Lookups filtern auf `expires_at > now`, der Ausfall ist **total** |
+> | **Kein Knopf, der die Ursache nicht beheben kann** | „Fortsetzen" mit genau dem abgelaufenen Token. Ein Knopf, der nichts bewirkt und so aussieht, als bewirke er etwas, ist schlechter als keiner |
+> | **`pending` braucht eine Fläche** | entsteht die Aktivierungszeile erst *nach* erfolgreichem Handshake, gibt es keine Karte für den Freigabe-Knopf — und ein gekauftes Plugin ist ein toter Kauf |
+>
+> **Und die Manifest-Ablage ist Host-Sache:** alle drei Hosts finden `<plugin-id>/manifest.yaml`; nur myMind findet zusätzlich `manifest.<id>.yaml`. Wer nur die zweite Form liest, macht Plugins **stumm unsichtbar** — kein Fehler, kein Katalogeintrag.
+
 **Audience:** Host-Engineering-Teams. Plus AI-CC-Workforce auf Host-Seite.
 
 ---

@@ -1,5 +1,21 @@
 # Plugin-Provider-Guide
 
+> # 📖 Dies ist das **Nachschlagewerk**, nicht der Vertrag.
+>
+> **Verbindlich ist [`PLUGIN-VERTRAG.md`](PLUGIN-VERTRAG.md) — eine Seite.** Dort steht, *was* du schuldest. Hier steht, *warum*, und die Fälle, an denen es jemand gelernt hat.
+>
+> **Widersprechen sich die beiden, gilt der Vertrag.** Ohne diesen Satz driften zwei Dokumente über dieselbe Sache auseinander, und niemand merkt, welches gerade recht hat — genau die Klasse Fehler, die dieses Dokument beschreibt.
+>
+> | Du willst … | lies |
+> |---|---|
+> | wissen, was du erfüllen musst | **`PLUGIN-VERTRAG.md`** (eine Seite) |
+> | verstehen, **warum** eine Regel existiert, und wen sie was gekostet hat | **hier** |
+> | ein Rezept, Beispielcode, einen Migrationspfad | **hier** |
+> | die Bridge in einer anderen Sprache nachbauen | **`PLUGIN-BRIDGE-WIRE-SPEC.md`** |
+> | Plugins **aufnehmen** statt bauen | **`HOST-INTEGRATION-GUIDE.md`** |
+>
+> **Und wenn du nur eines tust:** `pnpm check` (ab `create-plugin@0.12.0`) — es misst dich gegen den Vertrag, statt dass du ihn liest. Bei der ersten Bestandsaufnahme im Cluster hatten 20 Plugins den Prüfer und **zwei** hatten ihn laufen lassen.
+
 > Für Plugin-Provider die ein neues Plugin gegen TeamMind/Nexus Plugin-Bridge-Protocol bauen. Ende-zu-Ende von clone bis cross-repo-live-smoke.
 
 **Audience:** Engineering-Teams oder solo-Devs die Plugin-Provider werden wollen. Plus AI-CC-Workforce (siehe `CLAUDE-TEMPLATE.md`).
@@ -425,6 +441,14 @@ Programmatisch geht es auch direkt: `renderFeaturesNote(manifest, { manifestHash
 > ⚠️ **Der Zusatz, der den dritten Fall überhaupt sichtbar gemacht hat:** es reicht nicht, zu prüfen, ob dein Schema ein Manifest **annimmt** — prüf, **was nach dem Parsen noch da ist.** `parseManifest` meldete `AKZEPTIERT` **und** lieferte `requires: undefined`, beides gleichzeitig. Ein Test, der nur auf „wirft nicht" prüft, ist an dieser Klasse blind.
 >
 > Praktisch für dich: nach jeder Manifest-Erweiterung einmal das **geparste Objekt** ansehen, nicht nur den Exit-Code. Und wenn du einen Wert deklarierst, von dem du annimmst, dass der Host ihn liest — **frag nach, ob er ihn liest.** Wir haben es dreimal nicht getan.
+
+> ## ⚖️ §4.9 ist ab hier **Begründung**, nicht Vorschrift
+>
+> Alles, was in diesem Abschnitt als Regel formuliert ist, steht **kürzer und verbindlich** in [`PLUGIN-VERTRAG.md`](PLUGIN-VERTRAG.md). Was hier steht, ist der **Grund** — und die Fälle, aus denen die Regeln entstanden sind: wiz-minds verwaiste Charaktere, ET-Minds Datenpfad, cad-2ds `sub`-Verifier, EA-Minds ungeprüfte Tokens, Helix' tokengeschützte Health.
+>
+> **Zum Nachschlagen richtig, zum Abarbeiten falsch.** Wer eine Liste zum Abhaken will, nimmt den Vertrag; wer wissen will, warum ein Punkt darauf steht, ist hier richtig.
+>
+> Bei Widerspruch gilt der Vertrag — und dann ist dieser Abschnitt veraltet, nicht der Vertrag falsch.
 
 ### 4.9.0 🧭 Zuerst: welche Betriebsart bist du?
 
