@@ -15,7 +15,7 @@ Jede Regel nennt den **sichtbaren Ausfall**, den sie verhindert. Findest du eine
 
 | Schritt | Was du schuldest | Was sonst beim Kunden passiert |
 |---|---|---|
-| **erscheint** | `min_app_version` **immer mit `-rc.1`**, egal welche Zahl | `1.0.0` sperrt jeden `1.0.0-rc.x` aus. Das Plugin ist **unsichtbar** |
+| **erscheint** | `min_app_version` mit **`-rc.1`** — ⚠️ **aber bei zwei Hosts abstimmen** | `1.0.0` sperrt jeden `1.0.0-rc.x` aus, das Plugin ist bei myMind **unsichtbar**. **Umgekehrt bei FamilyMind:** deren heutiger Vergleich liest `-rc.1` als **größer**, dort macht der Suffix dich unsichtbar — bis ihr semver-Fix da ist. **Wer beide beliefert, stimmt den Wert mit dem Zielhost ab** |
 | | `distribution.type: external-service` — der einzige wirksame Wert | jeder andere Wert ⇒ Ablehnung mit kryptischem Schema-Fehler |
 | | **`<plugin-id>/manifest.yaml`** — Verzeichnis trägt die Kennung (siehe unten) | ein Layout, das ein Host nicht kennt, macht dein Plugin dort **unsichtbar**: kein Fehler, kein Katalogeintrag, einfach nicht da |
 | **aktivieren** | **Wartest du auf eine menschliche Freigabe, sag es im Fehlercode:** `host_pending`, `host_awaiting_confirmation` oder `pending_approval` mit 401/403 | auf `invalid_token` normalisiert (cad-2ds alter Fehler) sieht der Nutzer „nicht aktivierbar" statt „wartet auf dich". **Der Code entscheidet, ob er eine Sackgasse oder einen Knopf sieht** |
@@ -26,7 +26,7 @@ Jede Regel nennt den **sichtbaren Ausfall**, den sie verhindert. Findest du eine
 | | `register-host` **beide Schreibweisen** lesen: `public_key_pem` **und** `public_key` | Handshake scheitert mit „Signaturprüfung fehlgeschlagen", obwohl nur der Schlüssel fehlte |
 | **arbeitet** | **`/health` ohne Authentifizierung** — und **kein Host darf sie tokengeschützt erwarten** | 401 auf Health ⇒ myMind schließt „nicht bereit". Dein Dienst **läuft** und wird nie als gesund erkannt. ⚠️ **TeamMind sendet heute immer einen Bearer mit**, also läuft dasselbe Plugin dort und ist bei myMind unsichtbar: **ein Plugin, zwei Hosts, zwei Urteile** |
 | | **Health-Antwort trägt `status` UND `version`** — beides Pflicht | `status` **entscheidet** die Gesundheit (nur `'ok'` zählt), `version` **muss da sein** (Schema-Pflicht). Das sind zwei verschiedene Aussagen: eine `{"status":"ok"}` ohne `version` wird vom Schema **abgelehnt** und suspendiert bei FamilyMind. Ich hatte „nur `status` zählt" geschrieben und damit „was entscheidet" mit „was drin sein muss" verwechselt |
-| | **Binde dual-stack** — `serve({ port })` ohne `hostname`. Und `service_endpoint`: `127.0.0.1` (Prüfung **A8**) | ⚠️ **Der Grund, den ich zuerst genannt habe, ist hier nicht reproduzierbar.** Gemessen: an `127.0.0.1` gebunden ⇒ über **beide** Schreibweisen erreichbar; an `::1` gebunden ⇒ über `localhost` erreichbar, über `127.0.0.1` **ECONNREFUSED**. Der einzige messbare Ausfall geht also **gegen** A8. Was wirklich schützt, ist die **Bindeseite**: Nodes Default ohne `hostname` ist dual-stack und über `127.0.0.1`, `localhost` **und** `[::1]` erreichbar |
+| | **Binde dual-stack** — `serve({ port })` ohne `hostname`. Und `service_endpoint`: `127.0.0.1` (Prüfung **A8**) | **Alle drei Hosts erwarten `127.0.0.1`** — ein abweichender Wert ist mindestens ein Katalog-Unterschied. Der Verbindungsausfall dahinter ist **bedingt und gemessen**: `localhost` löst auf manchen Systemen zu `::1` **zuerst** auf, und ein Client **ohne Familien-Autoselektion** (Node < 20, naive Clients anderer Sprachen) läuft gegen einen `127.0.0.1`-only-Dienst in `ECONNREFUSED`. Moderne Hosts verdecken das per Happy-Eyeballs — **deshalb ist es unsichtbar, nicht selten** |
 | | Tenant-Check und RBAC **auch auf dem Tool-Pfad**, nicht nur auf HTTP | der Tool-Pfad umgeht deine Rechteprüfung |
 | | Werkzeugnamen und Kennung sind **eingefroren** | jede Umbenennung ist ein Zustimmungs-Ereignis bei **jedem** bestehenden Nutzer |
 | **Update** | **alles Persistente** ins `PLUGIN_DATA_DIR` — DB, Assets, Host-Keys, Lizenz-Nachweis | ein Update ersetzt den Bundle-Pfad **komplett**. Alles dort ist weg |
@@ -218,6 +218,10 @@ Die Form erzwingt die Semantik, statt sie zu verlangen: das Plugin meldet die Ze
 > Prüf deshalb nicht, ob dein Schema ein Manifest **annimmt** — prüf, **was nach dem Parsen noch da ist.**
 
 > **Ein Name darf nicht weniger versprechen, als er gewährt — und nicht mehr androhen.** Das eine ist eine Falschaussage im Zustimmungsdialog, das andere treibt zu einer Ablehnung ohne Sachgrund.
+
+> **Zwei Relais, null Messung** (agent) — so entsteht eine Regel aus nichts. A8 baute auf meiner Meldung, meine auf Allgemeinwissen; keiner von uns hatte gemessen, und durch die Weitergabe klang es nach Befund. **Eine Behauptung gewinnt keine Geltung dadurch, dass sie weitergereicht wurde** — sie gewinnt nur Zeugen.
+>
+> Aufgelöst wurde es nicht durch „wer hat recht", sondern durch die **fehlende Bedingung**: der Ausfall ist real, aber er braucht einen Client **ohne Familien-Autoselektion**. Node ≥ 20 und Bun verdecken ihn vollständig. **Beide Messungen stimmten — die eine hatte die Bedingung nicht genannt, die andere sie nicht hergestellt.** Wenn zwei Messungen sich widersprechen, fehlt meist keine von beiden, sondern die Bedingung dazwischen.
 
 > **Ein rotes Ergebnis ist eine Frage, keine Antwort.** Frag bei jedem Rot zuerst, ob der Messpunkt stimmt, bevor du das Gemessene änderst.
 
