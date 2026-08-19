@@ -25,7 +25,7 @@ Jede Regel nennt den **sichtbaren Ausfall**, den sie verhindert. Findest du eine
 | | `autoAccept` als **Autorenkonstante**, nie aus einer Umgebungsvariablen | ein selbstverwalteter Dienst vertraut seinem eigenen Launcher und nimmt `register-host` von jedem auf Loopback |
 | | `register-host` **beide Schreibweisen** lesen: `public_key_pem` **und** `public_key` | Handshake scheitert mit „Signaturprüfung fehlgeschlagen", obwohl nur der Schlüssel fehlte |
 | **arbeitet** | **`/health` ohne Authentifizierung** — und **kein Host darf sie tokengeschützt erwarten** | 401 auf Health ⇒ myMind schließt „nicht bereit". Dein Dienst **läuft** und wird nie als gesund erkannt. ⚠️ **TeamMind sendet heute immer einen Bearer mit**, also läuft dasselbe Plugin dort und ist bei myMind unsichtbar: **ein Plugin, zwei Hosts, zwei Urteile** |
-| | **Health-Antwort trägt `status` UND `version`** — beides Pflicht | `status` **entscheidet** die Gesundheit (nur `'ok'` zählt), `version` **muss da sein** (Schema-Pflicht). Das sind zwei verschiedene Aussagen: eine `{"status":"ok"}` ohne `version` wird vom Schema **abgelehnt** und suspendiert bei FamilyMind. Ich hatte „nur `status` zählt" geschrieben und damit „was entscheidet" mit „was drin sein muss" verwechselt |
+| | **Health-Antwort: Pflicht ist ausschließlich `status`** (`ok`\|`degraded`\|`unhealthy`) | `version`, `manifest_hash`, `notice`, `last_active` sind **SHOULD/optional**. Eine `{"status":"ok"}` **MUSS bei jedem Host als gesund gelten** — wer mehr verlangt, suspendiert ein vertragskonformes Plugin mit falschem Grund („nicht erreichbar" über einen Dienst, der geantwortet hat). Foundation ≥ `0.19.0` liefert `status` **und** `version`, liegt also **über** der Pflicht — so herum gehört es |
 | | **Binde dual-stack** — `serve({ port })` ohne `hostname`. Und `service_endpoint`: `127.0.0.1` (Prüfung **A8**) | **Alle drei Hosts erwarten `127.0.0.1`** — ein abweichender Wert ist mindestens ein Katalog-Unterschied. Der Verbindungsausfall dahinter ist **bedingt und gemessen**: `localhost` löst auf manchen Systemen zu `::1` **zuerst** auf, und ein Client **ohne Familien-Autoselektion** (Node < 20, naive Clients anderer Sprachen) läuft gegen einen `127.0.0.1`-only-Dienst in `ECONNREFUSED`. Moderne Hosts verdecken das per Happy-Eyeballs — **deshalb ist es unsichtbar, nicht selten** |
 | | Tenant-Check und RBAC **auch auf dem Tool-Pfad**, nicht nur auf HTTP | der Tool-Pfad umgeht deine Rechteprüfung |
 | | Werkzeugnamen und Kennung sind **eingefroren** | jede Umbenennung ist ein Zustimmungs-Ereignis bei **jedem** bestehenden Nutzer |
@@ -115,6 +115,29 @@ requires:
 ⚠️ **`requires: {}` ist ein Fehler.** Drei Zustände, absichtlich unterscheidbar: **fehlt** = nicht deklariert · **`scopes: []`** = „ich rufe nichts nach außen" · **`{}`** = Fehler. Ein Default würde aus einem halb hingeschriebenen Feld still die schärfste Einstellung machen.
 
 ⚠️ **Eine Erklärung zu entfernen ist die größte Erweiterung, die es gibt** — von „nur Kontakte" auf „alles". Im Diff sieht es aus wie Aufräumen.
+
+---
+
+## Adressen kommen aus dem Handshake, nie aus der Konvention
+
+Zwei Hosts auf einer Maschine sind kein Gedankenspiel mehr (Stock-myMind neben einer TeamMind-Variante, Pilot). Gemessen: **alle Host-Sidecars und alle effektiven Plugin-Endpunkte sind je Variante port-verschoben** — die Manifest-Adresse ist **nicht** die Verbindungsadresse, und die eine Umrechnungsstelle liegt beim Host.
+
+| | |
+|---|---|
+| **Dein Port** | binde an den Port, den der **Host beim Start übergibt** — nie an die Zahl aus deinem eigenen Manifest. Die Manifest-Adresse ist Standalone-Dev-Default |
+| **Die Rückruf-Adresse des Hosts** | persistiere sie **ausschließlich aus dem Handshake**. Ein hartkodiertes `127.0.0.1:3400` landet auf Varianten-Installationen **beim falschen Host** |
+
+> Die `aud`-Bindung weist das falsche Ziel zwar ab — aber **„falscher Host, dank Token laut" ist kein Adressierungskonzept.** Eine Sicherheitsprüfung, die einen Konfigurationsfehler auffängt, ersetzt ihn nicht.
+
+---
+
+## Eigene Datenbank mit Migrationen? Prüf beim Start, ob dein Code zum Schema passt
+
+**Code-Rollback ohne Schema-Rollback ist der Normalfall, nicht der Sonderfall** — bei beiden V8-Produkten gemessen. Danach läuft **alter Code unbemerkt auf neuem Schema**. Ein Plugin mit eigener SQLite und Migrationen hat dieselbe Lücke bei jedem Update-Rollback.
+
+**Die kleinste Form sind fünf Zeilen:** dein Code-Stand kennt seine eigene Migrationsmenge; vergleich sie beim Start gegen das Migrations-Ledger. **Enthält das Ledger Kennungen, die dieser Stand nicht kennt** → laut melden und **verweigern oder read-only**, statt still weiterzulaufen.
+
+> 🔬 **Und wenn du einen Wächter gegen destruktive Migrationen baust: leite ihn aus deinem eigenen Korpus ab, nie aus einem kopierten Muster.** Gemessen: FamilyMind hat **2** echte `DROP`-Dateien (die zuerst gemeldeten „neun" waren ein Regex-Artefakt), TeamMind **0** — dafür **8** datenverändernde `UPDATE`/`DELETE`/`TRUNCATE` und **20** `UNIQUE`-Verschärfungen. **Die destruktive Klasse ist je Codebasis eine andere.** Ein Wächter nach fremdem Muster prüft die Gefahren der fremden Codebasis.
 
 ---
 
@@ -234,6 +257,8 @@ Die Form erzwingt die Semantik, statt sie zu verlangen: das Plugin meldet die Ze
 > **Zwei Relais, null Messung** (agent) — so entsteht eine Regel aus nichts. A8 baute auf meiner Meldung, meine auf Allgemeinwissen; keiner von uns hatte gemessen, und durch die Weitergabe klang es nach Befund. **Eine Behauptung gewinnt keine Geltung dadurch, dass sie weitergereicht wurde** — sie gewinnt nur Zeugen.
 >
 > Aufgelöst wurde es nicht durch „wer hat recht", sondern durch die **fehlende Bedingung**: der Ausfall ist real, aber er braucht einen Client **ohne Familien-Autoselektion**. Node ≥ 20 und Bun verdecken ihn vollständig. **Beide Messungen stimmten — die eine hatte die Bedingung nicht genannt, die andere sie nicht hergestellt.** Wenn zwei Messungen sich widersprechen, fehlt meist keine von beiden, sondern die Bedingung dazwischen.
+
+> **Text-Pins prüfen Existenz, nicht Verhalten.** In **zwei real ausgelieferten** Paketen waren die Rollback-Handler wirkungslos — gestorben an ihrer ersten Zeile —, während die Vertragstests grün blieben, weil sie Reihenfolge und Position nur **textlich** festnagelten. Die dauerhafte Form: ein Test, der die echten Funktionsrümpfe **extrahiert und wirklich fallen lässt**, bei jedem Push. **Führ jeden Fehlerpfad mindestens einmal echt aus** — ein Fehlerpfad, der nie gelaufen ist, ist kein Fehlerpfad, sondern eine Absichtserklärung.
 
 > **Ein rotes Ergebnis ist eine Frage, keine Antwort.** Frag bei jedem Rot zuerst, ob der Messpunkt stimmt, bevor du das Gemessene änderst.
 
