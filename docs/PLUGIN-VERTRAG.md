@@ -184,6 +184,12 @@ Für **schreibende und zerstörende** Rückrufe in den Host bestätigt der **Nut
 
 **A1, A3–A6** Manifest · **B1** Dienst antwortet · **C0** nimmt den Host-Schlüssel entgegen · **C1** akzeptiert ein vertragskonformes Token — *außer der Host wartet noch auf Freigabe (`pending`), dann gilt der Lauf als **nicht geprüft**, nicht als bestanden* · **D1–D3** weist fremdes, falsch signiertes und abgelaufenes Token ab · **D1b** fällt nicht auf den `sub`-Claim zurück · **E1** `input_schema` je Werkzeug. Das übrige **E/F sind Hinweise**, darunter **D1c**.
 
+> ⚠️ **E1 prüft, DASS ein Schema da ist — nicht, ob es die Wahrheit sagt** (describe-plug). Ihr erster Schema-Satz bestand E1 **vollständig**, und ein adversarialer Gegen-Review gegen die echten Handler fand **drei reale Fehler in beide Richtungen**: ein Enum, dessen **beide** erlaubten Werte den Render zum Absturz bringen, während die gültigen Presets verboten waren · ein `seed`, das numerische Strings verbot, die der Handler bewusst annimmt · ein `required`, das gültige Teil-Aktualisierungen abwies.
+>
+> **Ein grünes E1 mit falschem Schema ist die Beruhigungs-Klasse in ihrer teuersten Form:** das Modell ruft dann *formkorrekt* Dinge auf, die zur Laufzeit scheitern — und der Nutzer sieht ein Plugin, das sich falsch verhält, statt eines, das sich beschwert.
+>
+> **Der Runner kann das nicht fangen** — er kennt deine Handler nicht. Was es fängt, ist ein **Diff Schema ↔ Handler-Code**, einmal, von jemandem, der beide liest. Schreib die Schemata aus den echten Handler-Formen ab, nicht aus der Erinnerung an sie.
+
 > 🎯 **D1b prüft den weichen Fall, den C1 und D1 beide durchlassen.** Es schickt ein Token **ohne `aud`, ohne `plugin_id`**, dessen **`sub` die Plugin-Kennung trägt**. Wer korrekt bindet, hat nichts zu binden und **weist ab**. Wer `aud ?? sub` schreibt, akzeptiert.
 >
 > Der Unterschied zu C1 ist der Kern: **C1 fängt den harten Fall** — ein Verifier, der auf `sub` *besteht*, lehnt jedes gültige Token ab und fällt sofort auf. **D1b fängt den weichen** — eine Kette, die C1 **und** D1 besteht und trotzdem falsch ist. Genau daran ist cad-2d gescheitert, und ein Satz im Vertrag hätte es nicht verhindert.
@@ -274,7 +280,7 @@ Die Form erzwingt die Semantik, statt sie zu verlangen: das Plugin meldet die Ze
 >
 > 💡 **Und der Satz, der den Fehler an der Wurzel trifft** (plug-elec): **Health ist der Endpunkt, den man abfragt, *um* an ein Token zu kommen.** Die naheliegende Intuition — *„Wire-Endpunkte sind bearer-geschützt, Health ist ein Wire-Endpunkt"* — führt genau daneben. Sie hat die Foundation bis `0.18.x` erwischt **und** mindestens ein Plugin mit eigener Bridge, das diesen Code gar nicht benutzt. **Der Fehler wird also nicht geerbt, sondern nachgebaut** — deshalb reicht ein Foundation-Fix nicht, es braucht den Satz.
 
-> 🚧 **Aber schneidet nicht hart.** Bis `plugin-bridge-foundation@0.18.x` lag `/health` **in der Foundation selbst** hinter `auth()` — **jedes** Plugin auf 0.13.x–0.18.x antwortet mit 401, ohne eine Zeile eigenen Code (wiz-mind, `dist/server.js:208`). Ein Host, der ohne Rückfall umstellt, suspendiert **eine ganze Foundation-Generation**.
+> 🚧 **Aber schneidet nicht hart.** Bis `plugin-bridge-foundation@0.18.x` lag `/health` **in der Foundation selbst** hinter `auth()` — **jedes** Plugin von **0.12.0** bis 0.18.x antwortet mit 401, ohne eine Zeile eigenen Code (wiz-mind, `dist/server.js:208`). Ein Host, der ohne Rückfall umstellt, suspendiert **eine ganze Foundation-Generation**.
 >
 > **Und der Rückfall darf nicht an 401/403 hängen** (v8-fam): erst ohne Ausweis fragen — ist die Antwort **nicht verwertbar** (nicht 2xx **oder** Schema reißt), einmal mit Ausweis nachfassen. Der 401/403-Zuschnitt sperrt alle aus, die stattdessen **404** liefern oder hinter einem Gateway auf eine Login-Seite umleiten. **„Auth fehlt" ist kein zuverlässig erkennbarer Statuscode.**
 >
