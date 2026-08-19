@@ -1,6 +1,6 @@
 {
   "name": "@nexus-mindgarden/create-plugin",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "CLI scaffold for @nexus-mindgarden Plugin-Provider \u2014 npx @nexus-mindgarden/create-plugin <name>",
   "license": "MIT",
   "type": "module",

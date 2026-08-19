@@ -19,6 +19,14 @@ const STATIC_FILES: ReadonlyArray<{ src: string; dest: string }> = [
   // Bestandsaufnahme hatten 20 Plugins den Runner und ZWEI hatten ihn laufen
   // lassen. Ebenfalls plugin-agnostisch, also statisch statt Template.
   { src: 'check.mjs', dest: 'scripts/check.mjs' },
+  // withPublicHealth — macht /health tokenfrei, ohne die Foundation zu tauschen.
+  // Gebraucht von jedem, der auf plugin-bridge-foundation 0.12.0–0.18.x sitzt:
+  // dort liegt die Health-Route hinter auth(), und der Host haelt den laufenden
+  // Dienst dauerhaft fuer "nicht bereit". Behoben ab 0.19.0 — aber solange die
+  // nicht auf npm liegt, ist der Wrapper der Weg. Bewusst abhaengigkeitsfrei
+  // und kopierbar, damit ihn auch Plugins mit EIGENER Bridge uebernehmen
+  // koennen: der Fehler wird nicht geerbt, sondern nachgebaut.
+  { src: 'public-health.mjs', dest: 'src/public-health.mjs' },
 ]
 
 export class ScaffoldError extends Error {

@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { scaffold, ScaffoldError } from '../src/scaffolders/scaffold.js'
 
@@ -153,5 +154,53 @@ describe('scaffold', () => {
     expect(r.context.pluginName).toBe('my-plugin')
     expect(r.context.pluginNamePascal).toBe('MyPlugin')
     expect(r.context.hosts).toEqual(['teammind', 'theseus'])
+  })
+})
+
+// ── withPublicHealth wird mitgeliefert ───────────────────────────────────────
+// Der Wrapper ist die einzige heute verfuegbare Antwort auf die
+// Health-hinter-auth-Generation (foundation 0.12.0–0.18.x): 0.19.0 behebt es an
+// der Quelle, liegt aber nicht auf npm. DREI Plugins haben ihn unabhaengig
+// voneinander nachgebaut, bevor er hier lag — das ist der Grund, dass er hier
+// liegt.
+describe('scaffold — withPublicHealth', () => {
+  it('liefert src/public-health.mjs mit', () => {
+    const target = join(tmpDir, 'health-probe')
+    scaffold({ pluginName: 'health-probe', hosts: ['theseus'], features: ['bridge'], target })
+    expect(existsSync(join(target, 'src/public-health.mjs'))).toBe(true)
+  })
+
+  it('trennt Health von Auth — und die Gegenprobe ist der wichtigere Teil', async () => {
+    const target = join(tmpDir, 'health-probe2')
+    scaffold({ pluginName: 'health-probe2', hosts: ['theseus'], features: ['bridge'], target })
+
+    const mod = (await import(
+      pathToFileURL(join(target, 'src/public-health.mjs')).href
+    )) as {
+      withPublicHealth: (
+        inner: (r: Request) => Promise<Response>,
+        m?: { version?: string },
+      ) => (r: Request) => Promise<Response>
+    }
+
+    // Steht fuer foundation 0.12–0.18: alles 401, auch /health.
+    const inner = async () =>
+      new Response(JSON.stringify({ error: { code: 'invalid_token' } }), { status: 401 })
+    const f = mod.withPublicHealth(inner, { version: '1.2.3' })
+    const code = async (method: string, path: string) =>
+      (await f(new Request(`http://x${path}`, { method }))).status
+
+    // Health wird frei …
+    expect(await code('GET', '/plugin-bridge/v1/health')).toBe(200)
+    expect(await code('HEAD', '/plugin-bridge/v1/health')).toBe(200)
+    expect(await code('GET', '/plugin-bridge/v1/health?verbose=1')).toBe(200)
+
+    // … und alles andere bleibt geschuetzt. Eine Reparatur, die zu viel
+    // oeffnet, waere schlimmer als der Fehler.
+    expect(await code('POST', '/plugin-bridge/v1/execute-tool')).toBe(401)
+    expect(await code('GET', '/plugin-bridge/v1/manifest')).toBe(401)
+    expect(await code('POST', '/plugin-bridge/v1/handshake')).toBe(401)
+    expect(await code('POST', '/plugin-bridge/v1/health')).toBe(401)
+    expect(await code('GET', '/plugin-bridge/v1/health/deep')).toBe(401)
   })
 })
