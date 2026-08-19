@@ -272,6 +272,8 @@ Die Form erzwingt die Semantik, statt sie zu verlangen: das Plugin meldet die Ze
 >
 > **`/health` tokenfrei ist eine Anforderung an beide Seiten.** Ein Host darf sie nicht tokengeschützt *erwarten* — sonst gilt dasselbe Plugin bei einem Host als gesund und beim anderen als tot.
 >
+> 💡 **Und der Satz, der den Fehler an der Wurzel trifft** (plug-elec): **Health ist der Endpunkt, den man abfragt, *um* an ein Token zu kommen.** Die naheliegende Intuition — *„Wire-Endpunkte sind bearer-geschützt, Health ist ein Wire-Endpunkt"* — führt genau daneben. Sie hat die Foundation bis `0.18.x` erwischt **und** mindestens ein Plugin mit eigener Bridge, das diesen Code gar nicht benutzt. **Der Fehler wird also nicht geerbt, sondern nachgebaut** — deshalb reicht ein Foundation-Fix nicht, es braucht den Satz.
+
 > 🚧 **Aber schneidet nicht hart.** Bis `plugin-bridge-foundation@0.18.x` lag `/health` **in der Foundation selbst** hinter `auth()` — **jedes** Plugin auf 0.13.x–0.18.x antwortet mit 401, ohne eine Zeile eigenen Code (wiz-mind, `dist/server.js:208`). Ein Host, der ohne Rückfall umstellt, suspendiert **eine ganze Foundation-Generation**.
 >
 > **Und der Rückfall darf nicht an 401/403 hängen** (v8-fam): erst ohne Ausweis fragen — ist die Antwort **nicht verwertbar** (nicht 2xx **oder** Schema reißt), einmal mit Ausweis nachfassen. Der 401/403-Zuschnitt sperrt alle aus, die stattdessen **404** liefern oder hinter einem Gateway auf eine Login-Seite umleiten. **„Auth fehlt" ist kein zuverlässig erkennbarer Statuscode.**
