@@ -170,7 +170,7 @@ export type PluginManifest = z.infer<typeof PluginManifestSchema>
 
 export interface BridgeTokenClaims {
   iss: string
-  sub: string // = pluginId (canonical activator)
+  sub: string // Host subject: user identity in myMind; plugin identity in legacy tokens.
   jti: string
   iat: number
   exp: number
@@ -179,11 +179,10 @@ export interface BridgeTokenClaims {
   scopes: string[]
   /**
    * v0.10.0 (markview #5357): NICHT im kanonischen V8-Token. V8 trägt die
-   * Plugin-ID nur als `sub`; `user_id` ist ein Body-Feld (live-caller), nicht im
-   * Token. Daher OPTIONAL — `verifyBridgeToken` erzwingt sie nicht mehr (default
-   * required-Set = iss/sub/jti/host_id/tenant_id). Foundation-geminte Tokens
-   * tragen sie weiter (backward-compat); Handler lesen `pluginId` (= `sub`-Fallback)
-   * + `userId` (= Body-Fallback) über den ctx.
+   * Plugin-ID in legacy tokens als `sub`; myMind verwendet dort die user_id.
+   * Daher OPTIONAL — `verifyBridgeToken` erzwingt diese Zusatzfelder nicht
+   * (default required-Set = iss/sub/jti/host_id/tenant_id). Handler lesen
+   * `pluginId` aus dem eigenen Manifest und `userId` mit Body-Fallback.
    */
   plugin_id?: string
   user_id?: string
@@ -495,6 +494,7 @@ export type InvokeHookResponse = z.infer<typeof InvokeHookResponseSchema>
 // --- Bridge-Auth-Context ---
 
 export interface BridgeAuthContext {
+  /** Identity of the serving plugin, taken from its manifest (never JWT sub). */
   pluginId: string
   hostId: string
   tenantId: string

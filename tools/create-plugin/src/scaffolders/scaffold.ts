@@ -12,7 +12,7 @@ import { buildContext, render, type TemplateContext } from '../templates/render.
 // Path resolves identically from src/scaffolders (tests) and dist/scaffolders
 // (published) — both are one level under the package root.
 const STATIC_DIR = fileURLToPath(new URL('../../templates-static/', import.meta.url))
-const STATIC_FILES: ReadonlyArray<{ src: string; dest: string }> = [
+const STATIC_FILES: ReadonlyArray<{ src: string; dest: string; feature?: string }> = [
   { src: 'pack-bundle.mjs', dest: 'scripts/pack-bundle.mjs' },
   // `pnpm check` — findet Manifest + Endpunkt selbst und ruft den Runner auf.
   // Existiert, weil Reibung entscheidet, ob gemessen wird: bei der ersten
@@ -26,7 +26,11 @@ const STATIC_FILES: ReadonlyArray<{ src: string; dest: string }> = [
   // nicht auf npm liegt, ist der Wrapper der Weg. Bewusst abhaengigkeitsfrei
   // und kopierbar, damit ihn auch Plugins mit EIGENER Bridge uebernehmen
   // koennen: der Fehler wird nicht geerbt, sondern nachgebaut.
-  { src: 'public-health.mjs', dest: 'src/public-health.mjs' },
+  {
+    src: 'public-health.mjs',
+    dest: 'packages/{{pluginName}}-bridge/src/public-health.mjs',
+    feature: 'bridge',
+  },
 ]
 
 export class ScaffoldError extends Error {
@@ -98,11 +102,13 @@ export function scaffold(opts: ScaffoldOptions): ScaffoldResult {
 
   // Static assets copied verbatim (no rendering).
   for (const sf of STATIC_FILES) {
-    const fullPath = join(target, sf.dest)
+    if (sf.feature && !opts.features.includes(sf.feature)) continue
+    const dest = render(sf.dest, context)
+    const fullPath = join(target, dest)
     try {
       mkdirSync(dirname(fullPath), { recursive: true })
       copyFileSync(join(STATIC_DIR, sf.src), fullPath)
-      written.push(sf.dest)
+      written.push(dest)
     } catch (err) {
       throw new ScaffoldError(
         'write_failed',

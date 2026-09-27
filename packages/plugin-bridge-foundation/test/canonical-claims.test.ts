@@ -3,8 +3,8 @@
 //
 // The canonical V8 bridge-token carries iss/aud/sub/tenant_id/host_id/scopes/
 // iat/exp — NOT plugin_id/user_id (v8-corp #5354). verifyBridgeToken must accept
-// such a token; the handler ctx derives pluginId from `sub` and userId from the
-// request body. ctx.claims exposes host-asserted extras (e.g. family_policy).
+// such a token. The plugin identity belongs to the serving manifest; hosts may
+// put the user in `sub`. ctx.claims preserves the original verified claims.
 
 import { describe, expect, it } from 'vitest'
 import { createBridgeApp } from '../src/server.js'
@@ -61,7 +61,7 @@ describe('canonical V8 token — no plugin_id/user_id (markview #5357)', () => {
     expect(claims.user_id).toBeUndefined()
   })
 
-  it('execute-tool ctx: pluginId ← sub, userId ← body when claims omit them', async () => {
+  it('execute-tool ctx: pluginId ← manifest, userId ← body when claims omit them', async () => {
     const h = await buildTestRegistry({ hostId: 'teammind' })
     const token = await h.mintToken({
       pluginId: 'test-plugin', // sub defaults to this
@@ -71,7 +71,7 @@ describe('canonical V8 token — no plugin_id/user_id (markview #5357)', () => {
     })
     const res = await runEcho(h.registry, token)
     expect(res.status).toBe(200)
-    expect(captured?.pluginId).toBe('test-plugin') // from sub
+    expect(captured?.pluginId).toBe('test-plugin') // from manifest
     expect(captured?.userId).toBe(U) // from request body
   })
 
@@ -126,6 +126,73 @@ describe('canonical V8 token — no plugin_id/user_id (markview #5357)', () => {
     await expect(verifyBridgeToken(token, h.registry)).rejects.toMatchObject({
       code: 'invalid_claims',
     })
+  })
+})
+
+describe('handler identity across host token formats', () => {
+  it.each([
+    {
+      label: 'user subject + audience',
+      sub: U,
+      aud: MANIFEST.id,
+      omitClaims: ['plugin_id', 'user_id'],
+    },
+    { label: 'legacy plugin subject', sub: MANIFEST.id, omitClaims: ['plugin_id', 'user_id'] },
+    { label: 'explicit identity claims', sub: U, aud: MANIFEST.id, omitClaims: [] },
+  ])('$label keeps plugin and user identities separate in every handler', async (format) => {
+    const h = await buildTestRegistry({ hostId: 'theseus' })
+    const token = await h.mintToken({
+      pluginId: MANIFEST.id,
+      tenantId: T,
+      userId: U,
+      sub: format.sub,
+      ...(format.aud === undefined ? {} : { aud: format.aud }),
+      omitClaims: format.omitClaims,
+    })
+    let context: BridgeAuthContext | undefined
+    const app = createBridgeApp({
+      manifest: MANIFEST,
+      registry: h.registry,
+      toolHandlers: {
+        echo: async (_args, ctx) => {
+          context = ctx
+          return {}
+        },
+      },
+      renderUi: async (_route, ctx) => {
+        context = ctx
+        return { html: '', scripts: [], styles: [] }
+      },
+      hookHandlers: {
+        'notes.versioning.on_save': async (_payload, ctx) => {
+          context = ctx
+          return {}
+        },
+      },
+    })
+    for (const [endpoint, body] of [
+      ['execute-tool', { tool_name: 'echo', arguments: {} }],
+      ['render-ui', { route_path: '/', context: {} }],
+      [
+        'invoke-hook',
+        { module: 'notes', capability: 'versioning', hook_name: 'on_save', payload: {} },
+      ],
+    ] as const) {
+      context = undefined
+      const response = await app.request(`/plugin-bridge/v1/${endpoint}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, tenant_id: T, user_id: U }),
+      })
+      expect(response.status, endpoint).toBe(200)
+      expect(context, endpoint).toMatchObject({
+        pluginId: MANIFEST.id,
+        userId: U,
+        hostId: 'theseus',
+        tenantId: T,
+        claims: { sub: format.sub },
+      })
+    }
   })
 })
 

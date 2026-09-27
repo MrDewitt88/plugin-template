@@ -9,7 +9,7 @@ describe('parseArgs', () => {
   it('parses minimal: only plugin-name', () => {
     const r = call(['my-plugin'])
     expect(r.pluginName).toBe('my-plugin')
-    expect(r.hosts).toEqual(['teammind', 'theseus'])
+    expect(r.hosts).toEqual(['teammind', 'theseus', 'familymind'])
     expect(r.features).toContain('mcp')
     expect(r.features).toContain('bridge')
     expect(r.target).toBe('./my-plugin')

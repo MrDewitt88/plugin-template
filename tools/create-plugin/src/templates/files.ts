@@ -23,7 +23,7 @@ const PACKAGE_JSON_ROOT = `{
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "pnpm -r typecheck",
     "build": "pnpm -r build",
     "bundle": "node scripts/pack-bundle.mjs",
     "check": "node scripts/check.mjs"
@@ -346,7 +346,8 @@ const PKG_BRIDGE_TSCONFIG = `{
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    "allowJs": true
   },
   "include": ["src/**/*"]
 }
@@ -360,16 +361,26 @@ export default defineConfig({
 
 const PKG_BRIDGE_INDEX = `import {
   createBridgeApp,
+  computeManifestHash,
   discoverManifest,
   HostKeyRegistry,
   InMemoryHostKeyRepo,
   type ToolHandler,
 } from '@nexus-mindgarden/plugin-bridge-foundation'
 import { Hono, type Context, type Next } from 'hono'
+import { withPublicHealth } from './public-health.mjs'
 
-const documentsList: ToolHandler = async (_args, _ctx) => {
+const itemsList: ToolHandler = async (_args, _ctx) => {
   // TODO: implement {{pluginName}} list
   return { items: [] }
+}
+
+const itemsGet: ToolHandler = async (args, _ctx) => {
+  if (typeof args.id !== 'string' || args.id.length === 0) {
+    throw Object.assign(new Error('id must be a non-empty string'), { code: 'invalid_arguments' })
+  }
+  // TODO: look up args.id in {{pluginName}} storage; null means not found.
+  return { item: null }
 }
 
 /**
@@ -441,10 +452,10 @@ export function audGuard(pluginId: string) {
   }
 }
 
-export async function createApp() {
+export async function createApp(manifestDir = '.') {
   // Dual-read manifest.<id>.yaml (fallback: deprecated manifest.yaml) from the
   // plugin root — CODEX-REV §13.8.
-  const { manifest } = await discoverManifest('.')
+  const { manifest } = await discoverManifest(manifestDir)
   // ⚠️ VERTRAUENSANKER — eine bewusste Entscheidung, KEINE Laufzeit-Erkennung.
   //
   // true ist richtig fuer ein host-verwaltetes Bundle: myMind spawnt diesen
@@ -473,8 +484,10 @@ export async function createApp() {
   const bridge = createBridgeApp({
     manifest,
     registry,
+    enforceScopes: true,
     toolHandlers: {
-      'documents.list': documentsList,
+      'items.list': itemsList,
+      'items.get': itemsGet,
     },
   })
 
@@ -482,6 +495,12 @@ export async function createApp() {
   // seine Routen bereits registriert, und Hono führt in Registrierungsreihenfolge
   // aus — ein spätes .use() liefe NACH dem Handler und damit zu spät (cad3d).
   const app = new Hono()
+  // Readiness must precede BOTH the audience guard and the older Foundation's
+  // auth middleware. Keep the wrapper inside this package so tsc ships it.
+  const publicFetch = withPublicHealth(bridge.fetch, manifest, {
+    manifestHash: computeManifestHash(manifest),
+  })
+  app.on(['GET', 'HEAD'], '/plugin-bridge/v1/health', (c) => publicFetch(c.req.raw))
   app.use(audGuard(manifest.id))
   app.route('/', bridge)
   return app

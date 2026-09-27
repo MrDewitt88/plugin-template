@@ -164,10 +164,10 @@ describe('scaffold', () => {
 // voneinander nachgebaut, bevor er hier lag — das ist der Grund, dass er hier
 // liegt.
 describe('scaffold — withPublicHealth', () => {
-  it('liefert src/public-health.mjs mit', () => {
+  it('liefert den Health-Wrapper im gebauten Bridge-Package mit', () => {
     const target = join(tmpDir, 'health-probe')
     scaffold({ pluginName: 'health-probe', hosts: ['theseus'], features: ['bridge'], target })
-    expect(existsSync(join(target, 'src/public-health.mjs'))).toBe(true)
+    expect(existsSync(join(target, 'packages/health-probe-bridge/src/public-health.mjs'))).toBe(true)
   })
 
   it('trennt Health von Auth — und die Gegenprobe ist der wichtigere Teil', async () => {
@@ -175,7 +175,7 @@ describe('scaffold — withPublicHealth', () => {
     scaffold({ pluginName: 'health-probe2', hosts: ['theseus'], features: ['bridge'], target })
 
     const mod = (await import(
-      pathToFileURL(join(target, 'src/public-health.mjs')).href
+      pathToFileURL(join(target, 'packages/health-probe2-bridge/src/public-health.mjs')).href
     )) as {
       withPublicHealth: (
         inner: (r: Request) => Promise<Response>,

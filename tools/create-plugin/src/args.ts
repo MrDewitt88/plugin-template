@@ -5,7 +5,7 @@
 //                                          [--target=<dir>] [--help]
 //
 // Defaults:
-//   --hosts=teammind,theseus
+//   --hosts=teammind,theseus,familymind
 //   --features=mcp,bridge        (bridge always implied)
 //   --target=./<plugin-name>
 
@@ -131,7 +131,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     )
   }
 
-  const hostsRaw = flags.hosts ?? 'teammind,theseus'
+  const hostsRaw = flags.hosts ?? 'teammind,theseus,familymind'
   const hosts = hostsRaw.split(',').map((s) => s.trim()).filter(Boolean)
   for (const h of hosts) {
     if (!VALID_HOSTS.includes(h as (typeof VALID_HOSTS)[number])) {
@@ -170,7 +170,7 @@ Usage:
 Options:
   --hosts=<list>      Welche Hosts targeten (comma-separated)
                       Valid: teammind, theseus, familymind
-                      Default: teammind,theseus
+                      Default: teammind,theseus,familymind
 
   --features=<list>   Welche Foundation-Packages inkludieren
                       Valid: bridge, storage, svelte, mcp

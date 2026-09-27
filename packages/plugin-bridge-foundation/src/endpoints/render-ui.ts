@@ -14,7 +14,7 @@ import type { Context } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { RenderUiRequestSchema, type BridgeTokenClaims, type RenderUiHandler } from '../types.js'
 
-export function renderUiHandler(handler: RenderUiHandler) {
+export function renderUiHandler(handler: RenderUiHandler, pluginId: string) {
   return async (c: Context) => {
     let body: unknown
     try {
@@ -41,8 +41,7 @@ export function renderUiHandler(handler: RenderUiHandler) {
 
     try {
       const result = await handler(req.route_path, {
-        // v0.10.0 (markview #5357): pluginId ← sub-Fallback, userId ← Body-Fallback.
-        pluginId: claims.plugin_id ?? claims.sub,
+        pluginId,
         hostId: claims.host_id,
         tenantId: claims.tenant_id,
         userId: claims.user_id ?? req.user_id,

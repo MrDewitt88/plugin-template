@@ -410,10 +410,10 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
     }),
   )
   if (opts.renderUi) {
-    app.post('/plugin-bridge/v1/render-ui', renderUiHandler(opts.renderUi))
+    app.post('/plugin-bridge/v1/render-ui', renderUiHandler(opts.renderUi, opts.manifest.id))
   }
   if (opts.hookHandlers) {
-    app.post('/plugin-bridge/v1/invoke-hook', invokeHookHandler(opts.hookHandlers))
+    app.post('/plugin-bridge/v1/invoke-hook', invokeHookHandler(opts.hookHandlers, opts.manifest.id))
   }
 
   // --- 404 fallback ---

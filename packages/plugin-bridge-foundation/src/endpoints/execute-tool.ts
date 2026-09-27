@@ -78,10 +78,9 @@ export function executeToolHandler(
 
     try {
       const result = await handler(req.arguments, {
-        // v0.10.0 (markview #5357): plugin_id/user_id sind im V8-Token optional →
-        // pluginId fällt auf `sub` (canonical activator) zurück, userId aufs
-        // Body-Feld (live-caller). claims = raw passthrough (wiz-mind family_policy).
-        pluginId: claims.plugin_id ?? claims.sub,
+        // The serving manifest owns this identity. `sub` may identify a user;
+        // keep token claims unchanged for callers that need the raw context.
+        pluginId: opts.manifest.id,
         hostId: claims.host_id,
         tenantId: claims.tenant_id,
         userId: claims.user_id ?? req.user_id,
