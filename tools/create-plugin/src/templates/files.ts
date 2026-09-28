@@ -337,7 +337,7 @@ const PKG_BRIDGE_JSON = `{
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@nexus-mindgarden/plugin-bridge-foundation": "^0.12.0",
+    "@nexus-mindgarden/plugin-bridge-foundation": "^0.20.0",
     "@nexus-mindgarden/plugin-mcp-foundation": "^0.6.0",
     "@hono/node-server": "^1.13.0",
     "hono": "^4.6.0"

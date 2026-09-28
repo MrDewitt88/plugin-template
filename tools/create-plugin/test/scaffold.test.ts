@@ -45,6 +45,15 @@ describe('scaffold', () => {
     expect(existsSync(join(target, 'scripts/pack-bundle.mjs'))).toBe(true)
     // bridge package
     expect(existsSync(join(target, 'packages/my-plugin-bridge/package.json'))).toBe(true)
+    const bridgePackage = JSON.parse(
+      readFileSync(join(target, 'packages/my-plugin-bridge/package.json'), 'utf-8'),
+    )
+    const foundationPackage = JSON.parse(
+      readFileSync(join(import.meta.dirname, '../../../packages/plugin-bridge-foundation/package.json'), 'utf-8'),
+    )
+    expect(bridgePackage.dependencies['@nexus-mindgarden/plugin-bridge-foundation']).toBe(
+      `^${foundationPackage.version}`,
+    )
     const bridgeIndex = readFileSync(
       join(target, 'packages/my-plugin-bridge/src/index.ts'),
       'utf-8',

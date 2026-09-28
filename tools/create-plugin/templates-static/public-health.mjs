@@ -12,9 +12,8 @@
  * funktioniert — und wird nie als gesund erkannt. Kein Absturz, kein
  * Log-Eintrag, nur eine Karte mit "antwortet gerade nicht".
  *
- * Behoben in 0.19.0. Solange die Version nicht auf npm liegt, ist DAS hier
- * der Weg — und er ist auch dann noch richtig, wenn du eine EIGENE Bridge
- * baust: der Fehler wird nicht aus der Foundation geerbt, sondern aus
+ * Behoben in Foundation 0.19.0. Der Wrapper ist weiterhin sinnvoll, wenn du
+ * eine EIGENE Bridge baust: der Fehler wird nicht aus der Foundation geerbt, sondern aus
  * derselben Intuition nachgebaut ("Wire-Endpunkte sind bearer-geschuetzt,
  * Health ist ein Wire-Endpunkt"). Er ist es nicht:
  *
