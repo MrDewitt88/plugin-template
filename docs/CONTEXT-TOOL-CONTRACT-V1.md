@@ -104,3 +104,54 @@ altes `plugin:ask-kiara`-Event sowie ein nur für die App sichtbares Tool.
 
 Referenz für `_meta.ui`, Sichtbarkeit und Ressourcen:
 [MCP Apps Specification (Draft)](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx).
+
+## Mobile Host-Naht für Android und iOS
+
+Dieser Abschnitt beschreibt den Vertrag, den ein mobiler Host implementieren
+muss. Er behauptet **keine** bereits vorhandene mobile Plugin-Laufzeit. Die
+derzeitige Manifest-Distribution `external-service` bleibt für Desktop-Hosts
+gültig; ein lokaler mobiler Bundle-Loader und seine Installation sind eigene
+Host-Arbeit. Ein neuer `distribution.type` wird dafür nicht vorausgesetzt.
+
+Die Plugin-UI verwendet dieselben Custom-Events wie auf dem Desktop:
+`plugin:mcp-call`/`plugin:mcp-response`, `plugin:context-update` und das
+ausdrücklich nutzerausgelöste `plugin:ask-kiara`. Ein mobiler Host lädt das
+verifizierte UI-Bundle, montiert dessen Custom-Element und bindet alle Listener
+an genau diesen Mount. Beim Unmount entfernt er Listener und Live-Kontext.
+
+Ein MCP-Toolname in der Capability-Registrierung ist der **innere** Name. Der
+Host ergänzt außen `<plugin-id>.` für Modell und Plugin-UI, auch wenn der innere
+Name bereits Punkte enthält. Beispiel: `id: chatbus-mind` plus Manifest-Tool
+`chatbus.messages_read` ergibt den Host-/UI-Namen
+`chatbus-mind.chatbus.messages_read`. Vor dem Aufruf des zugehörigen
+Plugin-Handlers entfernt der Host genau das äußere Präfix; der Handler erhält
+`chatbus.messages_read`. Diese Regel entspricht dem aktuellen Theseus-Host.
+
+Bei `plugin:mcp-call` prüft der Host den Namen gegen die **an diesen Mount
+gebundene, verifizierte Tool-Registrierung** und die aktuellen Scopes. Diese
+Registrierung darf mobile-only Tools wie `chatbus.mobile_sync` enthalten, muss
+deren tatsächliche mobile Implementierung aber belegen; das Desktop-Manifest
+allein ist dafür keine Ausführungszusage. Format und Installation der mobilen
+Registrierung bleiben Host-Arbeit, ohne einen bereits unterstützten
+`embedded`-Manifesttyp zu behaupten. Der Host ermittelt Plugin-Identität,
+Nutzer und Akteur aus seiner eigenen Session;
+`actor_class` im UI-Event ist kein Berechtigungsnachweis. Nur deklarierte und
+für die App sichtbare Tools dürfen über den Mount aufgerufen werden. Die
+Antwort mit derselben `request_id` geht an das auslösende Custom-Element, nicht
+an einen beliebigen anderen Mount. Für Modellaufrufe gilt die getrennte
+Sichtbarkeit aus `_meta.ui.visibility`; `[app]` wird dem Modell nicht angeboten.
+
+Plugin-spezifische Offline-Logik kann im vertrauenswürdigen mobilen Host-Bereich
+laufen. Bei Chatbus-Mind sind das ein an Installation/Konto gebundener
+Persistenz-Port und ein auf Hub und Rolle begrenzter Transport-Port. Die
+Custom-Element-UI bekommt weder Zugangsdaten noch eine allgemeine Fetch- oder
+Dateisystem-Freigabe; ein nativer Port fügt Zugangsdaten erst nach der
+hostseitigen Freigabe einer konkreten Operation an. Ob ein Vorgang offline
+vorgemerkt oder am Hub ausgeführt wurde, muss im Ergebnis unterscheidbar sein.
+
+Ein mobiler Durchstich ist erst vollständig, wenn Android **und** iOS das
+Bundle laden und mounten, einen erlaubten Tool-Aufruf samt Antwort ausführen,
+einen fremden oder nicht deklarierten Toolnamen abweisen, Kontext bei
+Ansichtwechsel/Unmount verwerfen und eine Plugin-spezifische Offline-/Sync-
+Probe mit sicherer Persistenz bestehen. Ein separat importierbarer Browser-
+Client allein erfüllt diese Host-Gates noch nicht.
