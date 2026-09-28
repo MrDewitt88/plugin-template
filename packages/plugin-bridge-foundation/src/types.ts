@@ -21,6 +21,28 @@ export const PluginRouteSchema = z.object({
 })
 export type PluginRoute = z.infer<typeof PluginRouteSchema>
 
+// MCP Apps metadata lives on the tool descriptor. Keep unknown metadata keys so
+// a manifest round-trip cannot erase extensions owned by another MCP feature.
+export const PluginMcpUiMetadataSchema = z
+  .object({
+    resourceUri: z.string().startsWith('ui://').optional(),
+    visibility: z
+      .array(z.enum(['model', 'app']))
+      .min(1)
+      .optional(),
+  })
+  .passthrough()
+export type PluginMcpUiMetadata = z.infer<typeof PluginMcpUiMetadataSchema>
+
+export const PluginMcpToolMetaSchema = z
+  .object({
+    ui: PluginMcpUiMetadataSchema.optional(),
+    // Deprecated MCP Apps spelling: retained when older providers use it.
+    'ui/resourceUri': z.string().startsWith('ui://').optional(),
+  })
+  .passthrough()
+export type PluginMcpToolMeta = z.infer<typeof PluginMcpToolMetaSchema>
+
 export const PluginMcpToolEntrySchema = z.union([
   z.string().min(1),
   z.object({
@@ -29,6 +51,7 @@ export const PluginMcpToolEntrySchema = z.union([
     input_schema: z.record(z.unknown()).optional(),
     output_schema: z.record(z.unknown()).optional(),
     scopes_required: z.array(z.string()).optional(),
+    _meta: PluginMcpToolMetaSchema.optional(),
   }),
 ])
 export type PluginMcpToolEntry = z.infer<typeof PluginMcpToolEntrySchema>
@@ -451,6 +474,20 @@ export const ExecuteToolResponseSchema = z.discriminatedUnion('ok', [
   }),
 ])
 export type ExecuteToolResponse = z.infer<typeof ExecuteToolResponseSchema>
+
+// Optional MCP-shaped result for ToolHandlers. The bridge's existing
+// `{ ok: true, result }` envelope stays unchanged and accepts legacy values.
+// Providers can return this shape when the host needs separate model text,
+// structured UI data and result metadata.
+export const McpCallToolResultSchema = z
+  .object({
+    content: z.array(z.object({ type: z.string().min(1) }).passthrough()),
+    structuredContent: z.record(z.unknown()).optional(),
+    _meta: z.record(z.unknown()).optional(),
+    isError: z.boolean().optional(),
+  })
+  .passthrough()
+export type McpCallToolResult = z.infer<typeof McpCallToolResultSchema>
 
 export const RenderUiRequestSchema = z.object({
   route_path: z.string().regex(/^\//, 'route_path must start with /'),

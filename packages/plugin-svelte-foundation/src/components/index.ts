@@ -7,12 +7,18 @@ export {
 } from './bridge-attrs.js'
 export {
   dispatchAskKiara,
+  dispatchContextUpdate,
   dispatchError,
   dispatchNavigate,
   dispatchRefresh,
   MAX_CONTENT_BYTES,
+  MAX_CONTEXT_SNAPSHOT_BYTES,
+  MAX_SELECTION_BYTES,
+  normalizeContextUpdateDetail,
   trimToMaxBytes,
   type PluginAskKiaraDetail,
+  type PluginContextReference,
+  type PluginContextUpdateDetail,
   type PluginErrorDetail,
   type PluginNavigateDetail,
   type PluginRefreshDetail,

@@ -264,6 +264,14 @@ provides:
             description: Kennung des Eintrags.
         required: [id]
       scopes_required: []
+  # Optional MCP Apps linkage, once this plugin serves the referenced ui://
+  # resource through resources/read. Keep metadata on the TOOL definition:
+  #   _meta:
+  #     ui:
+  #       resourceUri: ui://{{pluginName}}/item-panel
+  #       visibility: [model, app]  # or [app] for a UI-only tool
+  # A host must hide [app]-only tools from the model while still authorizing
+  # calls from this plugin's UI. Existing routes/render-ui need no change.
   module_extensions: []
   scopes_required: []
 # requires:            # optional — der AUSGEHENDE Grant für Rückrufe in den Host
@@ -372,6 +380,10 @@ import { withPublicHealth } from './public-health.mjs'
 
 const itemsList: ToolHandler = async (_args, _ctx) => {
   // TODO: implement {{pluginName}} list
+  // Optional MCP-shaped result for a host that shows a UI:
+  // return { content: [{ type: 'text', text: '0 Eintraege' }],
+  //   structuredContent: { items: [] }, _meta: { revision: 1 } }
+  // Keep the text useful for hosts that cannot render the UI.
   return { items: [] }
 }
 

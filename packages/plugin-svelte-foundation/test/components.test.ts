@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
 import {
   bridgeAttrPropsMapping,
   OBSERVED_BRIDGE_ATTRS,
@@ -6,12 +7,20 @@ import {
 } from '../src/components/bridge-attrs.js'
 import {
   dispatchAskKiara,
+  dispatchContextUpdate,
   dispatchError,
   dispatchNavigate,
   dispatchRefresh,
   MAX_CONTENT_BYTES,
+  MAX_CONTEXT_SNAPSHOT_BYTES,
+  normalizeContextUpdateDetail,
   trimToMaxBytes,
 } from '../src/components/host-events.js'
+import type { PluginContextUpdateDetail } from '../src/components/host-events.js'
+
+const contractFixture = JSON.parse(
+  readFileSync(new URL('../../../fixtures/context-tool-contract-v1.json', import.meta.url), 'utf8'),
+) as { context_update: PluginContextUpdateDetail }
 
 describe('OBSERVED_BRIDGE_ATTRS', () => {
   it('enthält alle 8 Standard-Attrs (7 bridge + theme)', () => {
@@ -118,7 +127,13 @@ describe('dispatch*-helpers', () => {
       bubbles: boolean
       composed: boolean
     }[] = []
-    const types = ['plugin:navigate', 'plugin:refresh', 'plugin:error', 'plugin:ask-kiara']
+    const types = [
+      'plugin:navigate',
+      'plugin:refresh',
+      'plugin:error',
+      'plugin:ask-kiara',
+      'plugin:context-update',
+    ]
     for (const t of types) {
       target.addEventListener(t, (e) => {
         const ce = e as CustomEvent
@@ -168,6 +183,70 @@ describe('dispatch*-helpers', () => {
       document_id: 'doc-1',
       capabilities: ['markdown', 'katex'],
     })
+  })
+
+  it('dispatchContextUpdate emits a bounded data snapshot across shadow boundaries', () => {
+    const { target, received } = makeTarget()
+    dispatchContextUpdate(target, contractFixture.context_update)
+    expect(received).toHaveLength(1)
+    expect(received[0]).toMatchObject({
+      type: 'plugin:context-update',
+      detail: contractFixture.context_update,
+      bubbles: true,
+      composed: true,
+    })
+    expect(received[0]!.detail).not.toHaveProperty('plugin_id')
+    expect(received[0]!.detail).not.toHaveProperty('suggested_prompt')
+  })
+
+  it('trims UTF-8 content and marks truncation; rejects oversized selection', () => {
+    const content = 'a'.repeat(MAX_CONTENT_BYTES - 2) + '🎉'
+    const snapshot = normalizeContextUpdateDetail({
+      ...contractFixture.context_update,
+      full_content: content,
+    })
+    expect(snapshot.full_content_truncated).toBe(true)
+    expect(new TextEncoder().encode(snapshot.full_content).length).toBeLessThanOrEqual(
+      MAX_CONTENT_BYTES,
+    )
+    expect(new TextEncoder().encode(JSON.stringify(snapshot)).length).toBeLessThanOrEqual(
+      MAX_CONTEXT_SNAPSHOT_BYTES,
+    )
+    expect(snapshot.selection).toBe(contractFixture.context_update.selection)
+    expect(snapshot.full_content).not.toContain('�')
+    expect(() =>
+      normalizeContextUpdateDetail({
+        ...contractFixture.context_update,
+        selection: 'x'.repeat(8_001),
+      }),
+    ).toThrow(/selection/)
+  })
+
+  it('accounts for JSON escaping within the whole-snapshot budget', () => {
+    const snapshot = normalizeContextUpdateDetail({
+      ...contractFixture.context_update,
+      full_content: '\n'.repeat(MAX_CONTENT_BYTES),
+    })
+    expect(new TextEncoder().encode(JSON.stringify(snapshot)).length).toBeLessThanOrEqual(
+      MAX_CONTEXT_SNAPSHOT_BYTES,
+    )
+    expect(snapshot.full_content_truncated).toBe(true)
+    expect(snapshot.selection).toBe(contractFixture.context_update.selection)
+  })
+
+  it('rejects invalid view keys and extra references before dispatch', () => {
+    expect(() =>
+      normalizeContextUpdateDetail({
+        ...contractFixture.context_update,
+        view_id: '',
+      }),
+    ).toThrow(/view_id/)
+    expect(() =>
+      normalizeContextUpdateDetail({
+        ...contractFixture.context_update,
+        references: Array.from({ length: 17 }, (_, i) => ({ kind: 'item', id: String(i) })),
+      }),
+    ).toThrow(/references/)
   })
 })
 

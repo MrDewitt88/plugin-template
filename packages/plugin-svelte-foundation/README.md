@@ -12,6 +12,7 @@ Svelte 5 Custom-Element Foundation für Plugin-UI-Components — bridge-attrs re
     bridgeAttrPropsMapping,
     readBridgeAttrs,
     dispatchAskKiara,
+    dispatchContextUpdate,
     trimToMaxBytes,
     MAX_CONTENT_BYTES,
   } from '@nexus-mindgarden/plugin-svelte-foundation'
@@ -26,6 +27,15 @@ Svelte 5 Custom-Element Foundation für Plugin-UI-Components — bridge-attrs re
     const root = host  // bind-this auf root
     if (!root) return
     const trimmed = trimToMaxBytes(myContent)
+    dispatchContextUpdate(root, {
+      schema_version: 1,
+      view_id: `document-detail:${documentId}`,
+      context: 'document-detail',
+      references: [{ kind: 'document', id: documentId }],
+      full_content: trimmed.text,
+      full_content_truncated: trimmed.truncated,
+      capabilities: ['markdown', 'katex'],
+    })
     dispatchAskKiara(root, {
       context: 'document-detail',
       document_id: documentId,
@@ -55,6 +65,12 @@ Svelte 5 Custom-Element Foundation für Plugin-UI-Components — bridge-attrs re
   /* THEME-TOKENS-END */
 </style>
 ```
+
+`plugin:context-update` kann auch bei Änderungen der Ansicht gesendet werden.
+Beim Öffnen von Kiara übernimmt der Host den neuesten passenden Snapshot in
+den nächsten Turn. Das `full_content` im bestehenden `plugin:ask-kiara` bleibt
+im Beispiel für ältere Hosts erhalten. Der vollständige Vertrag steht in
+[Kontext und Tool-Metadaten](../../docs/CONTEXT-TOOL-CONTRACT-V1.md).
 
 ### Theme-Tokens-CSS (in build-step generieren)
 
@@ -91,7 +107,7 @@ src/
 ├── components/
 │   ├── bridge-attrs.ts   # OBSERVED_BRIDGE_ATTRS + readBridgeAttrs +
 │   │                       bridgeAttrPropsMapping (Drift #7)
-│   ├── host-events.ts    # dispatchNavigate/refresh/error/askKiara +
+│   ├── host-events.ts    # dispatchNavigate/refresh/error/askKiara/contextUpdate +
 │   │                       trimToMaxBytes (UTF-8-safe)
 │   └── index.ts
 ├── theme/
