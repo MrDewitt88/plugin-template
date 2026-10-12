@@ -14,6 +14,12 @@ export {
 } from './server.js'
 export { staticUiHandler, type StaticUiHandlerOptions } from './endpoints/static-ui.js'
 export * from './types.js'
+export * from './mcp-ui/types.js'
+export { McpUiResourceRegistry, McpUiResourceError } from './mcp-ui/registry.js'
+export {
+  createMcpUiResourceClient, McpUiResourceClientError,
+  type McpUiResourceClientOptions, type McpUiResourceClient,
+} from './mcp-ui/client.js'
 
 // Re-export auth + manifest for one-stop import
 export {

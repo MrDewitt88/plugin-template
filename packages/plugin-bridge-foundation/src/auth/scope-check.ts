@@ -69,9 +69,17 @@ export function checkToolScopes(
   const pluginWide = manifest.provides.scopes_required ?? []
   const perTool = perToolScopes(toolName, manifest.provides.mcp_tools)
 
+  return checkRequiredScopes([...pluginWide, ...perTool], callerScopes)
+}
+
+/** Shared scope semantics for tools and explicitly registered UI resources. */
+export function checkRequiredScopes(
+  requiredScopes: readonly string[],
+  callerScopes: readonly string[],
+): ScopeCheckResult {
   const required: string[] = []
   const seen = new Set<string>()
-  for (const s of [...pluginWide, ...perTool]) {
+  for (const s of requiredScopes) {
     if (!seen.has(s)) {
       seen.add(s)
       required.push(s)

@@ -32,6 +32,13 @@ beforeEach(() => {
     mkdirSync(dirname(destination), { recursive: true })
     symlinkSync(join(ROOT, source!), destination, process.platform === 'win32' ? 'junction' : 'dir')
   }
+  const binaries = join(target, 'node_modules/.bin')
+  mkdirSync(binaries, { recursive: true })
+  if (process.platform === 'win32') {
+    writeFileSync(join(binaries, 'tsc.cmd'), `@"${process.execPath}" "${require.resolve('typescript/bin/tsc')}" %*\r\n`)
+  } else {
+    symlinkSync(require.resolve('typescript/bin/tsc'), join(binaries, 'tsc'))
+  }
 })
 
 afterEach(() => rmSync(target, { recursive: true, force: true }))
@@ -42,6 +49,9 @@ function typecheck() {
     encoding: 'utf8',
     shell: process.platform === 'win32',
     timeout: 20_000,
+    // This fixture deliberately links workspace dependencies instead of
+    // installing them. pnpm 11 must not replace that offline test graph.
+    env: { ...process.env, npm_config_verify_deps_before_run: 'false', PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: 'false' },
   })
 }
 

@@ -1,5 +1,6 @@
 // Template file-strings + paths. Plugin-Provider-Skelett — Foundation-
 // Patterns + Placeholders. CLI rendert + writes diese files in target-dir.
+import { MCP_UI_TEMPLATE_FILES } from './mcp-ui-files.js'
 
 export interface TemplateFile {
   /** Relative path to repo-root, may contain placeholders */
@@ -7,7 +8,7 @@ export interface TemplateFile {
   /** File-content with {{placeholders}} */
   content: string
   /** Optional: only include if this feature in --features=... */
-  feature?: 'bridge' | 'storage' | 'svelte' | 'mcp'
+  feature?: 'bridge' | 'storage' | 'svelte' | 'mcp' | 'mcp-ui'
 }
 
 const PACKAGE_JSON_ROOT = `{
@@ -264,14 +265,18 @@ provides:
             description: Kennung des Eintrags.
         required: [id]
       scopes_required: []
-  # Optional MCP Apps linkage, once this plugin serves the referenced ui://
-  # resource through resources/read. Keep metadata on the TOOL definition:
-  #   _meta:
-  #     ui:
-  #       resourceUri: ui://{{pluginName}}/item-panel
-  #       visibility: [model, app]  # or [app] for a UI-only tool
-  # A host must hide [app]-only tools from the model while still authorizing
-  # calls from this plugin's UI. Existing routes/render-ui need no change.
+{{#if features.mcp-ui}}    - name: items.panel
+      description: Zeigt die Einträge als interaktives MCP-Widget.
+      input_schema:
+        type: object
+        properties: {}
+        additionalProperties: false
+      scopes_required: []
+      _meta:
+        ui:
+          resourceUri: ui://{{pluginName}}/item-panel
+          visibility: [model, app]
+{{/if}}
   module_extensions: []
   scopes_required: []
 # requires:            # optional — der AUSGEHENDE Grant für Rückrufe in den Host
@@ -337,7 +342,7 @@ const PKG_BRIDGE_JSON = `{
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@nexus-mindgarden/plugin-bridge-foundation": "^0.20.0",
+    "@nexus-mindgarden/plugin-bridge-foundation": "^0.21.0",
     "@nexus-mindgarden/plugin-mcp-foundation": "^0.6.0",
     "@hono/node-server": "^1.13.0",
     "hono": "^4.6.0"
@@ -377,6 +382,9 @@ const PKG_BRIDGE_INDEX = `import {
 } from '@nexus-mindgarden/plugin-bridge-foundation'
 import { Hono, type Context, type Next } from 'hono'
 import { withPublicHealth } from './public-health.mjs'
+{{#if features.mcp-ui}}import { readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
+{{/if}}
 
 const itemsList: ToolHandler = async (_args, _ctx) => {
   // TODO: implement {{pluginName}} list
@@ -500,7 +508,24 @@ export async function createApp(manifestDir = '.') {
     toolHandlers: {
       'items.list': itemsList,
       'items.get': itemsGet,
+{{#if features.mcp-ui}}      'items.panel': async (args, ctx) => ({
+        content: [{ type: 'text', text: 'Einträge dieses Plugins.' }],
+        structuredContent: await itemsList(args, ctx),
+      }),
+{{/if}}
     },
+{{#if features.mcp-ui}}    mcpUiResources: [{
+      resource: {
+        uri: 'ui://{{pluginName}}/item-panel',
+        name: 'item-panel',
+        title: '{{pluginNamePascal}} Einträge',
+        _meta: { ui: { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: true } },
+      },
+      // Fixed provider-owned path. Request URIs are never filesystem paths.
+      // The bundle includes dist-plugin/; build the MCP UI package before use.
+      read: () => readFile(resolve(manifestDir, 'dist-plugin/item-panel.html'), 'utf8'),
+    }],
+{{/if}}
   })
 
   // ⚠️ UMSCHLIESSEN, nicht nachträglich \`bridge.use(...)\`: createBridgeApp hat
@@ -729,6 +754,7 @@ plugin-rollout). \`signature\` is reserved for a future Ed25519 bundle-signature
 
 // Build the complete file-list. Order: root files, then per-feature packages.
 export const TEMPLATE_FILES: TemplateFile[] = [
+  ...MCP_UI_TEMPLATE_FILES,
   { path: 'package.json', content: PACKAGE_JSON_ROOT },
   { path: 'pnpm-workspace.yaml', content: PNPM_WORKSPACE },
   { path: 'tsconfig.base.json', content: TSCONFIG_BASE },

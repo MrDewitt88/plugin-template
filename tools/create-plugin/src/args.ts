@@ -14,7 +14,7 @@ export interface ParsedArgs {
   command: 'scaffold' | 'features-note'
   pluginName: string
   hosts: string[]
-  features: ('bridge' | 'storage' | 'svelte' | 'mcp')[]
+  features: ('bridge' | 'storage' | 'svelte' | 'mcp' | 'mcp-ui')[]
   target: string
   help: boolean
   /** features-note: Verzeichnis mit `manifest.<id>.yaml` (default: cwd). */
@@ -45,7 +45,7 @@ export class ArgsError extends Error {
 const VALUE_FLAGS = new Set(['hosts', 'features', 'target', 'dir', 'out'])
 
 const VALID_HOSTS = ['teammind', 'theseus', 'familymind'] as const
-const VALID_FEATURES = ['bridge', 'storage', 'svelte', 'mcp'] as const
+const VALID_FEATURES = ['bridge', 'storage', 'svelte', 'mcp', 'mcp-ui'] as const
 const PLUGIN_NAME_RE = /^[a-z][a-z0-9-]*[a-z0-9]$/
 
 export function parseArgs(argv: string[]): ParsedArgs {
@@ -173,7 +173,7 @@ Options:
                       Default: teammind,theseus,familymind
 
   --features=<list>   Welche Foundation-Packages inkludieren
-                      Valid: bridge, storage, svelte, mcp
+                      Valid: bridge, storage, svelte, mcp, mcp-ui
                       Default: mcp (bridge always included)
 
   --target=<dir>      Output-Directory
@@ -184,6 +184,7 @@ Options:
 Examples:
   npx @nexus-mindgarden/create-plugin my-plugin
   npx @nexus-mindgarden/create-plugin my-plugin --features=mcp,storage,svelte
+  npx @nexus-mindgarden/create-plugin my-plugin --features=mcp-ui
   npx @nexus-mindgarden/create-plugin docs-plugin --hosts=teammind --features=mcp,storage
   npx @nexus-mindgarden/create-plugin my-plugin --target=/Users/me/Desktop/my-plugin
 

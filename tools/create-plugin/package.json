@@ -1,6 +1,6 @@
 {
   "name": "@nexus-mindgarden/create-plugin",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "CLI scaffold for @nexus-mindgarden Plugin-Provider \u2014 npx @nexus-mindgarden/create-plugin <name>",
   "license": "MIT",
   "type": "module",
@@ -48,6 +48,12 @@
   ],
   "_comment_bridgeFoundation": "Nur f\u00fcr Typen als devDependency. Zur Laufzeit l\u00e4dt `features-note` die Foundation aus dem Ziel-Plugin (loadFoundation in src/cli.ts), damit der manifest_hash zur dortigen Version passt und der Scaffold-Pfad nichts installieren muss.",
   "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@modelcontextprotocol/ext-apps": "2.0.3",
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/core": "^2.0.0",
+    "esbuild": "^0.25.12",
+    "zod": "^4.2.0",
     "@nexus-mindgarden/plugin-bridge-foundation": "workspace:^",
     "@types/node": "^24.0.0",
     "typescript": "^5.6.0",

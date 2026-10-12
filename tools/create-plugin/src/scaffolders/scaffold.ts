@@ -62,6 +62,11 @@ export interface ScaffoldResult {
  * Skipt files mit feature-flag wenn feature nicht in opts.features.
  */
 export function scaffold(opts: ScaffoldOptions): ScaffoldResult {
+  // The public API needs the same dependency as the CLI: an MCP UI view
+  // without its resource-serving bridge would produce an unusable plugin.
+  const features = opts.features.includes('mcp-ui')
+    ? [...new Set([...opts.features, 'bridge'])]
+    : opts.features
   const target = resolve(opts.target)
   if (existsSync(target) && !opts.force) {
     throw new ScaffoldError(
@@ -73,13 +78,13 @@ export function scaffold(opts: ScaffoldOptions): ScaffoldResult {
   const context = buildContext({
     pluginName: opts.pluginName,
     hosts: opts.hosts,
-    features: opts.features,
+    features,
   })
 
   const written: string[] = []
 
   for (const file of TEMPLATE_FILES) {
-    if (file.feature && !opts.features.includes(file.feature)) continue
+    if (file.feature && !features.includes(file.feature)) continue
 
     const renderedPath = render(file.path, context)
     const renderedContent = render(file.content, context)
@@ -99,7 +104,7 @@ export function scaffold(opts: ScaffoldOptions): ScaffoldResult {
 
   // Static assets copied verbatim (no rendering).
   for (const sf of STATIC_FILES) {
-    if (sf.feature && !opts.features.includes(sf.feature)) continue
+    if (sf.feature && !features.includes(sf.feature)) continue
     const dest = render(sf.dest, context)
     const fullPath = join(target, dest)
     try {

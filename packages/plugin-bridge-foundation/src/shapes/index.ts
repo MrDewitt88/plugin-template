@@ -89,3 +89,13 @@ export {
   InvokeHookResponseSchema,
   type InvokeHookResponse,
 } from '../types.js'
+
+export {
+  MCP_UI_MIME_TYPE, MCP_UI_HTML_MAX_BYTES, MCP_UI_METADATA_MAX_BYTES,
+  MCP_UI_RESOURCES_MAX, MCP_UI_LIST_PATH, MCP_UI_READ_PATH,
+  McpUiUriSchema, McpUiResourceMetaSchema, McpUiResourceSchema,
+  ListMcpUiResourcesRequestSchema, ListMcpUiResourcesResponseSchema,
+  ReadMcpUiResourceRequestSchema, ReadMcpUiResourceResponseSchema, McpUiDiscoverySchema,
+  type McpUiResourceMeta, type McpUiResource, type ListMcpUiResourcesResponse,
+  type ReadMcpUiResourceRequest, type ReadMcpUiResourceResponse, type McpUiDiscovery,
+} from '../mcp-ui/types.js'

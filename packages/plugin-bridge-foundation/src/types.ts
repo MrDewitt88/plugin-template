@@ -5,6 +5,7 @@
 // Translation passiert im Endpoint-Handler.
 
 import { z } from 'zod'
+import { McpUiDiscoverySchema } from './mcp-ui/types.js'
 
 // --- Manifest ---
 
@@ -324,6 +325,7 @@ export const HandshakeResponseSchema = z.object({
   manifest: PluginManifestSchema,
   capabilities_acknowledged: z.array(z.enum(['routes', 'mcp_tools', 'module_extensions'])),
   health: z.enum(['ok', 'degraded', 'unhealthy']),
+  mcp_ui: McpUiDiscoverySchema.optional(),
   // Drift #206 — symmetric, always-present
   host_record_status: HostRecordStatusSchema,
 })

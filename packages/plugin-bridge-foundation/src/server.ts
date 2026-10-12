@@ -26,6 +26,7 @@
 
 import { Hono, type MiddlewareHandler } from 'hono'
 import { cors } from 'hono/cors'
+import { bodyLimit } from 'hono/body-limit'
 import {
   buildHostRecordStatus,
   HostKeyRegistry,
@@ -40,6 +41,9 @@ import { healthHandler } from './endpoints/health.js'
 import { executeToolHandler } from './endpoints/execute-tool.js'
 import { renderUiHandler } from './endpoints/render-ui.js'
 import { invokeHookHandler } from './endpoints/invoke-hook.js'
+import { mcpUiResourcesHandler } from './endpoints/mcp-ui-resources.js'
+import { McpUiResourceRegistry } from './mcp-ui/registry.js'
+import { MCP_UI_LIST_PATH, MCP_UI_READ_PATH, type McpUiResourceDefinition } from './mcp-ui/types.js'
 import { staticUiHandler, type StaticUiHandlerOptions } from './endpoints/static-ui.js'
 import { computeManifestHash } from './manifest/hash.js'
 import { Counter, Gauge, MetricsRegistry, type Logger } from './observability/index.js'
@@ -79,6 +83,8 @@ export interface BridgeAppOptions {
   toolHandlers: Record<string, ToolHandler>
   /** route_path-pattern handler — Plugin-Provider matcht selbst */
   renderUi?: RenderUiHandler
+  /** Opt-in MCP Apps resources. New resource endpoints always enforce scopes. */
+  mcpUiResources?: readonly McpUiResourceDefinition[]
   /** map of `${module}.${capability}.${hook_name}` → handler */
   hookHandlers?: Record<string, HookHandler>
   /** Custom CORS origin-list. Default '*'. */
@@ -174,6 +180,8 @@ export interface BridgeObservabilityOptions {
 }
 
 export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
+  const mcpUi = opts.mcpUiResources === undefined ? undefined
+    : new McpUiResourceRegistry(opts.manifest, opts.mcpUiResources)
   const app = new Hono<BridgeEnv>()
 
   // CORS — Drift #8 mitigation. Plugin-Bridge endpoints serve cross-origin
@@ -397,9 +405,16 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
   app.use('/plugin-bridge/v1/execute-tool', auth())
   app.use('/plugin-bridge/v1/render-ui', auth())
   app.use('/plugin-bridge/v1/invoke-hook', auth())
+  if (mcpUi) {
+    for (const path of [MCP_UI_LIST_PATH, MCP_UI_READ_PATH]) {
+      app.use(path, auth())
+      app.use(path, bodyLimit({ maxSize: 4 * 1024, onError: c =>
+        c.json({ error: { code: 'invalid_request', message: 'resource request too large' } }, 413) }))
+    }
+  }
 
   // --- Endpoints ---
-  app.post('/plugin-bridge/v1/handshake', handshakeHandler(opts.manifest, opts.registry))
+  app.post('/plugin-bridge/v1/handshake', handshakeHandler(opts.manifest, opts.registry, mcpUi?.discovery))
   app.get('/plugin-bridge/v1/manifest', manifestHandler(opts.manifest))
   app.get('/plugin-bridge/v1/health', healthHandler({ pluginVersion, manifestHash }))
   app.post(
@@ -414,6 +429,10 @@ export function createBridgeApp(opts: BridgeAppOptions): Hono<BridgeEnv> {
   }
   if (opts.hookHandlers) {
     app.post('/plugin-bridge/v1/invoke-hook', invokeHookHandler(opts.hookHandlers, opts.manifest.id))
+  }
+  if (mcpUi) {
+    app.post(MCP_UI_LIST_PATH, mcpUiResourcesHandler(mcpUi, 'list'))
+    app.post(MCP_UI_READ_PATH, mcpUiResourcesHandler(mcpUi, 'read'))
   }
 
   // --- 404 fallback ---

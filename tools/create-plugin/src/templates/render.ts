@@ -54,7 +54,7 @@ export function render(template: string, ctx: TemplateContext): string {
   let result = template
 
   // Conditional sections — process erst (sonst confusion mit value-replacements)
-  for (const feature of ['bridge', 'storage', 'svelte', 'mcp']) {
+  for (const feature of ['bridge', 'storage', 'svelte', 'mcp', 'mcp-ui']) {
     const has = ctx.features.includes(feature)
     const re = new RegExp(`\\{\\{#if features\\.${feature}\\}\\}([\\s\\S]*?)\\{\\{/if\\}\\}`, 'g')
     result = result.replace(re, has ? '$1' : '')

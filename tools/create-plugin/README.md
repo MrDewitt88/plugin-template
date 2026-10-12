@@ -12,8 +12,8 @@ npx @nexus-mindgarden/create-plugin <plugin-name> [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--hosts=<list>` | `teammind,theseus` | Targeted hosts (comma-separated). Valid: `teammind`, `theseus`, `familymind` |
-| `--features=<list>` | `mcp` | Foundation-features (bridge always implied). Valid: `bridge`, `storage`, `svelte`, `mcp` |
+| `--hosts=<list>` | `teammind,theseus,familymind` | Targeted hosts (comma-separated). Valid: `teammind`, `theseus`, `familymind` |
+| `--features=<list>` | `mcp` | Foundation-features (bridge always implied). Valid: `bridge`, `storage`, `svelte`, `mcp`, `mcp-ui` |
 | `--target=<dir>` | `./<plugin-name>` | Output-Directory |
 | `--help`, `-h` | — | Show help |
 
@@ -25,6 +25,9 @@ npx @nexus-mindgarden/create-plugin my-plugin
 
 # Custom features
 npx @nexus-mindgarden/create-plugin docs-plugin --features=mcp,storage,svelte
+
+# Bridge plus a self-contained MCP Apps widget (Generator 0.15.0)
+npx @nexus-mindgarden/create-plugin widget-plugin --features=mcp-ui
 
 # Single host + custom target
 npx @nexus-mindgarden/create-plugin v8-only-plugin --hosts=teammind --target=/Users/me/Plugins/v8-only
@@ -56,6 +59,12 @@ npx @nexus-mindgarden/create-plugin v8-only-plugin --hosts=teammind --target=/Us
 ```
 
 Plus für `--features=storage` / `svelte` / `mcp`: weitere `<plugin-name>-{storage,svelte,mcp}/` packages (Phase-2 — current CLI scaffolds bridge-only, dann Plugin-Provider hand-fügt zusätzliche packages).
+
+`--features=mcp-ui` adds a real `<plugin-name>-mcp-ui` package, the `items.panel`
+tool/URI linkage and its Bridge Foundation resource reader. `pnpm build` emits
+the inline HTML into `dist-plugin/item-panel.html` for the bundle packer.
+See [MCP UI resources](../../docs/MCP-UI-RESOURCES.md) for the host adapter and
+the browser smoke. A host needs MCP Apps support to display this widget.
 
 ## Post-Scaffold Workflow
 

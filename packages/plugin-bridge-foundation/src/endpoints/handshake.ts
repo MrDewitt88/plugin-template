@@ -6,8 +6,9 @@
 import type { Context } from 'hono'
 import { buildHostRecordStatus, type HostKeyRegistry } from '../auth/host-keys.js'
 import { HandshakeRequestSchema, type PluginManifest } from '../types.js'
+import type { McpUiDiscovery } from '../mcp-ui/types.js'
 
-export function handshakeHandler(manifest: PluginManifest, registry: HostKeyRegistry) {
+export function handshakeHandler(manifest: PluginManifest, registry: HostKeyRegistry, mcpUi?: McpUiDiscovery) {
   return async (c: Context) => {
     let body: unknown
     try {
@@ -66,6 +67,7 @@ export function handshakeHandler(manifest: PluginManifest, registry: HostKeyRegi
       manifest,
       capabilities_acknowledged: ['routes', 'mcp_tools', 'module_extensions'],
       health: 'ok',
+      ...(mcpUi !== undefined ? { mcp_ui: mcpUi } : {}),
       host_record_status: buildHostRecordStatus({
         isFirstRegister: false,
         providedFields: providedOptionalFields,

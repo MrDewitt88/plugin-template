@@ -3,6 +3,7 @@
 > **Status:** NORMATIVE **for the wire** — the byte-level shapes, claims and error codes. For *what you owe as a plugin*, the binding document is **[`PLUGIN-VERTRAG.md`](PLUGIN-VERTRAG.md)** (one page). This spec and the contract cover different questions and do not overlap; where they touch, the contract wins.
 >
 > Verified line-by-line against `@nexus-mindgarden/plugin-bridge-foundation@0.13.0` (the reference implementation) on 2026-07-30, including empirical probes against the compiled artifact.
+> Additions verified on 2026-10-13: public health since 0.19.0; optional MCP UI resources since 0.21.0 — see §13.
 >
 > ⚠️ **This spec is still unproven in a second language.** It claims a Python, Rust or Go service can speak the same bridge; nobody has built one yet. If you are that first implementer, **report where it fails you** — that is the gap we cannot close from this side.
 > **Audience:** anyone implementing a plugin bridge **without** the TypeScript foundation — Python (Speak-Mind, Med-Mind), Rust, Go, Swift.
@@ -22,7 +23,7 @@ For an `external-service` plugin with **empty `provides`** (no UI routes, no MCP
 | --- | --- | --- | --- |
 | `/plugin-bridge/v1/register-host` | POST | **none** (bootstrap) | host pushes its public key |
 | `/plugin-bridge/v1/handshake` | POST | Bearer | activation round-trip |
-| `/plugin-bridge/v1/health` | GET | Bearer | liveness + version |
+| `/plugin-bridge/v1/health` | GET | **none** | liveness + version (since 0.19.0) |
 
 Omittable: `/manifest` (**but see §6 caveat**), `/execute-tool`, `/render-ui`, `/invoke-hook` — those are only called when the manifest declares matching capabilities. `/plugin-bridge/v1/register-tenants` is **not** part of the foundation at all; hosts treat a 404 as "unsupported" and continue.
 
@@ -80,7 +81,7 @@ Store the PEM **trimmed**, and compare trimmed:
 
 ## 3. ⚠️ The activation deadlock — decide your trust policy
 
-A new host defaults to **`pending`** (privacy-by-default), and *every* authenticated call then fails `401 host_pending` — including `/health`. There is **no protocol path** for the host to recover on its own. This cost a production activation round (eamind 0.2.0) and is the single biggest trap in this spec.
+A new host defaults to **`pending`** (privacy-by-default), and every authenticated call then fails `401 host_pending`. `/health` is public since 0.19.0 and remains usable before activation. There is **no protocol path** for the host to approve itself. This cost a production activation round (eamind 0.2.0).
 
 Pick one, deliberately:
 
@@ -225,7 +226,7 @@ Mandatory in **both** the `handshake` and `register-host` success responses — 
 
 ---
 
-## 7. `GET /plugin-bridge/v1/health` — authenticated
+## 7. `GET /plugin-bridge/v1/health` — public since 0.19.0
 
 | Field | Required |
 | --- | --- |
@@ -234,7 +235,7 @@ Mandatory in **both** the `handshake` and `register-host` success responses — 
 | `last_active` | — |
 | `manifest_hash` | — (see caveat) |
 
-> ⚠️ **`/health` is behind Bearer auth**, which surprises people expecting an open liveness probe. Hosts poll it *with* the token.
+> `/health` must remain usable before registration and with absent, expired or foreign bearer tokens. This removes the activation deadlock and prevents token expiry from being mistaken for service failure.
 >
 > ⚠️ **Returning `degraded`/`unhealthy` makes the host suspend the activation** on its next poll, and resume refuses while status ≠ `ok`. Only report non-`ok` when you mean it.
 
@@ -396,7 +397,22 @@ If you already read `MrDewitt88/TeamMindV8 docs/PLUGIN-BRIDGE-PROTOCOL.md`, thes
 - [ ] `reregister_recommended` never true for a field the host can't supply
 - [ ] handshake: strict UUIDs, `bridge_token` in body tolerated-not-trusted, `plugin_id_mismatch` → 400
 - [ ] handshake response: all six fields, `capabilities_acknowledged` all three
-- [ ] `/health` authenticated; `manifest_hash` either omitted **or** `/manifest` implemented
+- [ ] `/health` public; `manifest_hash` either omitted **or** `/manifest` implemented
 - [ ] auth failures 401 + `{error:{code,message}}`; handler failures 200 + `{ok:false,…}`
 - [ ] **tenant check implemented** (§10)
 - [ ] manifest: snake_case, `manifest.<id>.yaml`, `127.0.0.1`, no `requires: {}`
+
+## 13. Optional MCP UI resources (Foundation 0.21.0)
+
+The optional `mcp_ui` handshake field advertises two authenticated POST paths:
+`/plugin-bridge/v1/resources/list` (`{}` → MCP `resources` array) and
+`/plugin-bridge/v1/resources/read` (`{uri}` → MCP `contents` array). Only explicitly
+registered `ui://` resources are served, with MIME
+`text/html;profile=mcp-app`. Resource `_meta.ui` carries CSP/permission requests.
+The resource boundary always binds `aud ?? plugin_id` to the serving plugin
+and enforces the plugin scope floor plus resource scopes; identity is token-only.
+Absent MCP UI support leaves legacy handshakes/routes unchanged.
+
+The exact shapes, limits, errors, generator and host adaptation are specified
+in [MCP-UI-RESOURCES.md](MCP-UI-RESOURCES.md). This is a bridge extension using
+MCP resource payloads; a host supplies the MCP Apps sandbox and SDK channel.

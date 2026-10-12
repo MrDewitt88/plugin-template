@@ -6,6 +6,11 @@ Implementiert die 7 Plugin-Bridge-v1-Endpoints (handshake/manifest/health/execut
 
 ## Quick Use
 
+Since **0.21.0**, optional `mcpUiResources` supplies authenticated MCP Apps
+resource discovery/reads and an optional `mcp_ui` handshake advertisement.
+Hosts can use `createMcpUiResourceClient` to adapt these endpoints to MCP
+resource methods. See [the provider/host contract](../../docs/MCP-UI-RESOURCES.md).
+
 ```ts
 import {
   createBridgeApp,
