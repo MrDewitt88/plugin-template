@@ -15,3 +15,6 @@ packages:
 allowBuilds:
   better-sqlite3: true
   esbuild: true
+
+minimumReleaseAgeExclude:
+  - zod@4.6.7

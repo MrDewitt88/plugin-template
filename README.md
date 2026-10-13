@@ -74,3 +74,10 @@ Each package has its own `package.json`, `tsconfig.json`, `vitest.config.ts`, `R
 ## License
 
 MIT — see `LICENSE`.
+
+## MCPi-Host-Anbindung (0.9.0)
+
+`@nexus-mindgarden/mcpi-host@0.1.0` liefert den authentisierten Ressourcenclient
+und die offizielle MCP-Apps-Bridge für Theseus/myMind und goMind Android/iOS.
+Der verbindliche Begriffsumfang, Standalone-App-Vertrag, Anschluss und die
+Plattformgrenzen stehen in [docs/MCPI-CONTRACT.md](docs/MCPI-CONTRACT.md).
