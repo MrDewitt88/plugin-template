@@ -1,6 +1,6 @@
 {
   "name": "@nexus-mindgarden/create-plugin",
-  "version": "0.16.0",
+  "version": "0.16.1",
   "description": "CLI starter for Mind plugins and standalone apps with MCPi/MCPi-UI",
   "license": "MIT",
   "type": "module",

@@ -176,9 +176,9 @@ Suiten, Produktionssignierung und Store-Auslieferung bleiben Release-Gates.
 Die Kandidaten-Manifeste in den goMind-Repos setzen deshalb `storeReady=false`.
 Das ist keine Freigabe als produktiver Store-Release.
 
-## Konkreter Standalone-Starter — Template 0.10.0
+## Konkreter Standalone-Starter — Template 0.10.1
 
-`create-plugin <app-id> --kind=app` (Generator 0.16.0) erzeugt eine eigene
+`create-plugin <app-id> --kind=app` (Generator 0.16.1) erzeugt eine eigene
 Node-24-/Svelte-5-App. Hauptoberfläche und MCPi-Werkzeuge teilen den validierten,
 dauerhaften Store; ein separates SDK-Widget liefert B1-Lesen/Anlegen.
 Hosts werden nach Fingerprint-/Aussteller-Prüfung lokal freigegeben;
@@ -192,3 +192,14 @@ B1-Aktionen benutzen Buttons/SDK-Callbacks. Formularnavigation ist im opaken
 Frame gesperrt und darf für den Starter nicht freigeschaltet werden.
 
 Die zurückgestellte mobile Geräteabnahme bleibt unverändert ein goMind-Release-Gate.
+
+## Foundation-Patch 0.21.1 — Storage-Alias
+
+`distribution.storage_env` bleibt nach Manifest-Validierung erhalten und fließt
+in den normalisierten Manifest-Hash ein. Die Regel entspricht myMind:
+`^[A-Z_][A-Z0-9_]*$`. Ohne dieses optionale Feld bleibt das Verhalten unverändert.
+Der Host setzt bei von ihm gestarteten Diensten den Alias auf denselben
+installationsbezogenen Datenordner wie `PLUGIN_DATA_DIR`; die Foundation
+validiert den Namen und setzt selbst keine Umgebungsvariable.
+Eigenständige Apps verwalten weiterhin ihren eigenen Start und `APP_DATA_DIR`.
+Generator 0.16.1 und Referenzstarter 0.1.1 enthalten die gepinnte Foundation 0.21.1.

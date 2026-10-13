@@ -1,7 +1,7 @@
 id: standalone-notes-app
 name: { de: 'StandaloneNotesApp', en: 'StandaloneNotesApp' }
 description: { de: 'Eigenständige Einträge-App mit MCPi-Anbindung', en: 'Standalone items app with MCPi integration' }
-version: 0.1.0
+version: 0.1.1
 distribution:
   type: external-service
   service_endpoint: http://127.0.0.1:3670

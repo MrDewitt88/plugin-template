@@ -1,5 +1,5 @@
 import { App } from '@modelcontextprotocol/ext-apps/app-with-deps'
-const app = new App({ name: '{{pluginNamePascal}} Panel', version: '0.1.0' }, {})
+const app = new App({ name: '{{pluginNamePascal}} Panel', version: '0.1.1' }, {})
 const status = document.querySelector<HTMLElement>('#status')!
 const items = document.querySelector<HTMLElement>('#items')!
 const refresh = document.querySelector<HTMLButtonElement>('#refresh')!

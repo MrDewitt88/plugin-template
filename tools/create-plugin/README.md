@@ -2,6 +2,8 @@
 
 ## Eigenständige Apps mit myMind — ab 0.16.0
 
+Aktueller Stand: Generator 0.16.1, Starter 0.1.1, Bridge Foundation 0.21.1.
+
 `--kind=app` erzeugt eine eigene Svelte-5-/Node-24-App mit dauerhaftem Store,
 expliziter Host-Freigabe, MCPi-Bridge und einem selbstenthaltenen MCPi-UI-B1-Widget.
 Das fertige, kopierbare Beispiel liegt unter
@@ -19,7 +21,7 @@ pnpm test
 pnpm start
 ```
 
-Die Starter-Foundation 0.21.0 liegt geprüft unter `vendor/`; der App-Starter
+Die Starter-Foundation 0.21.1 liegt geprüft unter `vendor/`; der App-Starter
 ist damit von einer npm-Veröffentlichung dieser Foundation unabhängig.
 Die neue Generator-Version wird hier nicht als bereits auf npm veröffentlicht
 ausgegeben. Plugin-Modus und dessen bestehende Defaults bleiben erhalten.

@@ -24,9 +24,9 @@ describe('standalone app scaffold', () => {
     const pkg = JSON.parse(read('package.json'))
     expect(pkg.scripts.start).toContain('dist/server.js')
     expect(pkg.dependencies['@nexus-mindgarden/plugin-bridge-foundation']).toBe(
-      'file:vendor/plugin-bridge-foundation-0.21.0.tgz',
+      'file:vendor/plugin-bridge-foundation-0.21.1.tgz',
     )
-    expect(existsSync(join(target, 'vendor/plugin-bridge-foundation-0.21.0.tgz'))).toBe(true)
+    expect(existsSync(join(target, 'vendor/plugin-bridge-foundation-0.21.1.tgz'))).toBe(true)
     expect(read('src/trust.ts')).toContain('autoAccept: false')
     expect(read('src/bridge.ts')).toContain('enforceScopes: true')
     expect(read('manifest.sample-app.yaml')).toContain('mcp.write.sample-app.items')

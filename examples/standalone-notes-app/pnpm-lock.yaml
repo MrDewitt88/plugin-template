@@ -12,8 +12,8 @@ importers:
         specifier: ^1.13.0
         version: 1.19.17(hono@4.13.13)
       '@nexus-mindgarden/plugin-bridge-foundation':
-        specifier: file:vendor/plugin-bridge-foundation-0.21.0.tgz
-        version: file:vendor/plugin-bridge-foundation-0.21.0.tgz
+        specifier: file:vendor/plugin-bridge-foundation-0.21.1.tgz
+        version: file:vendor/plugin-bridge-foundation-0.21.1.tgz
       hono:
         specifier: ^4.6.0
         version: 4.13.13
@@ -416,9 +416,9 @@ packages:
     os: [linux]
     libc: [glibc]
 
-  '@nexus-mindgarden/plugin-bridge-foundation@file:vendor/plugin-bridge-foundation-0.21.0.tgz':
-    resolution: {integrity: sha512-dX1+AvaoHwab9DGXnA/oS/noiGImQBVL7JVZQ9v8JjIg2m6Aikp9fSpKgDnQIWh00qDeH+RiljwxSHkgOrUgBg==, tarball: file:vendor/plugin-bridge-foundation-0.21.0.tgz}
-    version: 0.21.0
+  '@nexus-mindgarden/plugin-bridge-foundation@file:vendor/plugin-bridge-foundation-0.21.1.tgz':
+    resolution: {integrity: sha512-IkSuqhC3wGwEq8+F94/peJpL1zbMBCECMhx0ET0KRPu/tcR/g4d/dTLUUzpVjY5qfYBY5vyHNiRUk+8wFnemMQ==, tarball: file:vendor/plugin-bridge-foundation-0.21.1.tgz}
+    version: 0.21.1
 
   '@rollup/rollup-android-arm-eabi@4.64.6':
     resolution: {integrity: sha512-FkO19Fowv/OQeJZPVfdetJaI3/VpbZmBsnmAlR/rQ+b3QwfiGQiOpVegpSRH331kelvHTVw9hXYG3DwjAaRzyQ==}
@@ -1127,7 +1127,7 @@ snapshots:
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true
 
-  '@nexus-mindgarden/plugin-bridge-foundation@file:vendor/plugin-bridge-foundation-0.21.0.tgz':
+  '@nexus-mindgarden/plugin-bridge-foundation@file:vendor/plugin-bridge-foundation-0.21.1.tgz':
     dependencies:
       hono: 4.13.13
       jose: 5.10.0

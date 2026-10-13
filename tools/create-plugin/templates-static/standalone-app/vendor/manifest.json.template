@@ -1,8 +1,8 @@
 {
   "package": "@nexus-mindgarden/plugin-bridge-foundation",
-  "version": "0.21.0",
-  "file": "plugin-bridge-foundation-0.21.0.tgz",
-  "sha256": "f5c99379f3be6048ee77b393d43fc3c9ff99133b77523ec2a902760fd5c9a63f",
-  "sourceCommit": "ccbb2b841afa423d2f070ba9f5a9a0cbb2dd4779",
+  "version": "0.21.1",
+  "file": "plugin-bridge-foundation-0.21.1.tgz",
+  "sha256": "49c8b60acd8b7beb1e34d8002d560caf49047079275e218f2ffcb17243af394c",
+  "sourceCommit": "a25ba4fc527b57edc467aa025fc2c29549fd3bd7",
   "license": "MIT"
 }

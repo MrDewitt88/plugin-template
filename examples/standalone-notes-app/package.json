@@ -1,6 +1,6 @@
 {
   "name": "standalone-notes-app",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -17,7 +17,7 @@
     "verify:vendor": "node scripts/verify-vendor.mjs"
   },
   "dependencies": {
-    "@nexus-mindgarden/plugin-bridge-foundation": "file:vendor/plugin-bridge-foundation-0.21.0.tgz",
+    "@nexus-mindgarden/plugin-bridge-foundation": "file:vendor/plugin-bridge-foundation-0.21.1.tgz",
     "@hono/node-server": "^1.13.0",
     "hono": "^4.6.0",
     "svelte": "^5.56.9",

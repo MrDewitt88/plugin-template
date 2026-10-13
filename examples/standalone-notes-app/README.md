@@ -1,6 +1,6 @@
 # StandaloneNotesApp — eigenständige App mit MCPi/MCPi-UI
 
-Eine lauffähige Node-24-/Svelte-5-Referenz-App. Eigener Prozess, eigene Hauptoberfläche und dauerhafte Daten; myMind erreicht dieselbe Domain über die Plugin Bridge. Das kompakte MCP-Apps-Widget verwendet das gemeinsame B1-Profil.
+Referenzstarter 0.1.1 mit Foundation 0.21.1. Eine lauffähige Node-24-/Svelte-5-Referenz-App. Eigener Prozess, eigene Hauptoberfläche und dauerhafte Daten; myMind erreicht dieselbe Domain über die Plugin Bridge. Das kompakte MCP-Apps-Widget verwendet das gemeinsame B1-Profil.
 
 ## Start
 
@@ -32,7 +32,7 @@ Für echte myMind-Daten `.env.example` nach `.env` kopieren und `APP_TENANT_ID` 
 - `src/trust.ts`: persistente Registrierung, explizite Fingerprint-Freigabe, Aussteller/Audience und erneut ausstehende Schlüsselwechsel.
 - `packages/standalone-notes-app-mcp-ui/`: selbstenthaltenes SDK-Widget, maximal 512 KiB, ohne eigene Netzwerkanfragen oder Zugangstoken.
 - `manifest.standalone-notes-app.yaml`: ID, lokale Tool-Namen, Scopes und Widget-URI.
-- `vendor/`: gepinnte Foundation 0.21.0 aus einem sauberen Git-Stand mit Prüfsumme und MIT-Lizenz im Paket. Diese Version ist zum Starter-Zeitpunkt noch nicht auf npm verfügbar. `pnpm verify:vendor` prüft die Kopie.
+- `vendor/`: gepinnte Foundation 0.21.1 aus einem sauberen Git-Stand mit Prüfsumme und MIT-Lizenz im Paket. Eine vorherige npm-Veröffentlichung wird für diesen Starter nicht vorausgesetzt. `pnpm verify:vendor` prüft die Kopie.
 
 Standard-Datenordner: macOS `~/Library/Application Support/standalone-notes-app`, Linux `$XDG_DATA_HOME/standalone-notes-app` bzw. `~/.local/share/standalone-notes-app`, Windows `%LOCALAPPDATA%/standalone-notes-app`. Ein eigener `APP_DATA_DIR` muss absolut und außerhalb der Installation liegen. Der Referenz-Store gehört genau einem App-Prozess; bei mehreren Prozessen einen passenden transaktionalen Store einsetzen.
 

@@ -7,8 +7,8 @@ import { MCP_UI_TEMPLATE_FILES } from './mcp-ui-files.js'
 const DIRECTORY = fileURLToPath(new URL('../../templates-static/standalone-app/', import.meta.url))
 export const APP_STATIC_FILES: ReadonlyArray<{ src: string; dest: string; feature?: string }> = [
   {
-    src: 'standalone-app/vendor/plugin-bridge-foundation-0.21.0.tgz',
-    dest: 'vendor/plugin-bridge-foundation-0.21.0.tgz',
+    src: 'standalone-app/vendor/plugin-bridge-foundation-0.21.1.tgz',
+    dest: 'vendor/plugin-bridge-foundation-0.21.1.tgz',
   },
 ]
 
