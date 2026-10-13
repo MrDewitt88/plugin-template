@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { computeManifestHash } from '../src/manifest/hash.js'
 import { ManifestError, validateManifest } from '../src/manifest/loader.js'
+import { createBridgeApp } from '../src/server.js'
+import { buildTestRegistry } from '../src/testing/index.js'
 import type { PluginManifest } from '../src/types.js'
 
 const VALID: PluginManifest = {
@@ -19,6 +21,62 @@ const VALID: PluginManifest = {
 }
 
 describe('validateManifest', () => {
+  it('preserves the host storage alias through repeated validation and hashing', () => {
+    const input = {
+      ...VALID,
+      distribution: { ...VALID.distribution, storage_env: 'ETMIND_STORAGE_ROOT' },
+    }
+    const parsed = validateManifest(input)
+    expect(parsed.distribution.storage_env).toBe('ETMIND_STORAGE_ROOT')
+    expect(validateManifest(parsed)).toEqual(parsed)
+    expect(computeManifestHash(parsed)).not.toBe(computeManifestHash(VALID))
+    expect(validateManifest(VALID).distribution).not.toHaveProperty('storage_env')
+  })
+
+  it.each(['', 'bad-name', 'lowercase', '1INVALID', 'BAD NAME', null, 42])(
+    'rejects invalid storage_env %j',
+    (storage_env) => {
+      expect(() =>
+        validateManifest({ ...VALID, distribution: { ...VALID.distribution, storage_env } }),
+      ).toThrow(ManifestError)
+    },
+  )
+
+  it('returns the storage alias over the authenticated bridge with a matching health hash', async () => {
+    const manifest = validateManifest({
+      ...VALID,
+      distribution: { ...VALID.distribution, storage_env: 'ETMIND_STORAGE_ROOT' },
+    })
+    const handle = await buildTestRegistry({ hostId: 'teammind' })
+    const app = createBridgeApp({ manifest, registry: handle.registry, toolHandlers: {} })
+    const tenantId = '11111111-1111-4111-8111-111111111111'
+    const userId = '22222222-2222-4222-8222-222222222222'
+    const token = await handle.mintToken({ pluginId: manifest.id, tenantId, userId })
+    const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' }
+    const responses = [
+      await app.request('http://localhost/plugin-bridge/v1/manifest', { headers }),
+      await app.request('http://localhost/plugin-bridge/v1/handshake', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          plugin_id: manifest.id,
+          host_id: 'teammind',
+          host_version: '1.0.0',
+          tenant_id: tenantId,
+          user_id: userId,
+        }),
+      }),
+    ]
+    const health = await (await app.request('http://localhost/plugin-bridge/v1/health')).json()
+    for (const response of responses) {
+      expect(response.status).toBe(200)
+      const body = (await response.json()) as { manifest: PluginManifest }
+      const received = validateManifest(body.manifest)
+      expect(received.distribution.storage_env).toBe('ETMIND_STORAGE_ROOT')
+      expect(computeManifestHash(received)).toBe(health.manifest_hash)
+    }
+  })
+
   it('akzeptiert valides Manifest', () => {
     const result = validateManifest(VALID)
     expect(result.id).toBe('test-plugin')
@@ -120,9 +178,9 @@ describe('requires.scopes — outgoing-grant (RFC requires-scopes, PROPOSED)', (
   // Unterschied zwischen „nicht deklariert" und „nichts gebraucht" bedeutungs-
   // tragend und darf nicht durch einen Default eingeebnet werden.
   it('requires: {} → Fehler (Auslassung darf nicht wie eine Aussage aussehen)', () => {
-    expect(() =>
-      validateManifest({ ...VALID, requires: {} } as unknown as PluginManifest),
-    ).toThrow(/requires\.scopes/)
+    expect(() => validateManifest({ ...VALID, requires: {} } as unknown as PluginManifest)).toThrow(
+      /requires\.scopes/,
+    )
   })
 
   it('requires.scopes: [] → gültig, ausdrückliches „ich brauche nichts"', () => {

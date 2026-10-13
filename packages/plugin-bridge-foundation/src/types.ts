@@ -105,6 +105,13 @@ export const PluginManifestSchema = z.object({
     // wuerde, falls je einer kommt. Kommt keiner, faellt das Feld.
     type: z.enum(['external-service']),
     service_endpoint: z.string().optional(),
+    // Host-provided alias for PLUGIN_DATA_DIR. Match the host's validation;
+    // silently stripping this field loses the storage contract after parsing.
+    storage_env: z
+      .string()
+      .min(1)
+      .regex(/^[A-Z_][A-Z0-9_]*$/, 'storage_env must be a POSIX env-var name (A-Z, 0-9, _)')
+      .optional(),
     // ⚠️ LEER LASSEN. Nexus konsumiert und emittiert dieses Feld derzeit weder
     // noch (bestaetigt #8488). Falls es bleibt, bezeichnet es ausschliesslich
     // eine MENSCHLICHE Kauf-/Detailseite — niemals einen Manifest-, Bundle-
