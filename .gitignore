@@ -50,3 +50,6 @@ plugins/
 .claude/settings.json
 .claude/settings.local.json
 .mcp.json
+
+# Local unsigned mobile release candidates and QA evidence
+/artifacts/goMind-1.1.0-rc.1/

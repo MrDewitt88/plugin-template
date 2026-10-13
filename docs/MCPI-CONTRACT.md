@@ -124,7 +124,7 @@ Host-Freigabepfad vermittelt.
 | Host           | Eingebundener Pfad                                                                                                                                                                            |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Theseus/myMind | Aktivierte Plugin-Bridge-Ressourcen im MCP-App-Workbench; stdio bleibt erhalten. Callbacks über den bestehenden ToolExecutor einschließlich Freigabe und Prüfung vor dem Effekt.              |
-| goMind Android | Verbindungen je Lane im Funktionen-Bereich; Keystore-Speicher, native Einzel-HTTP-Anfragen, offizieller App-Frame. UI nur bei tatsächlich verwendeter main-frame-gebundener Capacitor-Brücke. |
+| goMind Android | Verbindungen je Lane; Keystore und native Einzel-HTTP-Anfragen. Separater WebView-Renderer mit opakem App-Frame, global gesperrtem Netzwerk und origin-/main-frame-gebundenem MCP-Aktionskanal ohne Capacitor. UI nur mit verfügbarer sicherer Brücke. |
 | goMind iOS     | Derselbe Web-Pfad; nativer sicherer Speicher, Prüfung des Script-Message-Frames und WebKit-Sperre für HTTP(S)-Dokumentnavigation.                                                             |
 
 Mobile Verbindungen benötigen einen erreichbaren HTTPS-Bridge-Endpunkt und
@@ -159,3 +159,19 @@ Referenztests: `packages/mcpi-host/test/` enthält Provider/Auth-, Browser-/SDK-
 und Smartphone-Matrix-Prüfungen. Die goMind-Repos enthalten die Plattform-
 Anbindung und Tests. Ein Browser-Test oder ein erfolgreicher nativer Compile
 ersetzt keine Ausführung der Sicherheits- und Bedienfälle auf dem Gerät.
+
+## Native Kandidatenprüfung — 2026-10-13
+
+Die goMind-Repos enthalten `1.1.0-rc.1` mit Buildnummer 2. Androids SDK-/Native-
+Isolations- und Navigationstests bestehen auf ARM64/API 35 mit 16-KB-Seiten;
+21 JVM-Tests und Debug-/Release-Lint bestehen. Der initiale Iframe-Navigations-
+Bypass wurde durch den separaten, netzwerkgesperrten Renderer geschlossen.
+iOS: vier Bridge-/SDK-Tests und die StreamProxy-Abbruchregression bestehen im
+iOS-27-Simulator. Web-Tests: Android 500, iOS 485.
+
+Unsigned APK/AAB und ein unsigniertes iOS-Geräte-Archiv sind vorbereitet.
+Die detaillierte Geräteabnahme ist auf Benutzerwunsch zurückgestellt; iOS-
+Data Protection benötigt echte Hardware. Die vollständigen finalen nativen
+Suiten, Produktionssignierung und Store-Auslieferung bleiben Release-Gates.
+Die Kandidaten-Manifeste in den goMind-Repos setzen deshalb `storeReady=false`.
+Das ist keine Freigabe als produktiver Store-Release.
