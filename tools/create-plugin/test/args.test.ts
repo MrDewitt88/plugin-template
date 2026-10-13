@@ -6,6 +6,14 @@ function call(args: string[]) {
 }
 
 describe('parseArgs', () => {
+  it('app mode supplies MCPi-UI and targets myMind/Theseus by default', () => {
+    const value = call(['notes-app', '--kind', 'app'])
+    expect(value.kind).toBe('app')
+    expect(value.hosts).toEqual(['theseus'])
+    expect(value.features).toEqual(expect.arrayContaining(['bridge', 'mcp', 'mcp-ui']))
+    expect(() => call(['notes-app', '--kind=invalid'])).toThrow(ArgsError)
+    expect(() => call(['notes-app', '--kind=app', '--features=svelte'])).toThrow(ArgsError)
+  })
   it('parses minimal: only plugin-name', () => {
     const r = call(['my-plugin'])
     expect(r.pluginName).toBe('my-plugin')

@@ -1,0 +1,15 @@
+# StandaloneNotesApp — Regeln für Coding-Agenten
+
+Dieses Projekt ist eine eigenständige App. Lies `OPENCODE.md`, dann die tatsächlichen Schemas und Implementierungen. Änderungen an Dokumentation erst anhand des fertigen Codes aktualisieren.
+
+- Haupt-App und Bridge teilen die Domain. Die App besitzt Start/Stop, Updates und Daten; keine Host-Startbefehle im Manifest ergänzen.
+- Node 24+, TypeScript, Svelte 5. Die Hauptoberfläche kann später durch einen nativen App-Wrapper ergänzt werden.
+- Lokale Verwaltung benötigt den privaten, pro App-Start erneuerten Zugang. Ein anonymer HTTP-Aufruf darf keinen Verwaltungscookie erhalten; den Bootstrap-Zugang nie im Widget oder über öffentliche Endpunkte ausliefern.
+- Erhalte die geprüfte Bridge-Foundation und das offizielle MCP-Apps-SDK. Scopes, Aussteller/Audience, Tenant-/Benutzerbindung und Callback-Herkunft dürfen nicht abgeschwächt werden.
+- Neue oder rotierte Host-Schlüssel bleiben ausstehend. Freigabe nur lokal nach Fingerprint-Vergleich; registrieren und freigeben benutzen dieselbe Queue.
+- Ein Caller darf keinen Besitzer über Tool-Argumente oder Body-IDs auswählen. Nur verifizierte Claims verwenden.
+- MCPi-UI B1: kein CDN, kein Widget-Netzwerk, keine native Bridge, keine Token im HTML. Namen bei `callServerTool` sind provider-lokal. Aktionen über Buttons/SDK; das opake Host-Frame erlaubt keine Formularnavigation.
+- UI-Daten als Text/Props rendern. Keine automatische Wiederholung schreibender Tools nach Abbruch oder unbekanntem Ausgang.
+- Durable Daten außerhalb der Installation halten. Ein App-Prozess schreibt den Referenz-JSON-Store; bei einem anderen Betriebsmodell den Store ersetzen.
+- `pnpm typecheck`, `pnpm test` und einen Live-Rundlauf nach relevanten Änderungen ausführen. Neue Domain-Tools bekommen Schemas und sinnvolle Berechtigungs-/Fehlerfälle. Bei UI-Änderungen die 320/360/390/430-px-Matrix prüfen.
+- Keine Secrets, lokale `.env`, Host-Privatschlüssel, Datenordner oder `node_modules` committen. Keine automatische KI-Attribution in Commits.

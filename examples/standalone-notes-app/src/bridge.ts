@@ -1,0 +1,51 @@
+import { readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
+import {
+  createBridgeApp, discoverManifest, JsonFileHostKeyRepo,
+  type BridgeAuthContext, type ToolHandler,
+} from '@nexus-mindgarden/plugin-bridge-foundation'
+import { z } from 'zod'
+import { IdentitySchema, type ItemStore } from './domain.js'
+import { AppHostRegistry } from './trust.js'
+
+export const APP_ID = 'standalone-notes-app'
+/** Never derive an owner from arguments or the execute-tool request body. */
+export function tokenIdentity(context: BridgeAuthContext) {
+  const claims = context.claims
+  if (claims.aud !== APP_ID || (claims.plugin_id && claims.plugin_id !== APP_ID)) throw new Error('invalid_audience')
+  const userId = claims.user_id ?? claims.sub
+  if (claims.user_id && claims.sub && claims.user_id !== claims.sub) throw new Error('invalid_identity')
+  return IdentitySchema.parse({ tenantId: claims.tenant_id, userId })
+}
+
+export async function createIntegration(rootDirectory: string, dataDirectory: string, store: ItemStore, endpoint: string) {
+  const { manifest } = await discoverManifest(rootDirectory)
+  if (manifest.id !== APP_ID) throw new Error('manifest_id_mismatch')
+  manifest.distribution.service_endpoint = endpoint
+  const records = new JsonFileHostKeyRepo({ path: resolve(dataDirectory, 'host-keys.json') })
+  await records.load()
+  const registry = new AppHostRegistry(records, APP_ID)
+  const list: ToolHandler = async (args, context) => {
+    z.object({}).strict().parse(args)
+    const items = await store.list(tokenIdentity(context))
+    return { content: [{ type: 'text', text: items.length + ' Einträge' }], structuredContent: { items } }
+  }
+  const create: ToolHandler = async (args, context) => {
+    const item = await store.create(tokenIdentity(context), args)
+    return { content: [{ type: 'text', text: 'Eintrag angelegt.' }], structuredContent: { item } }
+  }
+  const bridge = createBridgeApp({
+    manifest, registry, enforceScopes: true,
+    toolHandlers: { 'items.list': list, 'items.create': create, 'items.panel': list },
+    mcpUiResources: [{
+      resource: { uri: 'ui://standalone-notes-app/item-panel', name: 'item-panel', title: 'StandaloneNotesApp Einträge',
+        _meta: { ui: { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: true } },
+      },
+      read: context => {
+        tokenIdentity(context)
+        return readFile(resolve(rootDirectory, 'dist-plugin/item-panel.html'), 'utf8')
+      },
+    }],
+  })
+  return { bridge, registry, manifest }
+}

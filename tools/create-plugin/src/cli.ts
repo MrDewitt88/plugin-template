@@ -104,7 +104,7 @@ export async function runCli(argv: string[]): Promise<number> {
     return runFeaturesNote(parsed)
   }
 
-  console.log(`scaffolding plugin '${parsed.pluginName}' →  ${parsed.target}`)
+  console.log(`scaffolding ${parsed.kind} '${parsed.pluginName}' →  ${parsed.target}`)
   console.log(`  hosts:    ${parsed.hosts.join(', ')}`)
   console.log(`  features: ${parsed.features.join(', ')}`)
   console.log('')
@@ -112,6 +112,7 @@ export async function runCli(argv: string[]): Promise<number> {
   let result
   try {
     result = scaffold({
+      kind: parsed.kind,
       pluginName: parsed.pluginName,
       hosts: parsed.hosts,
       features: parsed.features,
@@ -131,8 +132,16 @@ export async function runCli(argv: string[]): Promise<number> {
   console.log(`done. next:`)
   console.log(`  cd ${parsed.target}`)
   console.log(`  pnpm install`)
+  if (parsed.kind === 'app') console.log(`  pnpm typecheck`)
   console.log(`  pnpm test`)
+  if (parsed.kind === 'app') {
+    console.log(`  pnpm start`)
+    console.log(`  Follow OPENCODE.md for myMind pairing and domain adaptation.`)
+  }
   console.log('')
-  console.log(`docs:  https://github.com/MrDewitt88/plugin-template/blob/main/docs/PLUGIN-PROVIDER-GUIDE.md`)
+  const guide = parsed.kind === 'app' ? 'MCPI-CONTRACT.md' : 'PLUGIN-PROVIDER-GUIDE.md'
+  console.log(
+    `docs:  https://github.com/MrDewitt88/plugin-template/blob/main/docs/${guide}`,
+  )
   return 0
 }

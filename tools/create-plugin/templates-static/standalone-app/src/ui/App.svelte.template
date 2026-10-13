@@ -1,0 +1,87 @@
+<script lang="ts">
+  import { onMount } from 'svelte'
+  import type { Item } from '../domain.js'
+  type Host = { hostId: string; fingerprint: string; issuer: string; status: string }
+  let items = $state<Item[]>([]), hosts = $state<Host[]>([])
+  let text = $state(''), status = $state(''), busy = $state(false)
+  let config = $state<{ bridgeEndpoint: string; identity: { tenantId: string; userId: string } }>()
+  async function request<T>(path: string, body?: unknown): Promise<T> {
+    const response = await fetch(path, body === undefined ? {} : {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-app-action': '1' }, body: JSON.stringify(body),
+    })
+    if (!response.ok) throw new Error('operation_failed')
+    return await response.json() as T
+  }
+  async function refresh() {
+    const [entries, connections] = await Promise.all([request<{ items: Item[] }>('/api/items'), request<{ hosts: Host[] }>('/api/hosts')])
+    items = entries.items; hosts = connections.hosts
+  }
+  async function run(action: () => Promise<void>) {
+    if (busy) return
+    busy = true; status = ''
+    try { await action(); await refresh() }
+    catch { status = 'Aktion konnte nicht abgeschlossen werden. Bitte den privaten App-Starter erneut öffnen oder den Zustand prüfen und neu laden.' }
+    finally { busy = false }
+  }
+  onMount(() => { void run(async () => {
+    const token = new URLSearchParams(location.hash.slice(1)).get('session')
+    history.replaceState(null, '', location.pathname)
+    if (token) {
+      const response = await fetch('/session', { method: 'POST', headers: { authorization: 'Bearer ' + token, 'x-app-action': '1' } })
+      if (!response.ok) throw new Error('local_access_required')
+    }
+    config = await request('/api/config')
+  }) })
+  async function create() {
+    await run(async () => { await request('/api/items', { text }); text = '' })
+  }
+  async function decide(host: Host, approve: boolean) {
+    await run(async () => { await request('/api/hosts/decision', { hostId: host.hostId, fingerprint: host.fingerprint, issuer: host.issuer, approve }) })
+  }
+</script>
+
+<main>
+  <header><p class="eyebrow">Eigenständige App</p><h1>{{pluginNamePascal}}</h1><p>Deine Einträge bleiben verfügbar, auch wenn myMind geschlossen ist.</p></header>
+  <section aria-labelledby="items-title">
+    <h2 id="items-title">Einträge</h2>
+    <form onsubmit={event => { event.preventDefault(); void create() }}>
+      <label>Neuer Eintrag<input bind:value={text} required maxlength="500" autocomplete="off" /></label>
+      <button disabled={busy}>Anlegen</button>
+    </form>
+    <button disabled={busy} onclick={() => void run(async () => {})}>Aktualisieren</button>
+    <ul>{#each items as item (item.id)}<li>{item.text}</li>{/each}</ul>
+    {#if !items.length}<p>Noch keine Einträge.</p>{/if}
+  </section>
+  <section aria-labelledby="mymind-title">
+    <h2 id="mymind-title">myMind verbinden</h2>
+    <p>Manifest in myMind installieren und Aktivierung starten. Danach den ausstehenden Host hier prüfen, freigeben und die Aktivierung in myMind wiederholen.</p>
+    {#if config}
+      <p>Bridge: <code>{config.bridgeEndpoint}</code></p>
+      <a href="/api/manifest" download>Manifest herunterladen</a>
+      <details><summary>Arbeitsraum und Benutzer</summary><p>Dieselben IDs in der App-Konfiguration und in myMind verwenden.</p><code>{config.identity.tenantId}<br />{config.identity.userId}</code></details>
+    {/if}
+    <button disabled={busy} onclick={() => void run(async () => {})}>Verbindungen laden</button>
+    {#each hosts as host (host.hostId)}
+      <article>
+        <h3>{host.hostId} · {host.status}</h3>
+        <p>Fingerabdruck mit dem öffentlichen Schlüssel aus myMind vergleichen.</p><code>{host.fingerprint}</code>
+        <label>Aussteller<input bind:value={host.issuer} disabled={host.status === 'active'} required /></label>
+        {#if host.status !== 'active'}<button disabled={busy || !host.issuer.trim()} onclick={() => void decide(host, true)}>Geprüften Schlüssel freigeben</button>{/if}
+        <button disabled={busy} onclick={() => void decide(host, false)}>Verbindung sperren</button>
+      </article>
+    {/each}
+    {#if !hosts.length}<p>Noch keine Host-Anfragen.</p>{/if}
+  </section>
+  <p role="status">{status}</p>
+</main>
+
+<style>
+  :global(html){font:16px system-ui,sans-serif;color-scheme:light dark;background:light-dark(#f4f5f7,#141619);color:light-dark(#17212b,#edf1f6)}
+  :global(body){margin:0} :global(*){box-sizing:border-box}
+  main{max-width:760px;margin:auto;padding:24px 16px;overflow-wrap:anywhere}
+  header{margin-bottom:24px}.eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase}h1{margin:8px 0;font-size:clamp(1.5rem,6vw,2.4rem)}h2{font-size:1.25rem}
+  section{padding:20px;margin:16px 0;border:1px solid #7b859544;border-radius:16px;background:light-dark(#fff,#202329)}
+  form,label{display:grid;gap:8px}form{margin-bottom:12px}label{margin:12px 0}input{width:100%;min-width:0}
+  input,button,a,summary{font:inherit;min-height:44px}input,button{border:1px solid #7b859577;border-radius:10px;padding:10px 14px}button{cursor:pointer;max-width:100%;margin:4px 4px 4px 0}button:disabled{opacity:.5}
+  a{display:inline-flex;align-items:center}code{display:block;white-space:normal;overflow-wrap:anywhere;font-size:13px}article{padding:12px 0;border-top:1px solid #7b859544}li{margin:8px 0}
+</style>

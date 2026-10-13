@@ -1,0 +1,38 @@
+id: {{pluginName}}
+name: { de: '{{pluginNamePascal}}', en: '{{pluginNamePascal}}' }
+description: { de: 'Eigenständige Einträge-App mit MCPi-Anbindung', en: 'Standalone items app with MCPi integration' }
+version: 0.1.0
+distribution:
+  type: external-service
+  service_endpoint: http://127.0.0.1:3670
+# No start_command: the app owns its process and lifecycle.
+compatibility:
+  apps: [{{hosts}}]
+  min_app_version: 1.0.0-rc.1
+provides:
+  routes: []
+  module_extensions: []
+  scopes_required: [mcp.read.{{pluginName}}]
+  mcp_tools:
+    - name: items.list
+      description: Liest die Einträge des autorisierten Benutzers und Arbeitsraums.
+      input_schema: { type: object, properties: {}, additionalProperties: false }
+      scopes_required: []
+    - name: items.create
+      description: Legt einen Eintrag in der eigenständigen App an.
+      input_schema:
+        type: object
+        properties:
+          text: { type: string, minLength: 1, maxLength: 500 }
+        required: [text]
+        additionalProperties: false
+      scopes_required: [mcp.write.{{pluginName}}.items]
+      annotations: { readOnlyHint: false, destructiveHint: false }
+    - name: items.panel
+      description: Öffnet das kompakte App-Widget zum Lesen und Anlegen von Einträgen.
+      input_schema: { type: object, properties: {}, additionalProperties: false }
+      scopes_required: []
+      _meta:
+        ui:
+          resourceUri: ui://{{pluginName}}/item-panel
+          visibility: [model, app]

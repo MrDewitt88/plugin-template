@@ -1,0 +1,43 @@
+import { App } from '@modelcontextprotocol/ext-apps/app-with-deps'
+const app = new App({ name: '{{pluginNamePascal}} Panel', version: '0.1.0' }, {})
+const status = document.querySelector<HTMLElement>('#status')!
+const items = document.querySelector<HTMLElement>('#items')!
+const refresh = document.querySelector<HTMLButtonElement>('#refresh')!
+const save = document.querySelector<HTMLButtonElement>('#save')!
+const text = document.querySelector<HTMLInputElement>('#text')!
+let connected = false, busy = false
+function controls() { refresh.disabled = save.disabled = !connected || busy }
+function render(result: { structuredContent?: unknown; isError?: boolean | undefined }) {
+  const data = result.structuredContent
+  if (result.isError || !data || typeof data !== 'object' || !('items' in data) || !Array.isArray(data.items)) return
+  items.replaceChildren()
+  for (const item of data.items) {
+    if (!item || typeof item !== 'object' || !('text' in item) || typeof item.text !== 'string') continue
+    const row = document.createElement('li'); row.textContent = item.text; items.append(row)
+  }
+  status.textContent = 'Einträge geladen.'
+}
+app.ontoolresult = render
+app.onhostcontextchanged = context => { if (context.theme) document.documentElement.style.colorScheme = context.theme }
+async function list() { render(await app.callServerTool({ name: 'items.panel', arguments: {} })) }
+async function run(action: () => Promise<void>) {
+  if (!connected || busy) return
+  busy = true; controls()
+  try { await action() }
+  catch { status.textContent = 'Aktion nicht abgeschlossen. Bitte Zustand aktualisieren; keine automatische Wiederholung.' }
+  finally { busy = false; controls() }
+}
+refresh.addEventListener('click', () => { void run(list) })
+function create() {
+  if (!text.reportValidity()) return
+  void run(async () => {
+    const result = await app.callServerTool({ name: 'items.create', arguments: { text: text.value } })
+    if (result.isError) throw new Error('create_failed')
+    text.value = ''; await list()
+  })
+}
+save.addEventListener('click', create)
+text.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); create() } })
+// No bearer token, fetch, native bridge or access to the app's primary DOM.
+void app.connect().then(() => { connected = true; controls(); status.textContent = 'Bereit. Einträge mit Aktualisieren laden.' })
+  .catch(() => { status.textContent = 'Dieses Widget benötigt einen MCP-Apps-Host.' })

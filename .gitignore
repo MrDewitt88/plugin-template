@@ -53,3 +53,6 @@ plugins/
 
 # Local unsigned mobile release candidates and QA evidence
 /artifacts/goMind-1.1.0-rc.1/
+
+# Local standalone starter packages and QA results
+/artifacts/standalone-app-starter/

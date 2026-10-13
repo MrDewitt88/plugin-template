@@ -1,5 +1,32 @@
 # @nexus-mindgarden/create-plugin
 
+## Eigenständige Apps mit myMind — ab 0.16.0
+
+`--kind=app` erzeugt eine eigene Svelte-5-/Node-24-App mit dauerhaftem Store,
+expliziter Host-Freigabe, MCPi-Bridge und einem selbstenthaltenen MCPi-UI-B1-Widget.
+Das fertige, kopierbare Beispiel liegt unter
+[`examples/standalone-notes-app`](../../examples/standalone-notes-app/README.md).
+Dort enthalten `OPENCODE.md` und `AGENTS.md` den konkreten Weiterbau-Auftrag.
+
+Aus dem aktuellen Repository nach Installation und Build des Generators:
+
+```sh
+node tools/create-plugin/bin/cli.js my-app --kind=app --target=../my-app
+cd ../my-app
+pnpm install
+pnpm typecheck
+pnpm test
+pnpm start
+```
+
+Die Starter-Foundation 0.21.0 liegt geprüft unter `vendor/`; der App-Starter
+ist damit von einer npm-Veröffentlichung dieser Foundation unabhängig.
+Die neue Generator-Version wird hier nicht als bereits auf npm veröffentlicht
+ausgegeben. Plugin-Modus und dessen bestehende Defaults bleiben erhalten.
+App-Modus richtet sich standardmäßig an `theseus` (myMind), liefert seine
+eigene Svelte-Oberfläche und seinen Store und übernimmt keine Host-Startbefehle.
+Native Installer/Hintergrunddienste sind App-spezifische Erweiterungen.
+
 CLI-Scaffold für `@nexus` Plugin-Provider. Generiert ein neues Plugin-Repo mit Foundation-Packages-Wiring + Manifest + CLAUDE.md + ARCHITECTURE-skeleton.
 
 ## Usage
@@ -10,12 +37,12 @@ npx @nexus-mindgarden/create-plugin <plugin-name> [options]
 
 ### Options
 
-| Flag | Default | Description |
-|---|---|---|
-| `--hosts=<list>` | `teammind,theseus,familymind` | Targeted hosts (comma-separated). Valid: `teammind`, `theseus`, `familymind` |
-| `--features=<list>` | `mcp` | Foundation-features (bridge always implied). Valid: `bridge`, `storage`, `svelte`, `mcp`, `mcp-ui` |
-| `--target=<dir>` | `./<plugin-name>` | Output-Directory |
-| `--help`, `-h` | — | Show help |
+| Flag                | Default                       | Description                                                                                        |
+| ------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------- |
+| `--hosts=<list>`    | `teammind,theseus,familymind` | Targeted hosts (comma-separated). Valid: `teammind`, `theseus`, `familymind`                       |
+| `--features=<list>` | `mcp`                         | Foundation-features (bridge always implied). Valid: `bridge`, `storage`, `svelte`, `mcp`, `mcp-ui` |
+| `--target=<dir>`    | `./<plugin-name>`             | Output-Directory                                                                                   |
+| `--help`, `-h`      | —                             | Show help                                                                                          |
 
 ### Examples
 
@@ -76,6 +103,7 @@ pnpm typecheck      # tsc --noEmit
 ```
 
 Dann:
+
 1. Customize `manifest.yaml` mit MCP-Tools + module_extensions
 2. Implement Tool-Handlers in `packages/<plugin>-bridge/src/index.ts`
 3. Plus Foundation-Package-Imports per `--features` Auswahl
@@ -111,6 +139,7 @@ pnpm typecheck  # tsc --noEmit
 ```
 
 Coverage:
+
 - `args.test.ts` — parse-positional, --help, --hosts/--features/--target overrides, all error-paths (missing/invalid name/hosts/features), bridge-implied-feature
 - `render.test.ts` — buildContext kebab→camel/pascal/prefix, year, value-replacements, conditional sections (`{{#if features.X}}`), nested replacements
 - `scaffold.test.ts` — root-files written, placeholder-rendering, target-exists-throws, --force-override, feature-skip-when-absent, filesWritten + context returned

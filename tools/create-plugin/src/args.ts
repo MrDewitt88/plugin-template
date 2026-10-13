@@ -10,6 +10,7 @@
 //   --target=./<plugin-name>
 
 export interface ParsedArgs {
+  kind: 'plugin' | 'app'
   /** `scaffold` (default) oder das `features-note`-Subcommand. */
   command: 'scaffold' | 'features-note'
   pluginName: string
@@ -42,7 +43,7 @@ export class ArgsError extends Error {
 // (Leerzeichen- statt `=`-Form) als Boolean `'true'` geparst und der Wert
 // stillschweigend in positional[] verschwinden — die Datei landete dann
 // wörtlich unter `./true`, mit exit 0.
-const VALUE_FLAGS = new Set(['hosts', 'features', 'target', 'dir', 'out'])
+const VALUE_FLAGS = new Set(['hosts', 'features', 'target', 'dir', 'out', 'kind'])
 
 const VALID_HOSTS = ['teammind', 'theseus', 'familymind'] as const
 const VALID_FEATURES = ['bridge', 'storage', 'svelte', 'mcp', 'mcp-ui'] as const
@@ -89,6 +90,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
   if (help) {
     return {
       command: 'scaffold',
+      kind: 'plugin',
       pluginName: '',
       hosts: [],
       features: [],
@@ -110,6 +112,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
     return {
       command: 'features-note',
+      kind: 'plugin',
       pluginName: '',
       hosts: [],
       features: [],
@@ -131,8 +134,15 @@ export function parseArgs(argv: string[]): ParsedArgs {
     )
   }
 
-  const hostsRaw = flags.hosts ?? 'teammind,theseus,familymind'
-  const hosts = hostsRaw.split(',').map((s) => s.trim()).filter(Boolean)
+  const kind = flags.kind ?? 'plugin'
+  if (kind !== 'plugin' && kind !== 'app') {
+    throw new ArgsError('invalid_features', '--kind must be plugin or app')
+  }
+  const hostsRaw = flags.hosts ?? (kind === 'app' ? 'theseus' : 'teammind,theseus,familymind')
+  const hosts = hostsRaw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
   for (const h of hosts) {
     if (!VALID_HOSTS.includes(h as (typeof VALID_HOSTS)[number])) {
       throw new ArgsError(
@@ -142,8 +152,11 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
   }
 
-  const featuresRaw = flags.features ?? 'mcp'
-  const featuresList = featuresRaw.split(',').map((s) => s.trim()).filter(Boolean)
+  const featuresRaw = flags.features ?? (kind === 'app' ? 'mcp,mcp-ui' : 'mcp')
+  const featuresList = featuresRaw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
   // bridge is always implied
   const featuresSet = new Set<string>([...featuresList, 'bridge'])
   for (const f of featuresSet) {
@@ -155,10 +168,29 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
   }
   const features = Array.from(featuresSet) as ParsedArgs['features']
+  if (kind === 'app') {
+    if (features.some((feature) => feature === 'storage' || feature === 'svelte'))
+      throw new ArgsError(
+        'invalid_features',
+        'App starter includes its own persistent domain store and Svelte UI; plugin storage/svelte features are not applicable',
+      )
+    for (const feature of ['mcp', 'mcp-ui'] as const)
+      if (!features.includes(feature)) features.push(feature)
+  }
 
   const target = flags.target ?? `./${pluginName}`
 
-  return { command: 'scaffold', pluginName, hosts, features, target, help: false, dir: '.', out: '-' }
+  return {
+    command: 'scaffold',
+    kind,
+    pluginName,
+    hosts,
+    features,
+    target,
+    help: false,
+    dir: '.',
+    out: '-',
+  }
 }
 
 export const HELP_TEXT = `
@@ -168,6 +200,9 @@ Usage:
   npx @nexus-mindgarden/create-plugin <plugin-name> [options]
 
 Options:
+  --kind=app         Standalone app: own Svelte UI, persistent store, MCPi bridge
+                      and MCPi-UI B1. Default: plugin. App host default: theseus.
+
   --hosts=<list>      Welche Hosts targeten (comma-separated)
                       Valid: teammind, theseus, familymind
                       Default: teammind,theseus,familymind
@@ -182,6 +217,7 @@ Options:
   --help, -h          Show this help
 
 Examples:
+  npx @nexus-mindgarden/create-plugin my-app --kind=app
   npx @nexus-mindgarden/create-plugin my-plugin
   npx @nexus-mindgarden/create-plugin my-plugin --features=mcp,storage,svelte
   npx @nexus-mindgarden/create-plugin my-plugin --features=mcp-ui

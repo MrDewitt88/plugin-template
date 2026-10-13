@@ -1,0 +1,45 @@
+# StandaloneNotesApp — eigenständige App mit MCPi/MCPi-UI
+
+Eine lauffähige Node-24-/Svelte-5-Referenz-App. Eigener Prozess, eigene Hauptoberfläche und dauerhafte Daten; myMind erreicht dieselbe Domain über die Plugin Bridge. Das kompakte MCP-Apps-Widget verwendet das gemeinsame B1-Profil.
+
+## Start
+
+```sh
+pnpm install
+pnpm typecheck
+pnpm test
+pnpm start
+```
+
+`pnpm test` baut die App und das Widget und prüft Persistenz, Host-Freigabe, Schlüsselwechsel, Benutzertrennung, lokale Settings und Konfiguration. Öffne anschließend die beim Start ausgegebene private Datei `open-app.html` und ihren App-Link. Sie liegt im App-Datenordner und ist nur für den Betriebssystem-Benutzer lesbar; der einmalige lokale Zugang bleibt getrennt von allen myMind-Tokens. Die Hauptoberfläche läuft auf `http://127.0.0.1:3671`. Nach App-Neustart die private Startdatei erneut öffnen. Die Bridge läuft separat auf Port 3670 im selben App-Prozess. Beide Ports sind mit `APP_PORT` / `APP_BRIDGE_PORT` konfigurierbar.
+
+Für echte myMind-Daten `.env.example` nach `.env` kopieren und `APP_TENANT_ID` / `APP_USER_ID` auf denselben autorisierten Arbeitsraum und Benutzer wie in myMind setzen. Die Vorgabewerte sind Demo-UUIDs. Die App zeigt ihre aktuellen IDs unter „Arbeitsraum und Benutzer“.
+
+## myMind verbinden
+
+1. App selbst starten und die private Startdatei öffnen. Die App verwaltet ihren Prozess; das Manifest enthält keinen Host-Startbefehl.
+2. In der App „Manifest herunterladen“ wählen. Der Download enthält den tatsächlich konfigurierten Bridge-Endpunkt.
+3. Dieses Manifest in myMind installieren, Lese-/Schreibrechte nach Bedarf freigeben und Aktivierung starten. Voraussetzung ist myMind mit der neuen MCP-Apps-Host-Anbindung.
+4. In der App „Verbindungen laden“. Den angezeigten Fingerabdruck mit dem öffentlichen Schlüssel aus der eigenen myMind-Instanz vergleichen. Das Format berechnet `node scripts/fingerprint-host.mjs /absoluter/pfad/plugins/keys/public.pem`; den privaten Schlüssel niemals kopieren. Der Aussteller wird von myMind bei der Registrierung übermittelt, üblicherweise `theseus-instance`.
+5. Den geprüften Schlüssel in der App freigeben, dann die Aktivierung in myMind wiederholen. Bei Schlüsselwechsel wird erneut eine Freigabe benötigt.
+6. Im MCP-App-Workbench die Ressource `ui://standalone-notes-app/item-panel` öffnen. „Aktualisieren“ liest; „Anlegen“ ruft das freigegebene Schreibwerkzeug auf. myMind übernimmt seine Tool-Freigabe. Die vollständige App bleibt unabhängig davon benutzbar.
+
+## Aufbau
+
+- `src/domain.ts`: gemeinsame, validierte Domain und atomarer JSON-Datenspeicher je Tenant/Benutzer.
+- `src/ui/`: vollständige Svelte-App; lokale Settings und Host-Freigabe.
+- `src/bridge.ts`: Adapter, feste Ressourcen und MCP-Tools; Identität ausschließlich aus geprüften Token-Claims.
+- `src/trust.ts`: persistente Registrierung, explizite Fingerprint-Freigabe, Aussteller/Audience und erneut ausstehende Schlüsselwechsel.
+- `packages/standalone-notes-app-mcp-ui/`: selbstenthaltenes SDK-Widget, maximal 512 KiB, ohne eigene Netzwerkanfragen oder Zugangstoken.
+- `manifest.standalone-notes-app.yaml`: ID, lokale Tool-Namen, Scopes und Widget-URI.
+- `vendor/`: gepinnte Foundation 0.21.0 aus einem sauberen Git-Stand mit Prüfsumme und MIT-Lizenz im Paket. Diese Version ist zum Starter-Zeitpunkt noch nicht auf npm verfügbar. `pnpm verify:vendor` prüft die Kopie.
+
+Standard-Datenordner: macOS `~/Library/Application Support/standalone-notes-app`, Linux `$XDG_DATA_HOME/standalone-notes-app` bzw. `~/.local/share/standalone-notes-app`, Windows `%LOCALAPPDATA%/standalone-notes-app`. Ein eigener `APP_DATA_DIR` muss absolut und außerhalb der Installation liegen. Der Referenz-Store gehört genau einem App-Prozess; bei mehreren Prozessen einen passenden transaktionalen Store einsetzen.
+
+## Plattformen
+
+Der Starter ist eine eigenständige Web-App mit Node-Dienst. Ein nativer Installer, App-Wrapper oder Android-/iOS-Hintergrunddienst wird im jeweiligen App-Projekt ergänzt. Android/iOS-hosts starten keine Node-/Bun-/Python-Dienste aus diesem Template. Für mobile Host-Verbindungen den App-Bridge-Dienst über einen expliziten HTTPS-Endpunkt erreichbar machen; die lokale Settings-Oberfläche bleibt auf Loopback. Beispielvariablen stehen in `.env.example`.
+
+Die goMind-Geräteabnahme ist weiterhin offen. Das verhindert die App-Entwicklung und die Desktop-myMind-Anbindung nicht und ist keine mobile Store-Freigabe.
+
+Weiterarbeit: `OPENCODE.md` und `AGENTS.md`.

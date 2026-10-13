@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { TEMPLATE_FILES } from '../templates/files.js'
 import { buildContext, render, type TemplateContext } from '../templates/render.js'
+import { appTemplates, APP_STATIC_FILES } from '../templates/app-files.js'
 
 // Static (non-templated) files copied verbatim into the scaffold. The bundle
 // packer is plugin-agnostic — no placeholders — so it ships as a static asset
@@ -41,6 +42,7 @@ export class ScaffoldError extends Error {
 }
 
 export interface ScaffoldOptions {
+  kind?: 'plugin' | 'app'
   pluginName: string
   hosts: string[]
   features: string[]
@@ -64,9 +66,22 @@ export interface ScaffoldResult {
 export function scaffold(opts: ScaffoldOptions): ScaffoldResult {
   // The public API needs the same dependency as the CLI: an MCP UI view
   // without its resource-serving bridge would produce an unusable plugin.
-  const features = opts.features.includes('mcp-ui')
-    ? [...new Set([...opts.features, 'bridge'])]
-    : opts.features
+  if (opts.kind === 'app' && !/^[a-z][a-z0-9-]*[a-z0-9]$/.test(opts.pluginName))
+    throw new ScaffoldError('invalid_target', 'App ID must be kebab-case')
+  if (
+    opts.kind === 'app' &&
+    opts.features.some((feature) => !['bridge', 'mcp', 'mcp-ui'].includes(feature))
+  )
+    throw new ScaffoldError(
+      'invalid_target',
+      'App mode already includes its own store and Svelte UI',
+    )
+  const features =
+    opts.kind === 'app'
+      ? [...new Set([...opts.features, 'bridge', 'mcp', 'mcp-ui'])]
+      : opts.features.includes('mcp-ui')
+        ? [...new Set([...opts.features, 'bridge'])]
+        : opts.features
   const target = resolve(opts.target)
   if (existsSync(target) && !opts.force) {
     throw new ScaffoldError(
@@ -83,7 +98,7 @@ export function scaffold(opts: ScaffoldOptions): ScaffoldResult {
 
   const written: string[] = []
 
-  for (const file of TEMPLATE_FILES) {
+  for (const file of opts.kind === 'app' ? appTemplates() : TEMPLATE_FILES) {
     if (file.feature && !features.includes(file.feature)) continue
 
     const renderedPath = render(file.path, context)
@@ -103,7 +118,7 @@ export function scaffold(opts: ScaffoldOptions): ScaffoldResult {
   }
 
   // Static assets copied verbatim (no rendering).
-  for (const sf of STATIC_FILES) {
+  for (const sf of opts.kind === 'app' ? APP_STATIC_FILES : STATIC_FILES) {
     if (sf.feature && !features.includes(sf.feature)) continue
     const dest = render(sf.dest, context)
     const fullPath = join(target, dest)

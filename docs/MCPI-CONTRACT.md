@@ -121,11 +121,11 @@ Host-Freigabepfad vermittelt.
 
 ## Implementierter Host-Umfang
 
-| Host           | Eingebundener Pfad                                                                                                                                                                            |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Theseus/myMind | Aktivierte Plugin-Bridge-Ressourcen im MCP-App-Workbench; stdio bleibt erhalten. Callbacks über den bestehenden ToolExecutor einschließlich Freigabe und Prüfung vor dem Effekt.              |
+| Host           | Eingebundener Pfad                                                                                                                                                                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Theseus/myMind | Aktivierte Plugin-Bridge-Ressourcen im MCP-App-Workbench; stdio bleibt erhalten. Callbacks über den bestehenden ToolExecutor einschließlich Freigabe und Prüfung vor dem Effekt.                                                                       |
 | goMind Android | Verbindungen je Lane; Keystore und native Einzel-HTTP-Anfragen. Separater WebView-Renderer mit opakem App-Frame, global gesperrtem Netzwerk und origin-/main-frame-gebundenem MCP-Aktionskanal ohne Capacitor. UI nur mit verfügbarer sicherer Brücke. |
-| goMind iOS     | Derselbe Web-Pfad; nativer sicherer Speicher, Prüfung des Script-Message-Frames und WebKit-Sperre für HTTP(S)-Dokumentnavigation.                                                             |
+| goMind iOS     | Derselbe Web-Pfad; nativer sicherer Speicher, Prüfung des Script-Message-Frames und WebKit-Sperre für HTTP(S)-Dokumentnavigation.                                                                                                                      |
 
 Mobile Verbindungen benötigen einen erreichbaren HTTPS-Bridge-Endpunkt und
 einen dafür vom registrierten Host ausgestellten, plugin-/benutzer-/tenant-
@@ -175,3 +175,20 @@ Data Protection benötigt echte Hardware. Die vollständigen finalen nativen
 Suiten, Produktionssignierung und Store-Auslieferung bleiben Release-Gates.
 Die Kandidaten-Manifeste in den goMind-Repos setzen deshalb `storeReady=false`.
 Das ist keine Freigabe als produktiver Store-Release.
+
+## Konkreter Standalone-Starter — Template 0.10.0
+
+`create-plugin <app-id> --kind=app` (Generator 0.16.0) erzeugt eine eigene
+Node-24-/Svelte-5-App. Hauptoberfläche und MCPi-Werkzeuge teilen den validierten,
+dauerhaften Store; ein separates SDK-Widget liefert B1-Lesen/Anlegen.
+Hosts werden nach Fingerprint-/Aussteller-Prüfung lokal freigegeben;
+Audience, Scopes und signierte Benutzer-/Tenant-Claims bleiben verpflichtend.
+Die App verwaltet ihren Prozess. Native App-Pakete werden in ihrem Projekt ergänzt.
+
+Kopierbares Beispiel: `examples/standalone-notes-app/`; OpenCode-Auftrag:
+`examples/standalone-notes-app/OPENCODE.md`. Die gepinnte Foundation ist
+beigelegt und mit SHA-256 prüfbar; eine npm-Veröffentlichung wird nicht vorausgesetzt.
+B1-Aktionen benutzen Buttons/SDK-Callbacks. Formularnavigation ist im opaken
+Frame gesperrt und darf für den Starter nicht freigeschaltet werden.
+
+Die zurückgestellte mobile Geräteabnahme bleibt unverändert ein goMind-Release-Gate.
